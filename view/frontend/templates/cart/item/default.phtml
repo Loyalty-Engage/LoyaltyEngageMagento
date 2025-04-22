@@ -1,0 +1,5 @@
+<?php if ($_item->getOptionByCode('loyalty_locked_qty')): ?>
+    <span><?php echo __('Qty: 1'); ?></span>
+<?php else: ?>
+    <?php echo $block->getQtyRenderer($_item)->toHtml(); ?>
+<?php endif; ?>
