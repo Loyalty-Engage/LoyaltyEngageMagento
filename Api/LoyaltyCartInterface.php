@@ -16,4 +16,16 @@ interface LoyaltyCartInterface
      * @return LoyaltyCartResponseInterface
      */
     public function addProduct(int $customerId, string $sku);
+
+    /**
+     * Claim a discount after adding product using customer ID.
+     *
+     * @param int $customerId
+     * @param float $discount
+     * @param string $sku
+     * @return LoyaltyCartResponseInterface
+     */
+    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface;
+
+
 }

@@ -11,5 +11,10 @@
             method="execute">
             <schedule>*/5 * * * *</schedule> <!-- Runs every 5 minute -->
         </job>
+
+        <!-- Message Queue Consumer Cron Jobs -->
+        <job name="loyaltyshop_run_consumers" instance="Magento\Framework\Cron\Observer\ProcessCronQueueObserver" method="execute">
+            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+        </job>
     </group>
 </config>

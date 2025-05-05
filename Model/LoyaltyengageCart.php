@@ -245,4 +245,35 @@ class LoyaltyengageCart
         $responseCode = $this->curl->getStatus();
         return $responseCode;
     }
+
+    public function claimDiscount(string $email, float $discount): ?array
+    {
+        $apiUrl = $this->getapiUrl();
+        $url = $apiUrl . '/api/v1/discount/' . $email . '/claim';
+
+        $payload = ['discount' => $discount];
+
+        $this->curl->addHeader('Content-Type', 'application/json');
+        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
+        $this->curl->post($url, json_encode($payload));
+
+        $status = $this->curl->getStatus();
+        $body = $this->curl->getBody();
+
+        if ($this->getLoggerStatus()) {
+            $this->logger->info('LoyaltyEngage Discount Claim Response:', [
+                'email' => $email,
+                'discount' => $discount,
+                'response_code' => $status,
+                'response_body' => $body
+            ]);
+        }
+
+        if ($status !== 200) {
+            return null;
+        }
+
+        return json_decode($body, true);
+    }
+
 }

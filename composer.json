@@ -5,6 +5,10 @@
     "version": "1.0.0",
     "license": "MIT",
     "homepage": "https://github.com/loyaltyengage/loyaltyshop",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/loyaltyengage/loyaltyshop.git"
+    },
     "keywords": [
         "magento2",
         "loyalty",
@@ -19,7 +23,7 @@
         }
     ],
     "require": {
-        "php": "^7.4 || ^8.1",
+        "php": "^7.4 || ^8.1 || ^8.2",
         "magento/framework": "^103"
     },
     "autoload": {

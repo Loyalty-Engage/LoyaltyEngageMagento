@@ -5,24 +5,24 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use Magento\Framework\HTTP\Client\Curl;
 use Psr\Log\LoggerInterface;
+use Magento\Framework\MessageQueue\PublisherInterface;
 use Magento\Sales\Model\Order;
 
 class FreeProductPurchaseObserver implements ObserverInterface
 {
     protected $helper;
-    protected $curl;
     protected $logger;
+    protected $publisher;
 
     public function __construct(
         Data $helper,
-        Curl $curl,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        PublisherInterface $publisher
     ) {
         $this->helper = $helper;
-        $this->curl = $curl;
         $this->logger = $logger;
+        $this->publisher = $publisher;
     }
 
     public function execute(Observer $observer)
@@ -58,28 +58,16 @@ class FreeProductPurchaseObserver implements ObserverInterface
         $email = $order->getCustomerEmail();
         $orderId = $order->getIncrementId();
         $payload = [
+            'email' => $email,
             'orderId' => $orderId,
             'products' => $freeProducts
         ];
 
         try {
-            $clientId = $this->helper->getClientId();
-            $clientSecret = $this->helper->getClientSecret();
-            $apiUrl = rtrim($this->helper->getApiUrl(), '/');
-            $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
-            $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$email}/cart/purchase";
-
-            $this->logger->info("[LoyaltyShop] Sending free product purchase payload to: $endpoint", $payload);
-
-            $this->curl->addHeader("Content-Type", "application/json");
-            $this->curl->addHeader("Authorization", $authHeader);
-            $this->curl->post($endpoint, json_encode($payload));
-
-            $response = $this->curl->getBody();
-            $status = $this->curl->getStatus();
-            $this->logger->info("[LoyaltyShop] Free Product API Response (HTTP $status): $response");
+            $this->publisher->publish('loyaltyshop.free_product_purchase_event', json_encode($payload));
+            $this->logger->info("[LoyaltyShop] Free product purchase payload published to queue.", $payload);
         } catch (\Exception $e) {
-            $this->logger->error("[LoyaltyShop] Error sending free product purchase: " . $e->getMessage());
+            $this->logger->error("[LoyaltyShop] Failed to queue free product purchase event: " . $e->getMessage());
         }
     }
 }

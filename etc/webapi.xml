@@ -19,4 +19,11 @@
             <resource ref="anonymous" />
         </resources>
     </route>
+    <route url="/V1/loyalty/discount/:customerId/claim-after-cart" method="POST">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="claimDiscountAfterAddToLoyaltyCart"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
 </routes>

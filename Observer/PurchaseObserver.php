@@ -3,25 +3,25 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
-use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use Magento\Framework\HTTP\Client\Curl;
-use Psr\Log\LoggerInterface;
 use Magento\Sales\Model\Order;
+use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Helper\Data;
+use Magento\Framework\MessageQueue\PublisherInterface;
 
 class PurchaseObserver implements ObserverInterface
 {
     protected $helper;
-    protected $curl;
     protected $logger;
+    protected $publisher;
 
     public function __construct(
         Data $helper,
-        Curl $curl,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        PublisherInterface $publisher
     ) {
         $this->helper = $helper;
-        $this->curl = $curl;
         $this->logger = $logger;
+        $this->publisher = $publisher;
     }
 
     public function execute(Observer $observer)
@@ -44,7 +44,7 @@ class PurchaseObserver implements ObserverInterface
 
         $email = $order->getCustomerEmail();
         $orderId = $order->getIncrementId();
-        $orderDate = (new \DateTime($order->getCreatedAt()))->format('c'); 
+        $orderDate = (new \DateTime($order->getCreatedAt()))->format('c');
         $products = [];
 
         foreach ($order->getAllVisibleItems() as $item) {
@@ -64,21 +64,10 @@ class PurchaseObserver implements ObserverInterface
         ]];
 
         try {
-            $clientId = $this->helper->getClientId();
-            $clientSecret = $this->helper->getClientSecret();
-            $apiUrl = $this->helper->getApiUrl();
-            $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
-
-
-            $this->curl->addHeader("Content-Type", "application/json");
-            $this->curl->addHeader("Authorization", $authHeader);
-            $this->curl->post(rtrim($apiUrl, '/') . '/api/v1/events', json_encode($payload));
-
-            $response = $this->curl->getBody();
-            $status = $this->curl->getStatus();
-
+            $this->publisher->publish('loyaltyshop.purchase_event', json_encode($payload));
+            $this->logger->info('[LoyaltyShop] Purchase payload published to queue.', $payload[0]);
         } catch (\Exception $e) {
-            $this->logger->error('[LoyaltyShop] Purchase API Error: ' . $e->getMessage());
+            $this->logger->error('[LoyaltyShop] Failed to queue Purchase event: ' . $e->getMessage());
         }
     }
 }
