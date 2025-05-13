@@ -14,13 +14,13 @@ use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
 use Magento\Quote\Model\QuoteRepository;
 
-class LoyalatiyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
+class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
 {
     private const HTTP_BAD_REQUEST = 400;
     private const HTTP_OK = 200;
 
     /**
-     * LoyalatiyCartItemRemove Construct
+     * LoyaltyCartItemRemove Construct
      *
      * @param CustomerRepositoryInterface $customerRepository
      * @param Request $request

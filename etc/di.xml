@@ -5,10 +5,14 @@
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartResponse" />
-    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemsRemoveApiInterface"
-        type="LoyaltyEngage\LoyaltyShop\Model\LoyalatiyCartItemRemoveAll" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemRemove" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemRemoveApiInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyalatiyCartItemRemove" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemsRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
     <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
         type="Magento\Sales\Model\ResourceModel\Grid">
         <arguments>

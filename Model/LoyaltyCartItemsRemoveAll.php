@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Model;
 
-use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface;
-use Magento\Quote\Api\CartRepositoryInterface;
+use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Webapi\Rest\Request;
 use Magento\Framework\Webapi\Rest\Response;
 use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
+use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Quote\Model\QuoteRepository;
 
-class LoyalatiyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
+class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
 {
     private const HTTP_BAD_REQUEST = 400;
     private const HTTP_OK = 200;
 
     /**
-     * LoyalatiyCartItemRemove Construct
+     * LoyaltyCartItemsRemoveAll Construct
      *
      * @param CustomerRepositoryInterface $customerRepository
      * @param Request $request
@@ -42,24 +42,22 @@ class LoyalatiyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
     }
 
     /**
-     * RemoveProduct function
+     * RemoveAllProduct function
      *
-     * @param string $sku
      * @param int $customerId
-     * @param integer $quantity
      * @return LoyaltyCartResponseInterface
      */
-    public function removeProduct(string $sku, int $customerId, int $quantity): LoyaltyCartResponseInterface
+    public function removeAllProduct(int $customerId): LoyaltyCartResponseInterface
     {
         $responseItem = $this->loyaltyCartResponseFactory->create();
 
         try {
-
             $customer = $this->customerRepository->getById($customerId);
-            $quote = $this->cartRepository->getActiveForCustomer($customer->getId());
+            $quote = $this->cartRepository->getActiveForCustomer($customerId);
             $quoteFullObject = $this->quoteRepository->get($quote->getId());
             $items = $quoteFullObject->getAllItems();
-            $response = $this->loyaltyengageCart->removeItem($customer->getEmail(), $sku, $quantity);
+
+            $response = $this->loyaltyengageCart->removeAllItem($customer->getEmail());
 
             if ($response !== self::HTTP_OK) {
                 return $this->setErrorResponse(
@@ -68,23 +66,15 @@ class LoyalatiyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
                     self::HTTP_BAD_REQUEST
                 );
             }
-            foreach ($items as $item) {
-                if ($item->getSku() === $sku) {
-                    $currentQty = $item->getQty();
-                    if ($currentQty > $quantity) {
-                        // Reduce the quantity of the item
-                        $item->setQty($currentQty - $quantity);
-                    } else {
-                        $quoteFullObject->removeItem($item->getId());
-                    }
 
-                    $quoteFullObject->collectTotals();
-                    $quoteFullObject->save();
-                    break;
-                }
+            foreach ($items as $item) {
+                $quoteFullObject->removeItem($item->getId());
             }
 
-            return $this->setSuccessResponse($responseItem, 'Product removed successfully.');
+            $quoteFullObject->collectTotals();
+            $quoteFullObject->save();
+
+            return $this->setSuccessResponse($responseItem, 'Product removal notification sent successfully.');
         } catch (\Exception $e) {
             return $this->setErrorResponse($responseItem, $e->getMessage(), self::HTTP_BAD_REQUEST);
         }

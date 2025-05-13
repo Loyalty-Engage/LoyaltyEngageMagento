@@ -22,7 +22,7 @@ class FreeProductRemoveConsumer
         $this->logger = $logger;
     }
 
-    public function process($payloadJson)
+    public function process(string $payloadJson): void
     {
         $payload = json_decode($payloadJson, true);
 

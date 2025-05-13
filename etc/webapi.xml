@@ -8,13 +8,13 @@
         </resources>
     </route>
     <route method="POST" url="/V1/loyalty/shop/:customerId/cart/remove">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemRemoveApiInterface" method="removeProduct" />
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface" method="removeProduct" />
         <resources>
             <resource ref="anonymous" />
         </resources>
     </route>
     <route method="DELETE" url="/V1/loyalty/shop/:customerId/cart">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemsRemoveApiInterface" method="removeAllProduct" />
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface" method="removeAllProduct" />
         <resources>
             <resource ref="anonymous" />
         </resources>
