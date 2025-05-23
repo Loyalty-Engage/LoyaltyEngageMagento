@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi/etc/webapi.xsd">
+    <route method="POST" url="V1/loyalty/shop/:customer_id/cart/add">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="addProduct"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+    <route method="POST" url="/V1/loyalty/shop/:customerId/cart/remove">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface" method="removeProduct" />
+        <resources>
+            <resource ref="anonymous" />
+        </resources>
+    </route>
+    <route method="DELETE" url="/V1/loyalty/shop/:customerId/cart">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface" method="removeAllProduct" />
+        <resources>
+            <resource ref="anonymous" />
+        </resources>
+    </route>
+    <route url="/V1/loyalty/discount/:customerId/claim-after-cart" method="POST">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="claimDiscountAfterAddToLoyaltyCart"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+</routes>

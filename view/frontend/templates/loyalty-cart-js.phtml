@@ -1,0 +1,16 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+?>
+<script>
+    require(['jquery', 'loyalty-cart'], function($, loyaltyCart) {
+        try {
+            if (typeof loyaltyCart === 'function') {
+                loyaltyCart();
+            }
+        } catch (e) {
+            // Silent error handling
+        }
+    });
+</script>

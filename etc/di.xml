@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="urn:magento:framework/ObjectManager/etc/config.xsd">
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartResponse" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemRemove" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyalatiyCartItemRemove" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemsRemoveApiInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
+    <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
+        type="Magento\Sales\Model\ResourceModel\Grid">
+        <arguments>
+            <argument name="columns" xsi:type="array">
+                <item name="loyalty_order_place" xsi:type="string">
+                    sales_order.loyalty_order_place</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
+        type="Magento\Sales\Model\ResourceModel\Grid">
+        <arguments>
+            <argument name="columns" xsi:type="array">
+                <item name="loyalty_order_place_retrieve" xsi:type="string">
+                    sales_order.loyalty_order_place_retrieve</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <type name="Magento\Customer\CustomerData\Customer">
+        <plugin name="loyaltyshop_customer_data_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\CustomerDataPlugin" />
+    </type>
+    
+    <type name="Magento\Checkout\Block\Cart\Item\Renderer">
+        <plugin name="loyaltyshop_cart_item_renderer_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\CheckoutCartItemRendererPlugin" />
+    </type>
+    
+    <type name="Magento\CatalogInventory\Model\Quote\Item\QuantityValidator">
+        <plugin name="loyaltyshop_quote_item_qty_validator_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteItemQtyValidatorPlugin" />
+    </type>
+    
+    <!-- Configure message queue consumers to run automatically -->
+    <type name="Magento\Framework\MessageQueue\Consumer\Config\ConsumerConfigItem">
+        <arguments>
+            <argument name="consumerConfig" xsi:type="array">
+                <item name="loyaltyshop_purchase_event_consumer" xsi:type="array">
+                    <item name="autoStart" xsi:type="boolean">true</item>
+                </item>
+                <item name="loyaltyshop_return_event_consumer" xsi:type="array">
+                    <item name="autoStart" xsi:type="boolean">true</item>
+                </item>
+                <item name="loyaltyshop_free_product_purchase_event_consumer" xsi:type="array">
+                    <item name="autoStart" xsi:type="boolean">true</item>
+                </item>
+                <item name="loyaltyshop_free_product_remove_event_consumer" xsi:type="array">
+                    <item name="autoStart" xsi:type="boolean">true</item>
+                </item>
+            </argument>
+        </arguments>
+    </type>
+</config>
