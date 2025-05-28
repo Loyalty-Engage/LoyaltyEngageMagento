@@ -55,8 +55,7 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
                         // Find quantity input with different selectors
                         var qtySelectors = [
                             '.input-text.qty',          // Luma theme
-                            'input[name^="cart"][name$="[qty]"]', // Generic
-                            '.qty-input'                // Another variation
+                            'input[name^="cart"][name$="[qty]"]'  // Generic
                         ];
                         
                         for (var j = 0; j < qtySelectors.length; j++) {
@@ -86,7 +85,6 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
             // Also run when cart is updated via AJAX
             $(document).on('ajax:updateCartItemQty', disableQtyForFreeProducts);
             $(document).on('ajax:updateCart', disableQtyForFreeProducts);
-            
             
             // Set up a MutationObserver to watch for DOM changes
             if (typeof MutationObserver !== 'undefined') {
