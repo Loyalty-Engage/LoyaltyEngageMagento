@@ -1,0 +1,25 @@
+<?php
+/** @var \Magento\Checkout\Block\Cart\Item\Renderer $block */
+/** @var \LoyaltyEngage\LoyaltyShop\ViewModel\CartItemHelper $viewModel */
+$viewModel = $block->getData('viewModel');
+$_item = $block->getItem();
+$isLocked = $_item->getOptionByCode('loyalty_locked_qty') || (float)$_item->getPrice() == 0;
+?>
+
+<script>
+    // Add data attribute to parent cart item element
+    require(['jquery', 'domReady!'], function($) {
+        $(function() {
+            var itemId = '<?= $_item->getId() ?>';
+            var isLocked = <?= $isLocked ? 'true' : 'false' ?>;
+            $('input[name="cart[' + itemId + '][qty]"]').closest('.cart.item').attr('data-loyalty-locked-qty', isLocked);
+        });
+    });
+</script>
+
+<?php if ($isLocked): ?>
+    <span>Qty: <?= (float)$_item->getQty() ?></span>
+    <input type="hidden" name="cart[<?= $_item->getId() ?>][qty]" value="<?= (float)$_item->getQty() ?>" />
+<?php else: ?>
+    <?php echo $block->getQtyRenderer($_item)->toHtml(); ?>
+<?php endif; ?>

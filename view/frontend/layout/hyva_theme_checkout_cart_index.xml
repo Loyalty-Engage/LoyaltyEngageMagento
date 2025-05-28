@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-cart.css"/>
+    </head>
+    <body>
+        <referenceBlock name="checkout.cart.item.renderers.default">
+            <action method="setTemplate">
+                <argument name="template" xsi:type="string">LoyaltyEngage_LoyaltyShop::cart/item/hyva.phtml</argument>
+            </action>
+        </referenceBlock>
+        <referenceContainer name="content">
+            <block class="Magento\Framework\View\Element\Template" name="loyaltyshop.disable.qty.for.free.products" template="LoyaltyEngage_LoyaltyShop::disable-qty-for-free-products.phtml" after="-" />
+        </referenceContainer>
+    </body>
+</page>

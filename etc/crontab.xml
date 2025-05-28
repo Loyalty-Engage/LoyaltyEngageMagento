@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/crontab.xsd">
+    <group id="default">
+        <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
+            method="execute">
+            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+        </job>
+
+        <job name="loyalty_order_place" instance="LoyaltyEngage\LoyaltyShop\Cron\OrderPlace"
+            method="execute">
+            <schedule>*/5 * * * *</schedule> <!-- Runs every 5 minute -->
+        </job>
+
+        <!-- Message Queue Consumer Cron Jobs -->
+        <job name="loyaltyshop_run_consumers" instance="Magento\Framework\Cron\Observer\ProcessCronQueueObserver" method="execute">
+            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+        </job>
+    </group>
+</config>

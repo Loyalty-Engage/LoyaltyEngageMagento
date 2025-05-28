@@ -1,0 +1,20 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+?>
+<script>
+    // Only execute on cart pages
+    if (window.location.href.indexOf('checkout/cart') !== -1) {
+        require([
+            'LoyaltyEngage_LoyaltyShop/js/loyalty-cart-observer',
+            'LoyaltyEngage_LoyaltyShop/js/luma-qty-fix',
+            'LoyaltyEngage_LoyaltyShop/js/disable-qty-for-free-products'
+        ], function(observer, lumaFix, disableQty) {
+            // Each module will initialize itself
+            if (typeof observer === 'function') observer();
+            if (typeof lumaFix === 'function') lumaFix();
+            if (typeof disableQty === 'function') disableQty();
+        });
+    }
+</script>
