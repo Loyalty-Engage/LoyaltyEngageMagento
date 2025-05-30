@@ -51,7 +51,8 @@ define(['jquery', 'Magento_Customer/js/customer-data'], function ($, customerDat
       }
 
       if (!window.loyaltyShopCustomerId) {
-        showLoyaltyMessageBar('Customer is not logged in.', false);
+        // Only show the message when a customer tries to add a product to the cart
+        showLoyaltyMessageBar('Please log in to add this product to your cart.', false);
         return false;
       }
 

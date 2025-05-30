@@ -73,11 +73,24 @@ class LoyaltyCart implements LoyaltyCartInterface
             }
 
             $quote = $this->getOrCreateCustomerQuote($customerId);
-            $quoteItem = $quote->addProduct($product);
-            $quoteItem->setCustomPrice(0);
-            $quoteItem->setOriginalCustomPrice(0);
-            $quoteItem->setData('loyalty_locked_qty', 1);
-            $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
+            
+            // Check if the product already exists in the cart
+            $productAlreadyInCart = false;
+            foreach ($quote->getAllItems() as $item) {
+                if ($item->getProduct()->getSku() === $sku) {
+                    $productAlreadyInCart = true;
+                    break;
+                }
+            }
+            
+            // Only add the product if it's not already in the cart
+            if (!$productAlreadyInCart) {
+                $quoteItem = $quote->addProduct($product);
+                $quoteItem->setCustomPrice(0);
+                $quoteItem->setOriginalCustomPrice(0);
+                $quoteItem->setData('loyalty_locked_qty', 1);
+                $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
+            }
 
             $quote->collectTotals()->save();
 

@@ -92,8 +92,7 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
                 }
             });
             
-            // Run periodically to catch any missed updates
-            setInterval(disableQtyInputsForFreeProducts, 2000);
+            // No need for setInterval, the ajaxComplete event should catch all updates
         };
     });
 }

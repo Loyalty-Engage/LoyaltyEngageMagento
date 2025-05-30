@@ -17,9 +17,8 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
             
             // Function to disable quantity inputs for free products
             function disableQtyForFreeProducts() {
-                
-                // Find all cart items
-                $('.cart.item').each(function() {
+                // Find all cart items that haven't been processed yet
+                $('.cart.item:not(.loyalty-qty-locked)').each(function() {
                     var $item = $(this);
                     
                     // Different selectors for price elements
@@ -127,8 +126,7 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
                 }
             }
             
-            // Also run periodically to catch any missed updates
-            setInterval(disableQtyForFreeProducts, 2000);
+            // Remove the setInterval to improve performance
         };
     });
 }

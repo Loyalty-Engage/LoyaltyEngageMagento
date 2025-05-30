@@ -4,13 +4,34 @@
  */
 ?>
 <script>
-    require(['jquery', 'loyalty-cart'], function($, loyaltyCart) {
+    require([
+        'jquery', 
+        'loyalty-cart',
+        'loyalty-cart-observer',
+        'luma-qty-fix',
+        'disable-qty-for-free-products'
+    ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix, disableQtyForFreeProducts) {
         try {
+            // Initialize loyalty cart
             if (typeof loyaltyCart === 'function') {
                 loyaltyCart();
             }
+            
+            // Initialize loyalty cart observer if on cart page
+            if (typeof loyaltyCartObserver === 'function' && window.location.href.indexOf('checkout/cart') !== -1) {
+                loyaltyCartObserver();
+            }
+            
+            // Initialize other modules if they exist
+            if (typeof lumaQtyFix === 'function') {
+                lumaQtyFix();
+            }
+            
+            if (typeof disableQtyForFreeProducts === 'function') {
+                disableQtyForFreeProducts();
+            }
         } catch (e) {
-            // Silent error handling
+            console.error('Error initializing LoyaltyEngage modules:', e);
         }
     });
 </script>
