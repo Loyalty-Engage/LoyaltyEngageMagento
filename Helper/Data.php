@@ -2,12 +2,30 @@
 namespace LoyaltyEngage\LoyaltyShop\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;
+use Magento\Framework\View\DesignInterface;
 use Magento\Store\Model\ScopeInterface;
 
 class Data extends AbstractHelper
 {
     const XML_PATH_EXPORT = 'loyalty/export/';
     const XML_PATH_GENERAL = 'loyalty/general/';
+    
+    /**
+     * @var DesignInterface
+     */
+    private $design;
+    
+    /**
+     * @param \Magento\Framework\App\Helper\Context $context
+     * @param DesignInterface $design
+     */
+    public function __construct(
+        \Magento\Framework\App\Helper\Context $context,
+        DesignInterface $design
+    ) {
+        $this->design = $design;
+        parent::__construct($context);
+    }
 
     /**
      * Check if Return Export is enabled
@@ -72,5 +90,29 @@ class Data extends AbstractHelper
             self::XML_PATH_GENERAL . 'loyalty_api_url',
             ScopeInterface::SCOPE_STORE
         );
+    }
+    
+    /**
+     * Check if the current theme is Hyvä
+     *
+     * @return bool
+     */
+    public function isHyvaTheme(): bool
+    {
+        $themeId = $this->design->getDesignTheme()->getThemeId();
+        $themePath = $this->design->getDesignTheme()->getThemePath();
+        
+        // Check if theme path or code contains 'hyva'
+        if (stripos($themePath, 'hyva') !== false) {
+            return true;
+        }
+        
+        // Get theme code and check if it contains 'hyva'
+        $themeCode = $this->design->getDesignTheme()->getCode();
+        if (stripos($themeCode, 'hyva') !== false) {
+            return true;
+        }
+        
+        return false;
     }
 }

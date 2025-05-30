@@ -1,0 +1,181 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+?>
+
+<!-- Only execute on cart pages -->
+<?php if (strpos($block->getUrl('*/*/*', ['_current' => true]), 'checkout/cart') !== false): ?>
+<div x-data="loyaltyQtyDisabler">
+    <!-- This div initializes the Alpine component -->
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('loyaltyQtyDisabler', () => ({
+            init() {
+                // Run on page load
+                this.disableQtyForFreeProducts();
+                
+                // Set up observer for DOM changes
+                this.setupObserver();
+                
+                // Listen for Hyvä-specific cart update events
+                document.addEventListener('cart:updated', () => this.disableQtyForFreeProducts());
+                document.addEventListener('cart:itemUpdated', () => this.disableQtyForFreeProducts());
+                
+                // Also listen for standard ajax events for compatibility
+                document.addEventListener('ajax:updateCartItemQty', () => this.disableQtyForFreeProducts());
+                document.addEventListener('ajax:updateCart', () => this.disableQtyForFreeProducts());
+            },
+            
+            disableQtyForFreeProducts() {
+                // Find all cart items that haven't been processed yet
+                document.querySelectorAll('.cart.item:not(.loyalty-qty-locked)').forEach(item => {
+                    // Different selectors for price elements - add Hyvä-specific selectors
+                    const priceSelectors = [
+                        '.price-excluding-tax .price',  // Luma theme
+                        '.price .price',                // Generic
+                        '.price-final_price .price',    // Another common pattern
+                        '.price-container .price',      // Another variation
+                        '[data-price-type="finalPrice"] .price', // Hyvä specific
+                        '.product-item-price .price'    // Hyvä specific
+                    ];
+                    
+                    let price = 0;
+                    let priceFound = false;
+                    
+                    // Try different selectors to find the price
+                    for (let i = 0; i < priceSelectors.length; i++) {
+                        const priceElement = item.querySelector(priceSelectors[i]);
+                        if (priceElement) {
+                            const priceText = priceElement.textContent.trim();
+                            // Remove currency symbols and formatting
+                            price = parseFloat(priceText.replace(/[^0-9.-]+/g, ''));
+                            priceFound = true;
+                            break;
+                        }
+                    }
+                    
+                    // Check for data attribute that might have been set by PHP
+                    const dataLocked = item.getAttribute('data-loyalty-locked-qty');
+                    const isLocked = (dataLocked === 'true' || dataLocked === '1');
+                    
+                    // If price is 0 or we have the loyalty_locked_qty data attribute
+                    if ((priceFound && price === 0) || isLocked) {
+                        // Find quantity input with different selectors - add Hyvä-specific selectors
+                        const qtySelectors = [
+                            '.input-text.qty',          // Luma theme
+                            'input[name^="cart"][name$="[qty]"]',  // Generic
+                            '.item-qty',                // Hyvä specific
+                            '[data-role="cart-item-qty"]' // Hyvä specific
+                        ];
+                        
+                        for (let j = 0; j < qtySelectors.length; j++) {
+                            const qtyInput = item.querySelector(qtySelectors[j]);
+                            if (qtyInput) {
+                                try {
+                                    // Try to get the item ID from the name attribute
+                                    const nameAttr = qtyInput.getAttribute('name');
+                                    if (nameAttr) {
+                                        const matches = nameAttr.match(/cart\[(\d+)\]/);
+                                        if (matches && matches.length > 1) {
+                                            const itemId = matches[1];
+                                            const qty = qtyInput.value;
+                                            
+                                            // Replace the input with a static display and hidden input
+                                            const qtyContainer = qtyInput.closest('.control.qty') || qtyInput.parentNode;
+                                            
+                                            // Create a hidden input to maintain form submission
+                                            const hiddenInput = document.createElement('input');
+                                            hiddenInput.type = 'hidden';
+                                            hiddenInput.name = `cart[${itemId}][qty]`;
+                                            hiddenInput.value = qty;
+                                            
+                                            // Create a static display
+                                            const staticQty = document.createElement('span');
+                                            staticQty.className = 'qty-static';
+                                            staticQty.textContent = `Qty: ${qty}`;
+                                            staticQty.style.fontWeight = 'bold';
+                                            staticQty.style.display = 'block';
+                                            staticQty.style.marginTop = '7px';
+                                            
+                                            // Replace the input with our static display and hidden input
+                                            qtyInput.replaceWith(hiddenInput);
+                                            qtyContainer.prepend(staticQty);
+                                            
+                                            // Add a class to the item for styling
+                                            item.classList.add('loyalty-qty-locked');
+                                            continue; // Successfully processed this item, move to next
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Error processing qty input:', e);
+                                }
+                                
+                                // Fallback: If we couldn't extract the item ID or any other error occurred,
+                                // just disable the input directly
+                                qtyInput.disabled = true;
+                                qtyInput.style.pointerEvents = 'none';
+                                qtyInput.style.backgroundColor = '#f0f0f0';
+                                qtyInput.setAttribute('readonly', 'readonly');
+                                
+                                // Also disable any +/- buttons - add Hyvä-specific selectors
+                                item.querySelectorAll('.qty-changer, .qty-button, .qty-increase, .qty-decrease, .qty-modifier, .quantity-controls button').forEach(btn => {
+                                    btn.style.pointerEvents = 'none';
+                                    btn.style.opacity = '0.5';
+                                    btn.disabled = true;
+                                });
+                                
+                                // Add a class to mark this item as processed
+                                item.classList.add('loyalty-qty-locked');
+                            }
+                        }
+                    }
+                });
+            },
+            
+            setupObserver() {
+                // Target the cart container - add Hyvä-specific selectors
+                const cartContainers = [
+                    '.cart.main',           // Luma
+                    '.cart-container',      // Generic
+                    '#shopping-cart-table', // Common table ID
+                    '.checkout-cart-index', // Page container
+                    '.cart-items',          // Hyvä specific
+                    '.cart-container'       // Hyvä specific
+                ];
+                
+                let targetNode = null;
+                
+                // Find the first available container
+                for (let i = 0; i < cartContainers.length; i++) {
+                    const container = document.querySelector(cartContainers[i]);
+                    if (container) {
+                        targetNode = container;
+                        break;
+                    }
+                }
+                
+                // If we found a container, observe it
+                if (targetNode && typeof MutationObserver !== 'undefined') {
+                    // Options for the observer (which mutations to observe)
+                    const config = { attributes: false, childList: true, subtree: true };
+                    
+                    // Create an observer instance linked to the callback function
+                    const observer = new MutationObserver(() => {
+                        // Use a debounce mechanism to avoid excessive processing
+                        clearTimeout(window.loyaltyQtyObserverTimeout);
+                        window.loyaltyQtyObserverTimeout = setTimeout(() => {
+                            this.disableQtyForFreeProducts();
+                        }, 200);
+                    });
+                    
+                    // Start observing the target node for configured mutations
+                    observer.observe(targetNode, config);
+                }
+            }
+        }));
+    });
+</script>
+<?php endif; ?>

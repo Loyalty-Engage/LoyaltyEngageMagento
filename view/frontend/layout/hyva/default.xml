@@ -5,11 +5,7 @@
     </head>
     <body>
         <referenceContainer name="before.body.end">
-            <block class="Magento\Framework\View\Element\Template" name="loyaltyshop.loyalty.cart.js" template="LoyaltyEngage_LoyaltyShop::loyalty-cart-js.phtml">
-                <arguments>
-                    <argument name="theme_detector" xsi:type="object">LoyaltyEngage\LoyaltyShop\ViewModel\ThemeDetector</argument>
-                </arguments>
-            </block>
+            <block class="Magento\Framework\View\Element\Template" name="loyaltyshop.loyalty.cart.js.hyva" template="LoyaltyEngage_LoyaltyShop::hyva/loyalty-cart-js.phtml" />
         </referenceContainer>
     </body>
 </page>

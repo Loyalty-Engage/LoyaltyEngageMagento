@@ -1,20 +1,181 @@
 <?php
 /**
  * @var \Magento\Framework\View\Element\Template $block
+ * @var \LoyaltyEngage\LoyaltyShop\ViewModel\ThemeDetector $themeDetector
  */
+$themeDetector = $block->getData('theme_detector');
+$helper = $this->helper(\LoyaltyEngage\LoyaltyShop\Helper\Data::class);
+$isHyva = $themeDetector && $themeDetector->isHyvaTheme();
 ?>
-<script>
-    // Only execute on cart pages
-    if (window.location.href.indexOf('checkout/cart') !== -1) {
-        require([
-            'LoyaltyEngage_LoyaltyShop/js/loyalty-cart-observer',
-            'LoyaltyEngage_LoyaltyShop/js/luma-qty-fix',
-            'LoyaltyEngage_LoyaltyShop/js/disable-qty-for-free-products'
-        ], function(observer, lumaFix, disableQty) {
-            // Each module will initialize itself
-            if (typeof observer === 'function') observer();
-            if (typeof lumaFix === 'function') lumaFix();
-            if (typeof disableQty === 'function') disableQty();
-        });
-    }
-</script>
+
+<?php if ($isHyva): ?>
+    <?php include($block->getTemplateFile('LoyaltyEngage_LoyaltyShop::hyva/disable-qty-for-free-products.phtml')); ?>
+<?php else: ?>
+    <script>
+        // Only execute on cart pages
+        if (window.location.href.indexOf('checkout/cart') !== -1) {
+            require([
+                'jquery',
+                'domReady!'
+            ], function($) {
+                // Immediately disable quantity inputs for free products
+                function disableQtyInputsForFreeProducts() {
+                    // Find all cart items that haven't been processed yet
+                    $('.cart.item:not(.loyalty-qty-locked)').each(function() {
+                        var $item = $(this);
+                        
+                        // Different selectors for price elements
+                        var priceSelectors = [
+                            '.price-excluding-tax .price',  // Luma theme
+                            '.price .price',                // Generic
+                            '.price-final_price .price',    // Another common pattern
+                            '.price-container .price'       // Another variation
+                        ];
+                        
+                        var price = 0;
+                        var priceFound = false;
+                        
+                        // Try different selectors to find the price
+                        for (var i = 0; i < priceSelectors.length; i++) {
+                            var $priceElement = $item.find(priceSelectors[i]);
+                            if ($priceElement.length) {
+                                var priceText = $priceElement.text().trim();
+                                // Remove currency symbols and formatting
+                                price = parseFloat(priceText.replace(/[^0-9.-]+/g, ''));
+                                priceFound = true;
+                                break;
+                            }
+                        }
+                        
+                        // Check for data attribute that might have been set by PHP
+                        var dataLocked = $item.attr('data-loyalty-locked-qty');
+                        var isLocked = (dataLocked === 'true' || dataLocked === '1');
+                        
+                        // If price is 0 or we have the loyalty_locked_qty data attribute
+                        if ((priceFound && price === 0) || isLocked) {
+                            // Try to get the item ID from the name attribute
+                            var $qtyInput = $item.find('.input-text.qty');
+                            
+                            if ($qtyInput.length) {
+                                try {
+                                    var nameAttr = $qtyInput.attr('name');
+                                    if (nameAttr) {
+                                        var matches = nameAttr.match(/cart\[(\d+)\]/);
+                                        if (matches && matches.length > 1) {
+                                            var itemId = matches[1];
+                                            var qty = $qtyInput.val();
+                                            
+                                            // Replace the input with a static display and hidden input
+                                            var $qtyContainer = $qtyInput.closest('.control.qty');
+                                            
+                                            // Create a hidden input to maintain form submission
+                                            var $hiddenInput = $('<input>')
+                                                .attr('type', 'hidden')
+                                                .attr('name', 'cart[' + itemId + '][qty]')
+                                                .attr('value', qty);
+                                            
+                                            // Create a static display
+                                            var $staticQty = $('<span>')
+                                                .addClass('qty-static')
+                                                .text('Qty: ' + qty)
+                                                .css({
+                                                    'font-weight': 'bold',
+                                                    'display': 'block',
+                                                    'margin-top': '7px'
+                                                });
+                                            
+                                            // Replace the input with our static display and hidden input
+                                            $qtyInput.replaceWith($hiddenInput);
+                                            $qtyContainer.prepend($staticQty);
+                                            
+                                            // Add a class to the item for styling
+                                            $item.addClass('loyalty-qty-locked');
+                                            return; // Successfully processed this item
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Error processing qty input:', e);
+                                }
+                                
+                                // Fallback: If we couldn't extract the item ID or any other error occurred,
+                                // just disable the input directly
+                                $qtyInput.prop('disabled', true)
+                                    .css('background-color', '#f0f0f0')
+                                    .css('pointer-events', 'none')
+                                    .attr('readonly', 'readonly');
+                                
+                                // Also disable any +/- buttons
+                                $item.find('.qty-changer, .qty-button, .qty-increase, .qty-decrease, .qty-modifier').css('pointer-events', 'none');
+                                $item.find('.qty-changer, .qty-button, .qty-increase, .qty-decrease, .qty-modifier').css('opacity', '0.5');
+                                
+                                $item.addClass('loyalty-qty-locked');
+                            }
+                        }
+                    });
+                }
+                
+                // Run immediately
+                disableQtyInputsForFreeProducts();
+                
+                // Also run after any AJAX updates
+                $(document).on('ajaxComplete', function(event, xhr, settings) {
+                    if (settings.url.indexOf('/checkout/cart/') !== -1) {
+                        setTimeout(disableQtyInputsForFreeProducts, 500);
+                    }
+                });
+                
+                // Set up a MutationObserver to watch for DOM changes
+                if (typeof MutationObserver !== 'undefined') {
+                    // Target the cart container
+                    var cartContainers = [
+                        '.cart.main',           // Luma
+                        '.cart-container',      // Generic
+                        '#shopping-cart-table', // Common table ID
+                        '.checkout-cart-index'  // Page container
+                    ];
+                    
+                    var targetNode = null;
+                    
+                    // Find the first available container
+                    for (var i = 0; i < cartContainers.length; i++) {
+                        var container = document.querySelector(cartContainers[i]);
+                        if (container) {
+                            targetNode = container;
+                            break;
+                        }
+                    }
+                    
+                    // If we found a container, observe it
+                    if (targetNode) {
+                        // Options for the observer (which mutations to observe)
+                        var config = { attributes: false, childList: true, subtree: true };
+                        
+                        // Create an observer instance linked to the callback function
+                        var observer = new MutationObserver(function(mutationsList, observer) {
+                            // Use a debounce mechanism to avoid excessive processing
+                            clearTimeout(window.loyaltyQtyObserverTimeout);
+                            window.loyaltyQtyObserverTimeout = setTimeout(function() {
+                                disableQtyInputsForFreeProducts();
+                            }, 200);
+                        });
+                        
+                        // Start observing the target node for configured mutations
+                        observer.observe(targetNode, config);
+                    }
+                }
+                
+                // Also load the original modules for backward compatibility
+                require([
+                    'LoyaltyEngage_LoyaltyShop/js/loyalty-cart-observer',
+                    'LoyaltyEngage_LoyaltyShop/js/luma-qty-fix',
+                    'LoyaltyEngage_LoyaltyShop/js/disable-qty-for-free-products'
+                ], function(observer, lumaFix, disableQty) {
+                    // Each module will initialize itself
+                    if (typeof observer === 'function') observer();
+                    if (typeof lumaFix === 'function') lumaFix();
+                    if (typeof disableQty === 'function') disableQty();
+                });
+            });
+        }
+    </script>
+<?php endif; ?>

@@ -5,4 +5,9 @@
             <argument name="viewModel" xsi:type="object">LoyaltyEngage\LoyaltyShop\ViewModel\CartItemHelper</argument>
         </arguments>
     </type>
+    
+    <!-- Plugin to add Hyvä-specific layout handles -->
+    <type name="Magento\Framework\View\Result\Page">
+        <plugin name="loyaltyengage_loyaltyshop_theme_layout" type="LoyaltyEngage\LoyaltyShop\Plugin\ThemeLayoutPlugin" sortOrder="10" />
+    </type>
 </config>

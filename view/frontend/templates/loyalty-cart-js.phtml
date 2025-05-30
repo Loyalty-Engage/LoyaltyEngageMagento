@@ -1,37 +1,44 @@
 <?php
 /**
  * @var \Magento\Framework\View\Element\Template $block
+ * @var \LoyaltyEngage\LoyaltyShop\ViewModel\ThemeDetector $themeDetector
  */
+$themeDetector = $block->getData('theme_detector');
 ?>
-<script>
-    require([
-        'jquery', 
-        'loyalty-cart',
-        'loyalty-cart-observer',
-        'luma-qty-fix',
-        'disable-qty-for-free-products'
-    ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix, disableQtyForFreeProducts) {
-        try {
-            // Initialize loyalty cart
-            if (typeof loyaltyCart === 'function') {
-                loyaltyCart();
+
+<?php if ($themeDetector && $themeDetector->isHyvaTheme()): ?>
+    <?php include($block->getTemplateFile('LoyaltyEngage_LoyaltyShop::hyva/loyalty-cart-js.phtml')); ?>
+<?php else: ?>
+    <script>
+        require([
+            'jquery', 
+            'loyalty-cart',
+            'loyalty-cart-observer',
+            'luma-qty-fix',
+            'disable-qty-for-free-products'
+        ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix, disableQtyForFreeProducts) {
+            try {
+                // Initialize loyalty cart
+                if (typeof loyaltyCart === 'function') {
+                    loyaltyCart();
+                }
+                
+                // Initialize loyalty cart observer if on cart page
+                if (typeof loyaltyCartObserver === 'function' && window.location.href.indexOf('checkout/cart') !== -1) {
+                    loyaltyCartObserver();
+                }
+                
+                // Initialize other modules if they exist
+                if (typeof lumaQtyFix === 'function') {
+                    lumaQtyFix();
+                }
+                
+                if (typeof disableQtyForFreeProducts === 'function') {
+                    disableQtyForFreeProducts();
+                }
+            } catch (e) {
+                console.error('Error initializing LoyaltyEngage modules:', e);
             }
-            
-            // Initialize loyalty cart observer if on cart page
-            if (typeof loyaltyCartObserver === 'function' && window.location.href.indexOf('checkout/cart') !== -1) {
-                loyaltyCartObserver();
-            }
-            
-            // Initialize other modules if they exist
-            if (typeof lumaQtyFix === 'function') {
-                lumaQtyFix();
-            }
-            
-            if (typeof disableQtyForFreeProducts === 'function') {
-                disableQtyForFreeProducts();
-            }
-        } catch (e) {
-            console.error('Error initializing LoyaltyEngage modules:', e);
-        }
-    });
-</script>
+        });
+    </script>
+<?php endif; ?>
