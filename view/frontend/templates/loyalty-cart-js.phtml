@@ -8,9 +8,8 @@
         'jquery', 
         'loyalty-cart',
         'loyalty-cart-observer',
-        'luma-qty-fix',
-        'disable-qty-for-free-products'
-    ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix, disableQtyForFreeProducts) {
+        'luma-qty-fix'
+    ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix) {
         try {
             // Initialize loyalty cart
             if (typeof loyaltyCart === 'function') {
@@ -22,13 +21,9 @@
                 loyaltyCartObserver();
             }
             
-            // Initialize other modules if they exist
+            // Initialize quantity fix for free products
             if (typeof lumaQtyFix === 'function') {
                 lumaQtyFix();
-            }
-            
-            if (typeof disableQtyForFreeProducts === 'function') {
-                disableQtyForFreeProducts();
             }
         } catch (e) {
             console.error('Error initializing LoyaltyEngage modules:', e);

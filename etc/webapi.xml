@@ -25,5 +25,12 @@
             <resource ref="anonymous"/>
         </resources>
     </route>
+    
+    <route method="POST" url="V1/loyalty/shop/:customer_id/cart/add-multiple">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="addMultipleProducts"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
 
 </routes>

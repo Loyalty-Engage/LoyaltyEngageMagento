@@ -27,5 +27,12 @@ interface LoyaltyCartInterface
      */
     public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface;
 
-
+    /**
+     * Add multiple products to the cart using loyalty points.
+     *
+     * @param int $customerId
+     * @param string[] $skus
+     * @return LoyaltyCartResponseInterface
+     */
+    public function addMultipleProducts(int $customerId, array $skus): LoyaltyCartResponseInterface;
 }

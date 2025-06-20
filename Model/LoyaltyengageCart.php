@@ -199,11 +199,18 @@ class LoyaltyengageCart
      */
     public function getexpiryTime(): string
     {
-        $bearerToken = $this->scopeConfig->getValue(
+        $expiryTime = $this->scopeConfig->getValue(
             self::XML_PATH_CART_EXPIRY_TIME,
             \Magento\Store\Model\ScopeInterface::SCOPE_STORE
         );
-        return $bearerToken;
+        
+        // Ensure we always return a valid string
+        if ($expiryTime === null || $expiryTime === '') {
+            return '24'; // Default to 24 hours if not set
+        }
+        
+        // Force conversion to string to prevent type errors
+        return (string)$expiryTime;
     }
 
     /**

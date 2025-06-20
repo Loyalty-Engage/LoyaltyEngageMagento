@@ -9,10 +9,6 @@
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemRemove" />
-    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemRemoveApiInterface"
-        type="LoyaltyEngage\LoyaltyShop\Model\LoyalatiyCartItemRemove" />
-    <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyalatiyCartItemsRemoveApiInterface"
-        type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
     <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
         type="Magento\Sales\Model\ResourceModel\Grid">
         <arguments>
