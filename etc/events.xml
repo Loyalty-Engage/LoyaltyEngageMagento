@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="sales_order_save_after">
+    <observer name="loyaltyshop_purchase_event" instance="LoyaltyEngage\LoyaltyShop\Observer\PurchaseObserver" />
+    <observer name="loyaltyshop_freeproduct_purchase" instance="LoyaltyEngage\LoyaltyShop\Observer\FreeProductPurchaseObserver" />
+    </event>
+    <event name="sales_order_creditmemo_save_after">
+        <observer name="loyaltyshop_return_event" instance="LoyaltyEngage\LoyaltyShop\Observer\ReturnObserver" />
+    </event>
+</config>
