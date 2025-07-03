@@ -36,7 +36,7 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
             }
         }
 
-        // Lock quantity if item price is 0
-        return (float)$item->getPrice() == 0;
+        // Removed price check - was causing regular products to be treated as loyalty products
+        return false;
     }
 }

@@ -4,7 +4,9 @@
 Some users experienced all products in cart showing 0 euro pricing while quantity selectors were not working. The total price remained correct, but individual product prices displayed as zero.
 
 ## Root Cause
-The issue was caused by a global template override in `view/frontend/layout/checkout_cart_item_renderers.xml` that replaced the default cart item renderer for ALL products, not just loyalty products. The custom template only handled quantity locking logic but didn't include proper price rendering for regular products.
+The issue was caused by **two problems**:
+1. A global template override in `view/frontend/layout/checkout_cart_item_renderers.xml` that replaced the default cart item renderer for ALL products
+2. **Price-based logic** in plugins that incorrectly treated regular products as loyalty products when `$item->getPrice()` returned 0 during frontend rendering (even though backend price was correct)
 
 ## Solution Implemented
 
@@ -13,20 +15,26 @@ The issue was caused by a global template override in `view/frontend/layout/chec
 - **Change**: Removed the global template override that was affecting all cart items
 - **Impact**: Regular products now use Magento's default price rendering
 
-### 2. Enhanced Plugin Functionality
+### 2. Fixed Plugin Logic (CRITICAL FIX)
 - **File**: `Plugin/CheckoutCartItemRendererPlugin.php`
-- **Change**: Enhanced the existing plugin to handle both quantity locking and JavaScript functionality
-- **Impact**: Loyalty products still have locked quantities while regular products function normally
+- **Change**: Removed problematic price check `(float)$item->getPrice() == 0` that was causing regular products to be treated as loyalty products
+- **Impact**: Only products with explicit `loyalty_locked_qty` option are now treated as loyalty products
 
-### 3. Deprecated Custom Template
+### 3. Fixed ViewModel Logic
+- **File**: `ViewModel/CartItemHelper.php`
+- **Change**: Removed the same problematic price check from the ViewModel
+- **Impact**: Consistent logic across all components
+
+### 4. Deprecated Custom Template
 - **File**: `view/frontend/templates/cart/item/default.phtml`
 - **Change**: Marked as deprecated since it's no longer used globally
 - **Impact**: Can be safely removed in future versions
 
 ## Files Modified
 1. `view/frontend/layout/checkout_cart_item_renderers.xml` - Removed global override
-2. `Plugin/CheckoutCartItemRendererPlugin.php` - Enhanced plugin functionality
-3. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
+2. `Plugin/CheckoutCartItemRendererPlugin.php` - **CRITICAL**: Removed price-based loyalty detection
+3. `ViewModel/CartItemHelper.php` - **CRITICAL**: Removed price-based loyalty detection  
+4. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
 
 ## Testing Instructions
 

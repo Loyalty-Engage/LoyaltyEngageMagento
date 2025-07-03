@@ -16,7 +16,9 @@ class CheckoutCartItemRendererPlugin
      */
     public function afterGetQtyHtml(CartItemRenderer $subject, $result, QuoteItem $item)
     {
-        $isLocked = $item->getOptionByCode('loyalty_locked_qty') || (float)$item->getPrice() == 0;
+        // Only check for explicit loyalty_locked_qty option, not price
+        // Price check was causing regular products to be treated as loyalty products
+        $isLocked = $item->getOptionByCode('loyalty_locked_qty');
         
         if ($isLocked) {
             // Add JavaScript to mark the cart item as loyalty-locked
