@@ -2,26 +2,15 @@
 namespace LoyaltyEngage\LoyaltyShop\Plugin;
 
 use Magento\Framework\View\Result\Page;
-use LoyaltyEngage\LoyaltyShop\Helper\Data;
 
 class ThemeLayoutPlugin
 {
     /**
-     * @var Data
-     */
-    private $helper;
-
-    /**
-     * @param Data $helper
-     */
-    public function __construct(
-        Data $helper
-    ) {
-        $this->helper = $helper;
-    }
-
-    /**
-     * Add Hyvä-specific layout handles if Hyvä theme is active
+     * Add Hyvä-specific layout handles
+     * 
+     * This plugin is specifically designed for Hyvä theme installations.
+     * Since this is a Hyvä-only plugin, we always add Hyvä layout handles
+     * without runtime theme detection to ensure cache compatibility.
      *
      * @param Page $subject
      * @param Page $result
@@ -31,17 +20,15 @@ class ThemeLayoutPlugin
         Page $subject,
         Page $result
     ) {
-        if ($this->helper->isHyvaTheme()) {
-            // Get the current handles
-            $update = $subject->getLayout()->getUpdate();
-            $handles = $update->getHandles();
-            
-            // Add Hyvä-specific handles for each existing handle
-            foreach ($handles as $handle) {
-                // Add hyva/handle_name for each handle
-                $hyvaHandle = 'hyva/' . $handle;
-                $update->addHandle($hyvaHandle);
-            }
+        // Get the current handles
+        $update = $subject->getLayout()->getUpdate();
+        $handles = $update->getHandles();
+        
+        // Add Hyvä-specific handles for each existing handle
+        foreach ($handles as $handle) {
+            // Add hyva/handle_name for each handle
+            $hyvaHandle = 'hyva/' . $handle;
+            $update->addHandle($hyvaHandle);
         }
         
         return $result;
