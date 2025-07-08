@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-cart.css"/>
+    </head>
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template" name="loyaltyshop.loyalty.cart.js" template="LoyaltyEngage_LoyaltyShop::loyalty-cart-js.phtml" />
+        </referenceContainer>
+    </body>
+</page>
