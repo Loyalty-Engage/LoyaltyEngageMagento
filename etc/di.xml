@@ -43,6 +43,12 @@
             type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteItemQtyValidatorPlugin" />
     </type>
     
+    <type name="Magento\Quote\Model\Quote\Item">
+        <plugin name="loyaltyshop_quote_item_price_protection_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteItemPriceProtectionPlugin"
+            sortOrder="10" />
+    </type>
+    
     <!-- Configure message queue consumers to run automatically -->
     <type name="Magento\Framework\MessageQueue\Consumer\Config\ConsumerConfigItem">
         <arguments>

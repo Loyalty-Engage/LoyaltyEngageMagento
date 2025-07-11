@@ -58,7 +58,7 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
     }
 
     /**
-     * Enhanced loyalty product detection with detailed logging
+     * Strict loyalty product detection with detailed logging - matches CheckoutCartItemRendererPlugin
      *
      * @param \Magento\Quote\Model\Quote\Item $item
      * @return bool
@@ -67,63 +67,105 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
     {
         $productName = $item->getName();
         $productId = $item->getProductId();
+        $sku = $item->getSku();
+        $customPrice = $item->getCustomPrice();
 
         $this->logger->info(sprintf(
-            '[LOYALTY-CART] ViewModel Analysis - Product: "%s" (ID: %s)',
+            '[LOYALTY-CART] ViewModel STRICT Analysis - Product: "%s" (ID: %s, SKU: %s)',
             $productName,
-            $productId
+            $productId,
+            $sku
         ));
 
-        // Method 1: Check item data directly
+        $this->logger->info(sprintf(
+            '[LOYALTY-CART] ViewModel Custom Price: %s',
+            $customPrice !== null ? '$' . number_format($customPrice, 2) : 'null'
+        ));
+
+        // STRICT METHOD 1: Check for explicit loyalty_locked_qty option with exact value match
+        $loyaltyOption = $item->getOptionByCode('loyalty_locked_qty');
+        if ($loyaltyOption && $loyaltyOption->getValue() === '1') {
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 1 (loyalty_locked_qty option): CONFIRMED LOYALTY - option value: ' . $loyaltyOption->getValue());
+            
+            // Additional validation: loyalty products should have custom price of 0
+            if ($customPrice === 0.0 || $customPrice === '0.0000') {
+                $this->logger->info('[LOYALTY-CART] ViewModel STRICT Validation: PASS - Custom price is 0 as expected');
+                return true;
+            } else {
+                $this->logger->warning(sprintf(
+                    '[LOYALTY-CART] ViewModel STRICT Validation: SUSPICIOUS - Loyalty option found but custom price is %s (expected 0)',
+                    $customPrice ?? 'null'
+                ));
+                // Still return true but log the anomaly
+                return true;
+            }
+        } else {
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 1 (loyalty_locked_qty option): FAIL - ' . 
+                ($loyaltyOption ? 'option value: ' . $loyaltyOption->getValue() : 'no option found'));
+        }
+
+        // STRICT METHOD 2: Check item data directly with exact value match
         $loyaltyData = $item->getData('loyalty_locked_qty');
         if ($loyaltyData === '1' || $loyaltyData === 1) {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 1 (item data): PASS - data value: ' . $loyaltyData);
-            return true;
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 2 (item data): CONFIRMED LOYALTY - data value: ' . $loyaltyData);
+            
+            // Additional validation: loyalty products should have custom price of 0
+            if ($customPrice === 0.0 || $customPrice === '0.0000') {
+                $this->logger->info('[LOYALTY-CART] ViewModel STRICT Validation: PASS - Custom price is 0 as expected');
+                return true;
+            } else {
+                $this->logger->warning(sprintf(
+                    '[LOYALTY-CART] ViewModel STRICT Validation: SUSPICIOUS - Loyalty data found but custom price is %s (expected 0)',
+                    $customPrice ?? 'null'
+                ));
+                // Still return true but log the anomaly
+                return true;
+            }
         } else {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 1 (item data): FAIL - data value: ' . ($loyaltyData ?? 'null'));
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 2 (item data): FAIL - data value: ' . ($loyaltyData ?? 'null'));
         }
 
-        // Method 2: Check for explicit loyalty_locked_qty option
-        $loyaltyLockedQty = $item->getOptionByCode('loyalty_locked_qty');
-        if ($loyaltyLockedQty) {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 2 (loyalty_locked_qty option): PASS - option value: ' . $loyaltyLockedQty->getValue());
-            return true;
-        } else {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 2 (loyalty_locked_qty option): FAIL - no option found');
-        }
-
-        // Method 3: Check additional_options for loyalty flag
-        $options = $item->getOptionByCode('additional_options');
-        if ($options) {
-            $value = @unserialize($options->getValue());
+        // STRICT METHOD 3: Check additional_options for loyalty flag with exact value match
+        $additionalOptions = $item->getOptionByCode('additional_options');
+        if ($additionalOptions) {
+            $value = @unserialize($additionalOptions->getValue());
             if (is_array($value)) {
                 foreach ($value as $option) {
                     if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
                         isset($option['value']) && $option['value'] === '1') {
-                        $this->logger->info('[LOYALTY-CART] ViewModel Method 3 (additional_options): PASS - found loyalty flag');
-                        return true;
+                        $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 3 (additional_options): CONFIRMED LOYALTY - found loyalty flag');
+                        
+                        // Additional validation: loyalty products should have custom price of 0
+                        if ($customPrice === 0.0 || $customPrice === '0.0000') {
+                            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Validation: PASS - Custom price is 0 as expected');
+                            return true;
+                        } else {
+                            $this->logger->warning(sprintf(
+                                '[LOYALTY-CART] ViewModel STRICT Validation: SUSPICIOUS - Loyalty additional option found but custom price is %s (expected 0)',
+                                $customPrice ?? 'null'
+                            ));
+                            // Still return true but log the anomaly
+                            return true;
+                        }
                     }
                 }
             }
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 3 (additional_options): FAIL - no loyalty flag found');
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 3 (additional_options): FAIL - no loyalty flag found');
         } else {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 3 (additional_options): FAIL - no additional options');
+            $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 3 (additional_options): FAIL - no additional options');
         }
 
-        // Method 4: Enterprise-specific fallback
-        if ($this->enterpriseDetection->isEnterpriseEdition()) {
-            $product = $item->getProduct();
-            if ($product && $product->getData('loyalty_locked_qty')) {
-                $this->logger->info('[LOYALTY-CART] ViewModel Method 4 (Enterprise fallback): PASS - product has loyalty flag');
-                return true;
-            } else {
-                $this->logger->info('[LOYALTY-CART] ViewModel Method 4 (Enterprise fallback): FAIL - no product loyalty flag');
-            }
-        } else {
-            $this->logger->info('[LOYALTY-CART] ViewModel Method 4 (Enterprise fallback): SKIPPED - not Enterprise edition');
-        }
+        // STRICT METHOD 4: Enterprise-specific fallback (DISABLED for strict mode)
+        // This method is disabled in strict mode to prevent false positives
+        $this->logger->info('[LOYALTY-CART] ViewModel STRICT Method 4 (Enterprise fallback): DISABLED - strict mode prevents false positives');
 
-        $this->logger->info('[LOYALTY-CART] ViewModel FINAL RESULT: REGULAR PRODUCT for: ' . $productName);
+        // FINAL DETERMINATION: If none of the strict methods matched, it's a regular product
+        $this->logger->info(sprintf(
+            '[LOYALTY-CART] ViewModel STRICT FINAL DETERMINATION: REGULAR PRODUCT - "%s" (SKU: %s) - No loyalty markers found',
+            $productName,
+            $sku
+        ));
+
         return false;
     }
 }
