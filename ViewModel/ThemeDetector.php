@@ -21,13 +21,13 @@ class ThemeDetector implements ArgumentInterface
     }
 
     /**
-     * Check if the current theme is Hyvä
+     * Check if the current theme is Hyvä or Hyva ChildTheme
      *
      * @return bool
      */
-    public function isHyvaTheme(): bool
+    public function isHyvaOrChildTheme(): bool
     {
-        return $this->helper->isHyvaTheme();
+        return $this->helper->isHyvaOrChildTheme();
     }
 
     /**

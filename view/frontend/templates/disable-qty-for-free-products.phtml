@@ -5,7 +5,7 @@
  */
 $themeDetector = $block->getData('theme_detector');
 $helper = $this->helper(\LoyaltyEngage\LoyaltyShop\Helper\Data::class);
-$isHyva = $themeDetector && $themeDetector->isHyvaTheme();
+$isHyva = $themeDetector && $themeDetector->isHyvaOrChildTheme();
 ?>
 
 <?php if ($isHyva): ?>

@@ -2,6 +2,8 @@
 namespace LoyaltyEngage\LoyaltyShop\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;
+use Magento\Framework\View\Design\Theme\ThemeProviderInterface;
+use Magento\Framework\View\DesignInterface;
 use Magento\Store\Model\ScopeInterface;
 
 class Data extends AbstractHelper
@@ -13,7 +15,9 @@ class Data extends AbstractHelper
      * @param \Magento\Framework\App\Helper\Context $context
      */
     public function __construct(
-        \Magento\Framework\App\Helper\Context $context
+        \Magento\Framework\App\Helper\Context $context,
+        protected DesignInterface $design,
+        protected ThemeProviderInterface $themeProvider
     ) {
         parent::__construct($context);
     }
@@ -82,5 +86,30 @@ class Data extends AbstractHelper
             ScopeInterface::SCOPE_STORE
         );
     }
-    
+
+    /**
+     * Check if current theme is Hyvä Or ChildTheme
+     *
+     * @return bool
+     */
+    public function isHyvaOrChildTheme(): bool
+    {
+        $theme = $this->design->getDesignTheme();
+
+        while ($theme) {
+            $themeCode = $theme->getCode();
+            
+            if ($themeCode === 'Hyva/default') {
+                return true;
+            }
+
+            $parentId = $theme->getParentId();
+            if (!$parentId) {
+                break;
+            }
+            $theme = $this->themeProvider->getThemeById($parentId);
+        }
+
+        return false;
+    }
 }
