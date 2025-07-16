@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Communication/etc/communication.xsd">
+    <topic name="loyaltyshop.purchase_event" request="string">
+        <handler name="loyaltyshop_purchase_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\PurchaseConsumer" method="process" />
+    </topic>
+    <topic name="loyaltyshop.return_event" request="string">
+        <handler name="loyaltyshop_return_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\ReturnConsumer" method="process" />
+    </topic>
+    <topic name="loyaltyshop.free_product_purchase_event" request="string">
+        <handler name="loyaltyshop_free_product_purchase_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductPurchaseConsumer" method="process" />
+    </topic>
+    <topic name="loyaltyshop.free_product_remove_event" request="string">
+        <handler name="loyaltyshop_free_product_remove_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductRemoveConsumer" method="process" />
+    </topic>
+</config>
