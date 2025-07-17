@@ -6,11 +6,22 @@ use Magento\Framework\View\Result\Page;
 class ThemeLayoutPlugin
 {
     /**
-     * Add Hyvä-specific layout handles
+     * Handles that should have Hyvä-specific variants
+     * Only these handles will get the "hyva/" prefix to avoid conflicts with core menu functionality
+     */
+    private const LOYALTY_SPECIFIC_HANDLES = [
+        'catalog_category_view',
+        'catalog_product_view',
+        'checkout_cart_index',
+        'checkout_cart_item_renderers'
+    ];
+
+    /**
+     * Add Hyvä-specific layout handles for loyalty module functionality only
      * 
      * This plugin is specifically designed for Hyvä theme installations.
-     * Since this is a Hyvä-only plugin, we always add Hyvä layout handles
-     * without runtime theme detection to ensure cache compatibility.
+     * It only adds Hyvä layout handles for specific pages that use loyalty functionality
+     * to ensure cache compatibility and prevent menu conflicts.
      *
      * @param Page $subject
      * @param Page $result
@@ -24,11 +35,13 @@ class ThemeLayoutPlugin
         $update = $subject->getLayout()->getUpdate();
         $handles = $update->getHandles();
         
-        // Add Hyvä-specific handles for each existing handle
+        // Only add Hyvä-specific handles for loyalty-related pages
         foreach ($handles as $handle) {
-            // Add hyva/handle_name for each handle
-            $hyvaHandle = 'hyva/' . $handle;
-            $update->addHandle($hyvaHandle);
+            // Only add hyva/ prefix for handles that actually need loyalty functionality
+            if (in_array($handle, self::LOYALTY_SPECIFIC_HANDLES)) {
+                $hyvaHandle = 'hyva/' . $handle;
+                $update->addHandle($hyvaHandle);
+            }
         }
         
         return $result;
