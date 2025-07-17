@@ -7,7 +7,7 @@ use Magento\Framework\Event\Observer;
 class QuoteItemQtyValidatorPlugin
 {
     /**
-     * Prevent quantity changes for free products
+     * Prevent quantity changes for loyalty products
      *
      * @param QuantityValidator $subject
      * @param \Closure $proceed
@@ -18,8 +18,8 @@ class QuoteItemQtyValidatorPlugin
     {
         $quoteItem = $observer->getEvent()->getItem();
         
-        // Check if this is a free product or has loyalty_locked_qty flag
-        if ($quoteItem && ((float)$quoteItem->getPrice() == 0 || $quoteItem->getOptionByCode('loyalty_locked_qty'))) {
+        // Only check for confirmed loyalty products using reliable detection
+        if ($quoteItem && $this->isConfirmedLoyaltyProduct($quoteItem)) {
             // Get the original quantity
             $originalQty = $quoteItem->getOrigData('qty');
             
@@ -28,11 +28,49 @@ class QuoteItemQtyValidatorPlugin
                 $quoteItem->setQty($originalQty);
             }
             
-            // Skip further validation
+            // Skip further validation for loyalty products
             return;
         }
         
         // For regular products, proceed with normal validation
         return $proceed($observer);
+    }
+
+    /**
+     * Reliable loyalty product detection - only confirmed loyalty products
+     *
+     * @param \Magento\Quote\Model\Quote\Item $quoteItem
+     * @return bool
+     */
+    private function isConfirmedLoyaltyProduct($quoteItem): bool
+    {
+        // Method 1: Check for explicit loyalty_locked_qty option (most reliable)
+        $loyaltyOption = $quoteItem->getOptionByCode('loyalty_locked_qty');
+        if ($loyaltyOption && $loyaltyOption->getValue() === '1') {
+            return true;
+        }
+
+        // Method 2: Check item data directly (secondary check)
+        $loyaltyData = $quoteItem->getData('loyalty_locked_qty');
+        if ($loyaltyData === '1' || $loyaltyData === 1) {
+            return true;
+        }
+
+        // Method 3: Check additional_options for loyalty flag
+        $additionalOptions = $quoteItem->getOptionByCode('additional_options');
+        if ($additionalOptions) {
+            $value = @unserialize($additionalOptions->getValue());
+            if (is_array($value)) {
+                foreach ($value as $option) {
+                    if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
+                        isset($option['value']) && $option['value'] === '1') {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Not a confirmed loyalty product
+        return false;
     }
 }

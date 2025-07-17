@@ -4,9 +4,10 @@
 Some users experienced all products in cart showing 0 euro pricing while quantity selectors were not working. The total price remained correct, but individual product prices displayed as zero.
 
 ## Root Cause
-The issue was caused by **two problems**:
+The issue was caused by **multiple problems**:
 1. A global template override in `view/frontend/layout/checkout_cart_item_renderers.xml` that replaced the default cart item renderer for ALL products
 2. **Price-based logic** in plugins that incorrectly treated regular products as loyalty products when `$item->getPrice()` returned 0 during frontend rendering (even though backend price was correct)
+3. **QuoteItemPriceProtectionPlugin** blocking legitimate price modifications from other modules, causing conflicts
 
 ## Solution Implemented
 
@@ -25,7 +26,18 @@ The issue was caused by **two problems**:
 - **Change**: Removed the same problematic price check from the ViewModel
 - **Impact**: Consistent logic across all components
 
-### 4. Deprecated Custom Template
+### 4. **REMOVED QuoteItemPriceProtectionPlugin (NEW FIX)**
+- **File**: `Plugin/QuoteItemPriceProtectionPlugin.php` - **DELETED**
+- **Change**: Completely removed the plugin that was blocking price modifications
+- **Impact**: Eliminates conflicts with other modules (discount modules, tax modules, B2B pricing, etc.)
+- **Registration**: Removed from `etc/di.xml`
+
+### 5. **Fixed QuoteItemQtyValidatorPlugin (NEW FIX)**
+- **File**: `Plugin/QuoteItemQtyValidatorPlugin.php`
+- **Change**: Removed price-based detection `(float)$quoteItem->getPrice() == 0` and replaced with reliable loyalty detection
+- **Impact**: Only confirmed loyalty products have quantity restrictions, no conflicts with other modules
+
+### 6. Deprecated Custom Template
 - **File**: `view/frontend/templates/cart/item/default.phtml`
 - **Change**: Marked as deprecated since it's no longer used globally
 - **Impact**: Can be safely removed in future versions
@@ -34,7 +46,10 @@ The issue was caused by **two problems**:
 1. `view/frontend/layout/checkout_cart_item_renderers.xml` - Removed global override
 2. `Plugin/CheckoutCartItemRendererPlugin.php` - **CRITICAL**: Removed price-based loyalty detection
 3. `ViewModel/CartItemHelper.php` - **CRITICAL**: Removed price-based loyalty detection  
-4. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
+4. `Plugin/QuoteItemPriceProtectionPlugin.php` - **DELETED**: Removed entirely to prevent conflicts
+5. `Plugin/QuoteItemQtyValidatorPlugin.php` - **CRITICAL**: Removed price-based detection, added reliable loyalty detection
+6. `etc/di.xml` - Removed QuoteItemPriceProtectionPlugin registration
+7. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
 
 ## Testing Instructions
 

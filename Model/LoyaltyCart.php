@@ -182,7 +182,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                 ['sku' => $sku, 'email' => $email, 'quote_id' => $quote->getId()]
             );
 
-            return $this->setSuccessResponse($response, 'Product added to loyalty cart successfully.');
+            return $this->setSuccessResponse($response, 'Product toegevoegd aan winkelmand');
         } catch (\Throwable $e) {
             $this->loyaltyLogger->critical(
                 LoyaltyLogger::COMPONENT_API,
