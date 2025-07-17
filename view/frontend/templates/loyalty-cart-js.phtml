@@ -1,0 +1,32 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+?>
+<script>
+    require([
+        'jquery', 
+        'loyalty-cart',
+        'loyalty-cart-observer',
+        'luma-qty-fix'
+    ], function($, loyaltyCart, loyaltyCartObserver, lumaQtyFix) {
+        try {
+            // Initialize loyalty cart
+            if (typeof loyaltyCart === 'function') {
+                loyaltyCart();
+            }
+            
+            // Initialize loyalty cart observer if on cart page
+            if (typeof loyaltyCartObserver === 'function' && window.location.href.indexOf('checkout/cart') !== -1) {
+                loyaltyCartObserver();
+            }
+            
+            // Initialize quantity fix for free products
+            if (typeof lumaQtyFix === 'function') {
+                lumaQtyFix();
+            }
+        } catch (e) {
+            console.error('Error initializing LoyaltyEngage modules:', e);
+        }
+    });
+</script>

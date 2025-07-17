@@ -1,0 +1,57 @@
+# Magento 2 specific ignores
+/vendor/
+/generated/
+/pub/static/_cache/
+/pub/static/adminhtml/
+/pub/static/frontend/
+/var/
+
+# IDE and editor specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+.DS_Store
+
+# Composer
+composer.phar
+/vendor/
+/composer.lock
+
+# Node.js
+/node_modules/
+/package-lock.json
+
+# Build artifacts
+/build/
+/dist/
+
+# Logs
+*.log
+/var/log/
+/var/report/
+
+# Cache
+/var/cache/
+/var/page_cache/
+/var/view_preprocessed/
+
+# Session
+/var/session/
+
+# Backups
+*.bak
+*.sql
+*.sql.gz
+*.tar
+*.tar.gz
+*.zip
+
+# Environment specific
+.env
+.env.local
+.env.development
+.env.test
+.env.production

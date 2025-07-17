@@ -1,0 +1,36 @@
+/* Styles for locked quantity inputs */
+.loyalty-qty-locked .input-text.qty,
+.loyalty-qty-locked .input-qty,
+.loyalty-qty-locked input[name^="cart"][name$="[qty]"] {
+    background-color: #f0f0f0 !important;
+    border-color: #cccccc !important;
+    color: #999999 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+}
+
+/* Disable +/- buttons */
+.loyalty-qty-locked .qty-changer,
+.loyalty-qty-locked .qty-button,
+.loyalty-qty-locked .qty-increase,
+.loyalty-qty-locked .qty-decrease,
+.loyalty-qty-locked .qty-modifier {
+    pointer-events: none !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+/* Add a visual indicator */
+.loyalty-qty-locked:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 20px 20px 0;
+    border-color: transparent #f0f0f0 transparent transparent;
+    z-index: 1;
+}
