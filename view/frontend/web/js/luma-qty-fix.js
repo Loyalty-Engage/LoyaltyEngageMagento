@@ -14,17 +14,19 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
         'use strict';
 
         return function (config) {
-            // Function to immediately disable quantity inputs for free products
-            function disableQtyInputsForFreeProducts() {
+            // Function to immediately disable quantity inputs for loyalty products
+            function disableQtyInputsForLoyaltyProducts() {
                 
-                // Find all cart items with price 0
+                // Find all cart items that are explicitly marked as loyalty products
                 $('.cart.item').each(function() {
                     var $item = $(this);
-                    var priceText = $item.find('.price-excluding-tax .price').text().trim();
-                    var price = parseFloat(priceText.replace(/[^0-9.-]+/g, ''));
                     
-                    // If price is 0, disable the quantity input
-                    if (price === 0) {
+                    // Check for data attribute that might have been set by PHP
+                    var dataLocked = $item.attr('data-loyalty-locked-qty');
+                    var isLocked = (dataLocked === 'true' || dataLocked === '1');
+                    
+                    // Only process items that are explicitly marked as loyalty products
+                    if (isLocked) {
                         var $qtyInput = $item.find('.input-text.qty');
                         
                         // Make sure we found the input
@@ -83,12 +85,12 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
             }
             
             // Run immediately
-            disableQtyInputsForFreeProducts();
+            disableQtyInputsForLoyaltyProducts();
             
             // Also run after any AJAX updates
             $(document).on('ajaxComplete', function(event, xhr, settings) {
                 if (settings.url.indexOf('/checkout/cart/') !== -1) {
-                    setTimeout(disableQtyInputsForFreeProducts, 500);
+                    setTimeout(disableQtyInputsForLoyaltyProducts, 500);
                 }
             });
             

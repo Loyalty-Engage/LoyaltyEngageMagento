@@ -7,33 +7,38 @@ use Magento\Framework\Event\Observer;
 class QuoteItemQtyValidatorPlugin
 {
     /**
-     * Prevent quantity changes for loyalty products
+     * Prevent quantity changes for loyalty products (before validation)
+     * This approach is less intrusive and doesn't interfere with regular product processing
      *
      * @param QuantityValidator $subject
-     * @param \Closure $proceed
      * @param Observer $observer
      * @return void
      */
-    public function aroundValidate(QuantityValidator $subject, \Closure $proceed, Observer $observer)
+    public function beforeValidate(QuantityValidator $subject, Observer $observer)
     {
         $quoteItem = $observer->getEvent()->getItem();
         
-        // Only check for confirmed loyalty products using reliable detection
+        // Only process confirmed loyalty products - leave regular products completely untouched
         if ($quoteItem && $this->isConfirmedLoyaltyProduct($quoteItem)) {
-            // Get the original quantity
+            // Get the original quantity for loyalty products
             $originalQty = $quoteItem->getOrigData('qty');
             
-            // If the quantity was changed, revert it back
+            // If the quantity was changed, revert it back to protect loyalty product quantities
             if ($originalQty && $originalQty != $quoteItem->getQty()) {
                 $quoteItem->setQty($originalQty);
+                
+                // Log the quantity protection action
+                error_log(sprintf(
+                    '[LoyaltyShop] Quantity protection: Reverted qty for loyalty product %s from %s to %s',
+                    $quoteItem->getSku(),
+                    $quoteItem->getQty(),
+                    $originalQty
+                ));
             }
-            
-            // Skip further validation for loyalty products
-            return;
         }
         
-        // For regular products, proceed with normal validation
-        return $proceed($observer);
+        // Always allow normal Magento validation to proceed for ALL products
+        // No return value needed for beforeValidate - this ensures normal processing continues
     }
 
     /**

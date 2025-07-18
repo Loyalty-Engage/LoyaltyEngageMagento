@@ -8,6 +8,7 @@ The issue was caused by **multiple problems**:
 1. A global template override in `view/frontend/layout/checkout_cart_item_renderers.xml` that replaced the default cart item renderer for ALL products
 2. **Price-based logic** in plugins that incorrectly treated regular products as loyalty products when `$item->getPrice()` returned 0 during frontend rendering (even though backend price was correct)
 3. **QuoteItemPriceProtectionPlugin** blocking legitimate price modifications from other modules, causing conflicts
+4. **JavaScript files using price-based detection** that treated any product with $0 display price as a loyalty product, interfering with regular product display
 
 ## Solution Implemented
 
@@ -32,12 +33,23 @@ The issue was caused by **multiple problems**:
 - **Impact**: Eliminates conflicts with other modules (discount modules, tax modules, B2B pricing, etc.)
 - **Registration**: Removed from `etc/di.xml`
 
-### 5. **Fixed QuoteItemQtyValidatorPlugin (NEW FIX)**
+### 5. **Fixed QuoteItemQtyValidatorPlugin (CRITICAL FIX)**
 - **File**: `Plugin/QuoteItemQtyValidatorPlugin.php`
-- **Change**: Removed price-based detection `(float)$quoteItem->getPrice() == 0` and replaced with reliable loyalty detection
-- **Impact**: Only confirmed loyalty products have quantity restrictions, no conflicts with other modules
+- **Change**: **MAJOR REFACTOR** - Changed from `aroundValidate` to `beforeValidate` method
+- **Root Cause**: The `aroundValidate` method was intercepting ALL quote item validation, interfering with regular product price calculations
+- **Solution**: `beforeValidate` only modifies loyalty products before validation, then allows normal Magento validation to proceed for ALL products
+- **Impact**: Regular products now go through normal Magento validation without interference, loyalty products still have quantity protection
 
-### 6. Deprecated Custom Template
+### 6. **Fixed JavaScript Price-Based Detection (NEW FIX)**
+- **Files**: 
+  - `view/frontend/web/js/loyalty-cart-observer.js`
+  - `view/frontend/web/js/luma-qty-fix.js`
+- **Change**: Removed price-based detection logic that was treating any product with $0 display price as loyalty product
+- **Old Logic**: `if ((priceFound && price === 0) || isLocked)`
+- **New Logic**: `if (isLocked)` - Only check `data-loyalty-locked-qty` attribute
+- **Impact**: JavaScript no longer interferes with regular product price display
+
+### 7. Deprecated Custom Template
 - **File**: `view/frontend/templates/cart/item/default.phtml`
 - **Change**: Marked as deprecated since it's no longer used globally
 - **Impact**: Can be safely removed in future versions
@@ -47,9 +59,11 @@ The issue was caused by **multiple problems**:
 2. `Plugin/CheckoutCartItemRendererPlugin.php` - **CRITICAL**: Removed price-based loyalty detection
 3. `ViewModel/CartItemHelper.php` - **CRITICAL**: Removed price-based loyalty detection  
 4. `Plugin/QuoteItemPriceProtectionPlugin.php` - **DELETED**: Removed entirely to prevent conflicts
-5. `Plugin/QuoteItemQtyValidatorPlugin.php` - **CRITICAL**: Removed price-based detection, added reliable loyalty detection
+5. `Plugin/QuoteItemQtyValidatorPlugin.php` - **CRITICAL**: Changed from `aroundValidate` to `beforeValidate` to prevent interference with regular product pricing
 6. `etc/di.xml` - Removed QuoteItemPriceProtectionPlugin registration
-7. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
+7. `view/frontend/web/js/loyalty-cart-observer.js` - **CRITICAL**: Removed price-based detection from JavaScript
+8. `view/frontend/web/js/luma-qty-fix.js` - **CRITICAL**: Removed price-based detection from JavaScript
+9. `view/frontend/templates/cart/item/default.phtml` - Deprecated template
 
 ## Testing Instructions
 

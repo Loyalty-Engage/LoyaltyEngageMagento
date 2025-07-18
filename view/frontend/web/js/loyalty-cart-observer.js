@@ -21,35 +21,12 @@ if (window.location.href.indexOf('checkout/cart') === -1) {
                 $('.cart.item:not(.loyalty-qty-locked)').each(function() {
                     var $item = $(this);
                     
-                    // Different selectors for price elements
-                    var priceSelectors = [
-                        '.price-excluding-tax .price',  // Luma theme
-                        '.price .price',                // Generic
-                        '.price-final_price .price',    // Another common pattern
-                        '.price-container .price'       // Another variation
-                    ];
-                    
-                    var price = 0;
-                    var priceFound = false;
-                    
-                    // Try different selectors to find the price
-                    for (var i = 0; i < priceSelectors.length; i++) {
-                        var $priceElement = $item.find(priceSelectors[i]);
-                        if ($priceElement.length) {
-                            var priceText = $priceElement.text().trim();
-                            // Remove currency symbols and formatting
-                            price = parseFloat(priceText.replace(/[^0-9.-]+/g, ''));
-                            priceFound = true;
-                            break;
-                        }
-                    }
-                    
                     // Check for data attribute that might have been set by PHP
                     var dataLocked = $item.attr('data-loyalty-locked-qty');
                     var isLocked = (dataLocked === 'true' || dataLocked === '1');
                     
-                    // If price is 0 or we have the loyalty_locked_qty data attribute
-                    if ((priceFound && price === 0) || isLocked) {
+                    // Only process items that are explicitly marked as loyalty products
+                    if (isLocked) {
                         
                         // Find quantity input with different selectors
                         var qtySelectors = [
