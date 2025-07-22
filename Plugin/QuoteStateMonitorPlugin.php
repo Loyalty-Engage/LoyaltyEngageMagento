@@ -31,11 +31,24 @@ class QuoteStateMonitorPlugin
      */
     public function beforeSetGrandTotal(Quote $subject, $grandTotal)
     {
+
         $currentGrandTotal = $subject->getGrandTotal();
+         $this->loyaltyLogger->info(
+            self::COMPONENT_QUOTE_STATE,
+            'DEBUG',
+            'Entered beforeSetGrandTotal',
+            ['currentGrandTotal' => $currentGrandTotal]
+        );
         $quoteId = $subject->getId() ?: 'new';
         
         // Log every grand total change with stack trace
         if ($currentGrandTotal != $grandTotal) {
+
+            $this->loyaltyLogger->info(
+                self::COMPONENT_QUOTE_STATE,
+                'DEBUG',
+                'Entered beforeSetGrandTotal If'
+            );
             $stackTrace = $this->getStackTrace();
             
             $logLevel = ($currentGrandTotal > 0 && $grandTotal == 0) ? 'critical' : 'info';
@@ -76,11 +89,36 @@ class QuoteStateMonitorPlugin
      */
     public function beforeSetBaseGrandTotal(Quote $subject, $baseGrandTotal)
     {
+
         $currentBaseGrandTotal = $subject->getBaseGrandTotal();
+
+        $this->loyaltyLogger->info(
+            self::COMPONENT_QUOTE_STATE,
+            'DEBUG',
+            'Entered beforeSetBaseGrandTotal',
+            ['currentBaseGrandTotal' => $currentBaseGrandTotal]
+        );
+
+         $this->loyaltyLogger->info(
+            self::COMPONENT_QUOTE_STATE,
+            'DEBUG',
+            'Entered baseGrandTotal',
+            ['baseGrandTotal' => $baseGrandTotal]
+        );
+
+
         $quoteId = $subject->getId() ?: 'new';
         
         // Log every base grand total change with stack trace
         if ($currentBaseGrandTotal != $baseGrandTotal) {
+
+            $this->loyaltyLogger->info(
+                self::COMPONENT_QUOTE_STATE,
+                'DEBUG',
+                'Entered beforeSetBaseGrandTotal If'
+            );
+
+
             $stackTrace = $this->getStackTrace();
             
             $logLevel = ($currentBaseGrandTotal > 0 && $baseGrandTotal == 0) ? 'critical' : 'info';

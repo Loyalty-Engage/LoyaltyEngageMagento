@@ -53,10 +53,17 @@ class QuoteRepositorySavePlugin
     public function beforeSave(CartRepositoryInterface $subject, Quote $quote)
     {
         $quoteId = $quote->getId() ?: 'new';
-        
+
+        $this->loyaltyLogger->info(
+            self::COMPONENT_QUOTE,
+            'DEBUG',
+            'Entered beforeSave method',
+            ['quote_id' => $quoteId]
+        );
+
         // Store original prices for regular products
         $this->preserveOriginalPrices($quote);
-        
+
         // Store original totals for comparison
         $this->originalTotals[$quoteId] = [
             'subtotal' => $quote->getSubtotal(),
@@ -70,7 +77,7 @@ class QuoteRepositorySavePlugin
 
         // Get stack trace to identify caller
         $stackTrace = $this->getStackTrace();
-        
+
         // Log detailed quote state before save
         $this->loyaltyLogger->info(
             self::COMPONENT_QUOTE,
@@ -104,7 +111,14 @@ class QuoteRepositorySavePlugin
     public function afterSave(CartRepositoryInterface $subject, $result, Quote $quote)
     {
         $quoteId = $quote->getId() ?: 'new';
-        
+
+        $this->loyaltyLogger->info(
+            self::COMPONENT_QUOTE,
+            'DEBUG',
+            'Entered afterSave method',
+            ['quote_id' => $quoteId]
+        );
+
         if ($result === null) {
             $this->loyaltyLogger->error(
                 self::COMPONENT_QUOTE,
@@ -121,16 +135,16 @@ class QuoteRepositorySavePlugin
 
         // Restore original prices for regular products
         $this->restoreOriginalPrices($result);
-        
+
         // Detect and log any suspicious changes
         $this->detectSuspiciousChanges($result, $quoteId);
-        
+
         // Log final state
         $this->logFinalState($result, $quoteId);
-        
+
         // Clean up stored data
         unset($this->originalPrices[$quoteId], $this->originalTotals[$quoteId]);
-        
+
         return $result;
     }
 
@@ -143,7 +157,7 @@ class QuoteRepositorySavePlugin
     {
         $quoteId = $quote->getId() ?: 'new';
         $this->originalPrices[$quoteId] = [];
-        
+
         foreach ($quote->getAllItems() as $item) {
             if (!$this->isLoyaltyProduct($item)) {
                 $itemId = $item->getId() ?: $item->getSku();
@@ -154,7 +168,7 @@ class QuoteRepositorySavePlugin
                     'original_custom_price' => $item->getOriginalCustomPrice(),
                     'base_price' => $item->getBasePrice()
                 ];
-                
+
                 $this->loyaltyLogger->info(
                     self::COMPONENT_QUOTE,
                     'PROTECTION-SET',
@@ -177,22 +191,34 @@ class QuoteRepositorySavePlugin
     private function restoreOriginalPrices(Quote $quote): void
     {
         $quoteId = $quote->getId() ?: 'new';
-        
+
         if (!isset($this->originalPrices[$quoteId])) {
             return;
         }
-        
+
         foreach ($quote->getAllItems() as $item) {
             if (!$this->isLoyaltyProduct($item)) {
                 $itemId = $item->getId() ?: $item->getSku();
-                
+
                 if (isset($this->originalPrices[$quoteId][$itemId])) {
                     $original = $this->originalPrices[$quoteId][$itemId];
-                    
+
+                    // Log the original price data and itemId for debugging
+                    $this->loyaltyLogger->info(
+                        self::COMPONENT_QUOTE,
+                        'RESTORE-ORIGINAL',
+                        sprintf('Restoring prices for itemId %s', $itemId),
+                        [
+                            'item_id' => $itemId,
+                            'sku' => $item->getSku(),
+                            'original_data' => $original
+                        ]
+                    );
+
                     // Check if prices were modified
                     $priceChanged = $item->getPrice() != $original['price'];
                     $customPriceChanged = $item->getCustomPrice() != $original['custom_price'];
-                    
+
                     if ($priceChanged || $customPriceChanged) {
                         $this->loyaltyLogger->error(
                             self::COMPONENT_QUOTE,
@@ -207,7 +233,7 @@ class QuoteRepositorySavePlugin
                                 'stack_trace' => $this->getStackTrace()['summary']
                             ]
                         );
-                        
+
                         // Restore original prices
                         $item->setPrice($original['price']);
                         $item->setCustomPrice($original['custom_price']);
@@ -230,7 +256,7 @@ class QuoteRepositorySavePlugin
         if (!isset($this->originalTotals[$quoteId])) {
             return;
         }
-        
+
         $original = $this->originalTotals[$quoteId];
         $current = [
             'subtotal' => $quote->getSubtotal(),
@@ -241,7 +267,7 @@ class QuoteRepositorySavePlugin
             'coupon_code' => $quote->getCouponCode(),
             'applied_rule_ids' => $quote->getAppliedRuleIds()
         ];
-        
+
         // Check for suspicious grand total changes
         if ($original['grand_total'] > 0 && $current['grand_total'] == 0) {
             $this->loyaltyLogger->critical(
@@ -257,7 +283,7 @@ class QuoteRepositorySavePlugin
                 ]
             );
         }
-        
+
         // Check for other suspicious changes
         foreach (['subtotal', 'base_subtotal', 'grand_total', 'base_grand_total'] as $field) {
             if (abs($original[$field] - $current[$field]) > 0.01) {
@@ -325,7 +351,7 @@ class QuoteRepositorySavePlugin
         if ($loyaltyOption && $loyaltyOption->getValue() === '1') {
             return true;
         }
-        
+
         $loyaltyData = $item->getData('loyalty_locked_qty');
         return $loyaltyData === '1' || $loyaltyData === 1;
     }
@@ -340,6 +366,20 @@ class QuoteRepositorySavePlugin
     {
         $items = [];
         foreach ($quote->getAllItems() as $item) {
+            
+            // Log price for each item
+            $this->loyaltyLogger->info(
+                self::COMPONENT_QUOTE,
+                'ITEM-PRICE',
+                sprintf('Item price for SKU %s', $item->getSku()),
+                [
+                    'sku' => $item->getSku(),
+                    'price' => $item->getPrice(),
+                    'custom_price' => $item->getCustomPrice(),
+                    'original_custom_price' => $item->getOriginalCustomPrice()
+                ]
+            );
+
             $items[] = [
                 'sku' => $item->getSku(),
                 'name' => $item->getName(),
@@ -350,7 +390,7 @@ class QuoteRepositorySavePlugin
                 'qty' => $item->getQty(),
                 'is_loyalty' => $this->isLoyaltyProduct($item),
                 'loyalty_detection' => [
-                    'option_check' => $item->getOptionByCode('loyalty_locked_qty') ? 
+                    'option_check' => $item->getOptionByCode('loyalty_locked_qty') ?
                         $item->getOptionByCode('loyalty_locked_qty')->getValue() : 'not_found',
                     'data_check' => $item->getData('loyalty_locked_qty') ?? 'not_found'
                 ]
@@ -370,26 +410,26 @@ class QuoteRepositorySavePlugin
         $relevantTrace = [];
         $summary = 'Unknown';
         $primaryCaller = null;
-        
+
         foreach ($trace as $step) {
             if (!isset($step['file']) || !isset($step['class'])) {
                 continue;
             }
-            
+
             $isCore = strpos($step['file'], '/vendor/magento/') !== false;
-            $isB2B = strpos($step['file'], '/vendor/magento/') !== false && 
-                     (strpos($step['class'], 'Company') !== false || strpos($step['class'], 'B2b') !== false);
-            $isExternal = !$isCore && strpos($step['file'], '/app/code/') !== false && 
-                         strpos($step['file'], '/LoyaltyEngage/LoyaltyShop/') === false;
-            
+            $isB2B = strpos($step['file'], '/vendor/magento/') !== false &&
+                (strpos($step['class'], 'Company') !== false || strpos($step['class'], 'B2b') !== false);
+            $isExternal = !$isCore && strpos($step['file'], '/app/code/') !== false &&
+                strpos($step['file'], '/LoyaltyEngage/LoyaltyShop/') === false;
+
             // Specific module detection
-            $isEuVat = strpos($step['class'], 'Geissweb\\Euvat') !== false || 
-                       strpos($step['file'], '/geissweb/module-euvat/') !== false;
-            $isNegotiableQuote = strpos($step['class'], 'NegotiableQuote') !== false || 
-                                strpos($step['file'], '/module-negotiable-quote/') !== false;
-            $isPurchaseOrder = strpos($step['class'], 'PurchaseOrder') !== false || 
-                              strpos($step['file'], '/module-purchase-order/') !== false;
-            
+            $isEuVat = strpos($step['class'], 'Geissweb\\Euvat') !== false ||
+                strpos($step['file'], '/geissweb/module-euvat/') !== false;
+            $isNegotiableQuote = strpos($step['class'], 'NegotiableQuote') !== false ||
+                strpos($step['file'], '/module-negotiable-quote/') !== false;
+            $isPurchaseOrder = strpos($step['class'], 'PurchaseOrder') !== false ||
+                strpos($step['file'], '/module-purchase-order/') !== false;
+
             $stepData = [
                 'class' => $step['class'] ?? 'Unknown',
                 'method' => $step['function'] ?? 'unknown',
@@ -404,27 +444,41 @@ class QuoteRepositorySavePlugin
                 'is_purchase_order_module' => $isPurchaseOrder,
                 'is_suspicious' => $isExternal || $isB2B || $isEuVat || $isNegotiableQuote || $isPurchaseOrder
             ];
-            
+
             $relevantTrace[] = $stepData;
-            
+
             if (!$primaryCaller && ($isCore || $isExternal || $isB2B || $isEuVat || $isNegotiableQuote || $isPurchaseOrder)) {
                 $primaryCaller = $stepData;
                 $summary = $step['class'] . '::' . $step['function'];
             }
         }
-        
+
         return [
             'context' => 'QUOTE_SAVE_TRIGGER',
             'summary' => $summary,
             'primary_caller' => $primaryCaller,
             'full_chain' => $relevantTrace,
-            'external_modules' => array_filter($relevantTrace, function($step) { return $step['is_external_module']; }),
-            'b2b_modules' => array_filter($relevantTrace, function($step) { return $step['is_b2b_module']; }),
-            'eu_vat_modules' => array_filter($relevantTrace, function($step) { return $step['is_eu_vat_module']; }),
-            'negotiable_quote_modules' => array_filter($relevantTrace, function($step) { return $step['is_negotiable_quote_module']; }),
-            'purchase_order_modules' => array_filter($relevantTrace, function($step) { return $step['is_purchase_order_module']; }),
-            'magento_core_calls' => array_filter($relevantTrace, function($step) { return $step['is_magento_core']; }),
-            'suspicious_callers' => array_filter($relevantTrace, function($step) { return $step['is_suspicious']; })
+            'external_modules' => array_filter($relevantTrace, function ($step) {
+                return $step['is_external_module'];
+            }),
+            'b2b_modules' => array_filter($relevantTrace, function ($step) {
+                return $step['is_b2b_module'];
+            }),
+            'eu_vat_modules' => array_filter($relevantTrace, function ($step) {
+                return $step['is_eu_vat_module'];
+            }),
+            'negotiable_quote_modules' => array_filter($relevantTrace, function ($step) {
+                return $step['is_negotiable_quote_module'];
+            }),
+            'purchase_order_modules' => array_filter($relevantTrace, function ($step) {
+                return $step['is_purchase_order_module'];
+            }),
+            'magento_core_calls' => array_filter($relevantTrace, function ($step) {
+                return $step['is_magento_core'];
+            }),
+            'suspicious_callers' => array_filter($relevantTrace, function ($step) {
+                return $step['is_suspicious'];
+            })
         ];
     }
 
@@ -437,32 +491,32 @@ class QuoteRepositorySavePlugin
     {
         $stackTrace = $this->getStackTrace();
         $conflicts = [];
-        
+
         if (!empty($stackTrace['b2b_modules'])) {
             $conflicts[] = 'B2B_MODULE_DETECTED';
         }
-        
+
         if (!empty($stackTrace['external_modules'])) {
             $conflicts[] = 'EXTERNAL_MODULE_DETECTED';
         }
-        
+
         if (!empty($stackTrace['suspicious_callers'])) {
             $conflicts[] = 'SUSPICIOUS_CALLER_DETECTED';
         }
-        
+
         // Specific module detection for known problematic modules
         if (!empty($stackTrace['eu_vat_modules'])) {
             $conflicts[] = 'EU_VAT_MODULE_DETECTED';
         }
-        
+
         if (!empty($stackTrace['negotiable_quote_modules'])) {
             $conflicts[] = 'NEGOTIABLE_QUOTE_MODULE_DETECTED';
         }
-        
+
         if (!empty($stackTrace['purchase_order_modules'])) {
             $conflicts[] = 'PURCHASE_ORDER_MODULE_DETECTED';
         }
-        
+
         return $conflicts;
     }
 }

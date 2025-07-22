@@ -235,6 +235,15 @@ class CartPageViewObserver implements ObserverInterface
      */
     private function logCartTotals($quote): void
     {
+
+             $this->loyaltyLogger->info(
+                Logger::COMPONENT_OBSERVER,
+                'DEBUG',
+                'logCartTotals quote',
+                ['getData' =>  $quote->getData()]
+            );
+
+
         $totalsData = [
             'subtotal' => $quote->getSubtotal(),
             'subtotal_incl_tax' => $quote->getSubtotalInclTax(),

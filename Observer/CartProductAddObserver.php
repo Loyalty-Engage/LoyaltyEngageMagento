@@ -76,6 +76,21 @@ class CartProductAddObserver implements ObserverInterface
             
             // Determine source of addition
             $source = $this->determineAdditionSource($quoteItem);
+
+            $this->loyaltyLogger->info(
+                Logger::COMPONENT_OBSERVER,
+                'DEBUG',
+                'execute getPrice',
+                ['price' =>  $product->getPrice()]
+            );
+
+            $this->loyaltyLogger->info(
+                Logger::COMPONENT_OBSERVER,
+                'DEBUG',
+                'execute getGrandTotal',
+                ['getData' =>  $quoteItem->getData()]
+            );
+            
             
             // Prepare additional data
             $additionalData = [
@@ -255,6 +270,13 @@ class CartProductAddObserver implements ObserverInterface
      */
     private function logLoyaltyProductDetails($quoteItem, $product): void
     {
+
+         $this->loyaltyLogger->info(
+                Logger::COMPONENT_OBSERVER,
+                'DEBUG',
+                'execute getCustomPrice',
+                ['custom_price' =>  $quoteItem->getCustomPrice()]
+            );
         $details = [
             'custom_price' => $quoteItem->getCustomPrice(),
             'original_custom_price' => $quoteItem->getOriginalCustomPrice(),

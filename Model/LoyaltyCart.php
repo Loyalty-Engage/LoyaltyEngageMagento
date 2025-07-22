@@ -53,6 +53,13 @@ class LoyaltyCart implements LoyaltyCartInterface
 
     public function addProduct(int $customerId, string $sku): LoyaltyCartResponseInterface
     {
+
+        $this->loyaltyLogger->info(
+            LoyaltyLogger::COMPONENT_API,
+            'DEBUG',
+            'addProduct method',
+            ['customerId' => $customerId]
+        );
         $response = $this->loyaltyCartResponseFactory->create();
 
         // Log the start of loyalty product addition
@@ -137,6 +144,13 @@ class LoyaltyCart implements LoyaltyCartInterface
             // Only add the product if it's not already in the cart
             if (!$productAlreadyInCart) {
                 $quoteItem = $quote->addProduct($product);
+
+                $this->loyaltyLogger->info(
+                    LoyaltyLogger::COMPONENT_API,
+                    'DEBUG',
+                    'addProduct quoteItem',
+                    ['quoteItem' => $quoteItem->getData()]
+                );
                 $quoteItem->setCustomPrice(0);
                 $quoteItem->setOriginalCustomPrice(0);
                 $quoteItem->setData('loyalty_locked_qty', 1);

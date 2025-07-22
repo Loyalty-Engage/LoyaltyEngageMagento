@@ -104,6 +104,13 @@ class QuoteTotalsCollectorPlugin
 
         // Detect suspicious changes during totals collection
         $this->detectTotalsChanges($quoteId, $before, $after);
+
+         $this->loyaltyLogger->info(
+            LoyaltyLogger::COMPONENT_API,
+            'DEBUG',
+            'afterCollect method',
+            ['result' => $result->getData()]
+        );
         
         // Log final state after collection
         $this->loyaltyLogger->info(
