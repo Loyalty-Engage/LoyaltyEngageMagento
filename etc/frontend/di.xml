@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Checkout\Block\Cart\Item\Renderer">
+        <arguments>
+            <argument name="viewModel" xsi:type="object">LoyaltyEngage\LoyaltyShop\ViewModel\CartItemHelper</argument>
+        </arguments>
+    </type>
+    
+    <!-- Plugin to add Hyvä-specific layout handles -->
+    <type name="Magento\Framework\View\Result\Page">
+        <plugin name="loyaltyengage_loyaltyshop_theme_layout" type="LoyaltyEngage\LoyaltyShop\Plugin\ThemeLayoutPlugin" sortOrder="10" />
+    </type>
+</config>

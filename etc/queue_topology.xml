@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/topology.xsd">
+    <exchange name="magento" type="topic" connection="db">
+        <binding id="loyaltyshop_purchase_binding" topic="loyaltyshop.purchase_event" destination="loyaltyshop.purchase_event"/>
+        <binding id="loyaltyshop_return_binding" topic="loyaltyshop.return_event" destination="loyaltyshop.return_event"/>
+        <binding id="loyaltyshop_free_product_purchase_binding" topic="loyaltyshop.free_product_purchase_event" destination="loyaltyshop.free_product_purchase_event"/>
+        <binding id="loyaltyshop_free_product_remove_binding" topic="loyaltyshop.free_product_remove_event" destination="loyaltyshop.free_product_remove_event"/>
+    </exchange>
+</config>

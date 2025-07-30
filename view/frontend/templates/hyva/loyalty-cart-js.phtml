@@ -1,0 +1,365 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \LoyaltyEngage\LoyaltyShop\Helper\Data $helper
+ */
+$helper = $this->helper(\LoyaltyEngage\LoyaltyShop\Helper\Data::class);
+
+// Get customer ID from server-side
+$objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+$customerSession = $objectManager->get(\Magento\Customer\Model\Session::class);
+$customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId() : null;
+?>
+
+<script>
+    // Alpine.js component for LoyaltyShop functionality
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('loyaltyShop', () => ({
+            customerId: <?= json_encode($customerId) ?>,
+            messageBarVisible: false,
+            messageText: '',
+            messageIsSuccess: true,
+            timeoutId: null,
+
+            init() {
+                // Set global variable for backward compatibility
+                window.loyaltyShopCustomerId = this.customerId;
+                
+                // Initialize dynamic buttons
+                this.initDynamicButtons();
+                
+                // Set up observer for dynamic content
+                this.setupObserver();
+            },
+            
+            // Method to refresh the cart after successful API call
+            refreshCart() {
+                // Try different methods to refresh the cart
+                
+                // Method 1: Trigger Hyvä-specific cart update event
+                document.dispatchEvent(new CustomEvent('cart:refresh'));
+                
+                // Method 2: Reload customer sections data
+                try {
+                    if (typeof require === 'function') {
+                        require(['Magento_Customer/js/customer-data'], function (customerData) {
+                            customerData.reload(['cart'], true);
+                        });
+                    }
+                } catch (e) {
+                    console.log('RequireJS not available, using alternative refresh method');
+                }
+                
+                // Method 3: Reload the page after a short delay if on cart page
+                if (window.location.href.indexOf('checkout/cart') !== -1) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            },
+            
+            initDynamicButtons() {
+                // For Hyvä, we need to wrap buttons in an Alpine component directly
+                const buttons = document.querySelectorAll('button.le-add-to-cart-button:not([data-loyalty-init]):not([x-on\\:click])');
+                buttons.forEach((btn) => {
+                    // Mark as initialized
+                    btn.setAttribute('data-loyalty-init', 'true');
+                    
+                    // Check if the button is already in an Alpine component
+                    if (btn.closest('[x-data]')) {
+                        // If it's already in an Alpine component, just add the click handler
+                        btn.setAttribute('x-on:click', 'handleClick($el)');
+                    } else {
+                        // For buttons that are not in an Alpine component, we'll wrap them directly
+                        // Find the product container and get data from the hidden input
+                        const container = btn.closest('.loyalty-product-container');
+                        let sku = '';
+                        let type = '';
+                        let price = '';
+                        
+                        if (container) {
+                            const skuInput = container.querySelector('.product-sku');
+                            if (skuInput) {
+                                sku = skuInput.getAttribute('data-product-sku') || '';
+                                type = skuInput.getAttribute('data-type') || '';
+                                price = skuInput.getAttribute('data-price') || '';
+                            }
+                        }
+                        
+                        // Fallback to button attributes if not found in container
+                        if (!sku) {
+                            sku = btn.getAttribute('data-product-sku') || '';
+                        }
+                        if (!type) {
+                            type = btn.getAttribute('data-type') || '';
+                        }
+                        if (!price) {
+                            price = btn.getAttribute('data-price') || '';
+                        }
+                        
+                        // Create a wrapper div with the Alpine component
+                        const wrapper = document.createElement('div');
+                        
+                        // Set Alpine data attribute with inline component
+                        wrapper.setAttribute('x-data', `{ 
+                            customerId: ${this.customerId ? JSON.stringify(this.customerId) : 'null'},
+                            
+                            handleClick(button) {
+                                // Use the same handleClick method as the main component
+                                const sku = '${sku}';
+                                const type = '${type}';
+                                const price = '${price}';
+                                
+                                if (!sku || !type) {
+                                    this.showMessage('Missing SKU or type.', false);
+                                    return false;
+                                }
+                                
+                                if (!this.customerId) {
+                                    this.showMessage('Please log in to add this product to your cart.', false);
+                                    return false;
+                                }
+                                
+                                if (type === 'discount_code') {
+                                    const discount = parseFloat(price);
+                                    if (isNaN(discount)) {
+                                        this.showMessage('Invalid discount value.', false);
+                                        return false;
+                                    }
+                                    
+                                    const endpointUrl = \`/rest/V1/loyalty/discount/\${this.customerId}/claim-after-cart\`;
+                                    
+                                    fetch(endpointUrl, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ discount, sku })
+                                    })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            this.showMessage(data.message, data.success);
+                                            
+                                            // Refresh the cart after successful API call
+                                            if (data.success) {
+                                                // Trigger Hyvä-specific cart update event
+                                                document.dispatchEvent(new CustomEvent('cart:refresh'));
+                                                
+                                                // Reload the page after a short delay if on cart page
+                                                if (window.location.href.indexOf('checkout/cart') !== -1) {
+                                                    setTimeout(() => {
+                                                        window.location.reload();
+                                                    }, 1000);
+                                                }
+                                            }
+                                        })
+                                        .catch(err => {
+                                            this.showMessage('Discount request failed.', false);
+                                            console.error(err);
+                                        });
+                                } else {
+                                    const endpointUrl = \`/rest/V1/loyalty/shop/\${this.customerId}/cart/add\`;
+                                    
+                                    fetch(endpointUrl, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ sku })
+                                    })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            this.showMessage(data.message, data.success);
+                                            
+                                            // Refresh the cart after successful API call
+                                            if (data.success) {
+                                                // Trigger Hyvä-specific cart update event
+                                                document.dispatchEvent(new CustomEvent('cart:refresh'));
+                                                
+                                                // Reload the page after a short delay if on cart page
+                                                if (window.location.href.indexOf('checkout/cart') !== -1) {
+                                                    setTimeout(() => {
+                                                        window.location.reload();
+                                                    }, 1000);
+                                                }
+                                            }
+                                        })
+                                        .catch(err => {
+                                            this.showMessage('Add to cart failed.', false);
+                                            console.error(err);
+                                        });
+                                }
+                                
+                                return false;
+                            },
+                            
+                            showMessage(message, isSuccess = true) {
+                                // Create or get message bar
+                                let messageBar = document.getElementById('loyalty-message-bar');
+                                
+                                if (!messageBar) {
+                                    messageBar = document.createElement('div');
+                                    messageBar.id = 'loyalty-message-bar';
+                                    messageBar.style.position = 'fixed';
+                                    messageBar.style.top = '0';
+                                    messageBar.style.left = '0';
+                                    messageBar.style.width = '100%';
+                                    messageBar.style.padding = '12px 20px';
+                                    messageBar.style.textAlign = 'center';
+                                    messageBar.style.fontWeight = 'bold';
+                                    messageBar.style.fontSize = '16px';
+                                    messageBar.style.zIndex = '10000';
+                                    messageBar.style.display = 'none';
+                                    document.body.prepend(messageBar);
+                                }
+                                
+                                // Set styles based on success/failure
+                                messageBar.style.background = isSuccess ? '#28a745' : '#ffc107';
+                                messageBar.style.color = isSuccess ? '#fff' : '#212529';
+                                messageBar.style.borderBottom = '2px solid ' + (isSuccess ? '#218838' : '#e0a800');
+                                
+                                // Set message and show
+                                messageBar.textContent = message;
+                                messageBar.style.display = 'block';
+                                
+                                // Hide after timeout
+                                clearTimeout(window.loyaltyMessageTimeout);
+                                window.loyaltyMessageTimeout = setTimeout(() => {
+                                    messageBar.style.display = 'none';
+                                }, 4000);
+                            }
+                        }`);
+                        
+                        // Clone the button
+                        const newBtn = btn.cloneNode(true);
+                        
+                        // Add the click handler
+                        newBtn.setAttribute('x-on:click', 'handleClick($el)');
+                        
+                        // Replace the original button with the wrapped version
+                        wrapper.appendChild(newBtn);
+                        btn.parentNode.replaceChild(wrapper, btn);
+                    }
+                });
+            },
+            
+            setupObserver() {
+                const observer = new MutationObserver(() => {
+                    this.initDynamicButtons();
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                });
+            },
+            
+            showMessageBar(message, isSuccess = true) {
+                this.messageText = message;
+                this.messageIsSuccess = isSuccess;
+                this.messageBarVisible = true;
+                
+                clearTimeout(this.timeoutId);
+                this.timeoutId = setTimeout(() => {
+                    this.messageBarVisible = false;
+                }, 4000);
+            },
+            
+            handleClick(button) {
+                // Find the product container
+                const container = button.closest('.loyalty-product-container');
+                if (!container) {
+                    this.showMessageBar('Product container not found.', false);
+                    return false;
+                }
+                
+                // Find the SKU input
+                const skuInput = container.querySelector('.product-sku');
+                if (!skuInput) {
+                    this.showMessageBar('Product SKU element not found.', false);
+                    return false;
+                }
+                
+                // Get data from attributes
+                const sku = skuInput.getAttribute('data-product-sku') || skuInput.dataset.productSku;
+                const type = skuInput.getAttribute('data-type') || skuInput.dataset.type;
+                const rawDiscount = skuInput.getAttribute('data-price') || skuInput.dataset.price;
+                
+                // Validate data
+                if (!sku || !type) {
+                    this.showMessageBar('Missing SKU or type.', false);
+                    return false;
+                }
+                
+                if (!this.customerId) {
+                    this.showMessageBar('Please log in to add this product to your cart.', false);
+                    return false;
+                }
+                
+                if (type === 'discount_code') {
+                    const discount = parseFloat(rawDiscount);
+                    if (isNaN(discount)) {
+                        this.showMessageBar('Invalid discount value.', false);
+                        return false;
+                    }
+                    
+                    const endpointUrl = `/rest/V1/loyalty/discount/${this.customerId}/claim-after-cart`;
+                    
+                    fetch(endpointUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ discount, sku })
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            this.showMessageBar(data.message, data.success);
+                            
+                            // Refresh the cart after successful API call
+                            if (data.success) {
+                                this.refreshCart();
+                            }
+                        })
+                        .catch(err => {
+                            this.showMessageBar('Discount request failed. See console.', false);
+                            console.error(err);
+                        });
+                } else {
+                    const endpointUrl = `/rest/V1/loyalty/shop/${this.customerId}/cart/add`;
+                    
+                    fetch(endpointUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sku })
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            this.showMessageBar(data.message, data.success);
+                            
+                            // Refresh the cart after successful API call
+                            if (data.success) {
+                                this.refreshCart();
+                            }
+                        })
+                        .catch(err => {
+                            this.showMessageBar('Add to cart failed. See console.', false);
+                            console.error(err);
+                        });
+                }
+                
+                return false;
+            }
+        }));
+    });
+</script>
+
+<!-- Message bar component with Tailwind CSS -->
+<div x-data="loyaltyShop">
+    <div 
+        x-show="messageBarVisible" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 transform -translate-y-2"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        x-transition:leave="transition ease-in duration-300"
+        x-transition:leave-start="opacity-100 transform translate-y-0"
+        x-transition:leave-end="opacity-0 transform -translate-y-2"
+        :class="messageIsSuccess ? 'bg-green-500 text-white border-green-600' : 'bg-yellow-400 text-gray-800 border-yellow-500'"
+        class="fixed top-0 left-0 w-full py-3 px-5 text-center font-bold text-base z-50 border-b-2"
+        x-text="messageText">
+    </div>
+</div>

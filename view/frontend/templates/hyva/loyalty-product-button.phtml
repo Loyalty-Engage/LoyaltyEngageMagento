@@ -1,0 +1,254 @@
+<?php
+/**
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+
+// Get customer ID from server-side with multiple fallback methods for Hyva compatibility
+$customerId = null;
+
+try {
+    // Method 1: Try direct customer session (works in most cases)
+    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+    $customerSession = $objectManager->get(\Magento\Customer\Model\Session::class);
+    
+    if ($customerSession->isLoggedIn()) {
+        $customerId = $customerSession->getCustomerId();
+    }
+    
+    // Method 2: Fallback using CurrentCustomer helper (better for Hyva)
+    if (!$customerId) {
+        $currentCustomer = $objectManager->get(\Magento\Customer\Helper\Session\CurrentCustomer::class);
+        $customerId = $currentCustomer->getCustomerId();
+    }
+    
+    // Method 3: Try getting from HTTP context (for AJAX scenarios)
+    if (!$customerId) {
+        $httpContext = $objectManager->get(\Magento\Framework\App\Http\Context::class);
+        $isLoggedIn = $httpContext->getValue(\Magento\Customer\Model\Context::CONTEXT_AUTH);
+        if ($isLoggedIn) {
+            $customerId = $httpContext->getValue(\Magento\Customer\Model\Context::CONTEXT_CUSTOMER_ID);
+        }
+    }
+} catch (\Exception $e) {
+    // Log error but don't break the page
+    $logger = $objectManager->get(\Psr\Log\LoggerInterface::class);
+    $logger->warning('LoyaltyEngage: Error getting customer ID in template: ' . $e->getMessage());
+}
+
+// Get product data from block if available
+$productSku = $block->getData('product_sku') ?: '';
+$productType = $block->getData('type') ?: '';
+$productPrice = $block->getData('price') ?: '';
+?>
+
+<!-- Simple Alpine.js component with all functionality inline -->
+<div 
+    x-data="{ 
+        customerId: <?= json_encode($customerId) ?>,
+        
+        // Dynamic customer ID fetching as fallback
+        async getCustomerId() {
+            // If we already have a customer ID, return it
+            if (this.customerId) {
+                return this.customerId;
+            }
+            
+            // Try to get customer ID from Magento's customer data
+            try {
+                if (typeof require === 'function') {
+                    return new Promise((resolve) => {
+                        require(['Magento_Customer/js/customer-data'], function (customerData) {
+                            const customer = customerData.get('customer')();
+                            if (customer && customer.id) {
+                                resolve(customer.id);
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.log('RequireJS not available for customer data fetch');
+            }
+            
+            // Try to get from window.customerData if available (Hyva specific)
+            if (window.customerData && window.customerData.customer && window.customerData.customer.id) {
+                return window.customerData.customer.id;
+            }
+            
+            // Try to get from hyva customer data
+            if (window.hyva && window.hyva.customerData && window.hyva.customerData.customer) {
+                const customer = window.hyva.customerData.customer;
+                if (customer.id) {
+                    return customer.id;
+                }
+            }
+            
+            return null;
+        },
+        
+        refreshCart() {
+            // Try different methods to refresh the cart
+            
+            // Method 1: Trigger Hyvä-specific cart update event
+            document.dispatchEvent(new CustomEvent('cart:refresh'));
+            
+            // Method 2: Reload customer sections data
+            try {
+                if (typeof require === 'function') {
+                    require(['Magento_Customer/js/customer-data'], function (customerData) {
+                        customerData.reload(['cart'], true);
+                    });
+                }
+            } catch (e) {
+                console.log('RequireJS not available, using alternative refresh method');
+            }
+            
+            // Method 3: Reload the page after a short delay if on cart page
+            if (window.location.href.indexOf('checkout/cart') !== -1) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        },
+        
+        async handleClick(button) {
+            // Find container and sku input
+            const container = button.closest('.loyalty-product-container');
+            if (!container) {
+                this.showMessage('Product container not found.', false);
+                return false;
+            }
+            
+            const skuInput = container.querySelector('.product-sku');
+            if (!skuInput) {
+                this.showMessage('Product SKU element not found.', false);
+                return false;
+            }
+            
+            // Get data attributes - use getAttribute for better compatibility
+            const sku = skuInput.getAttribute('data-product-sku') || skuInput.dataset.productSku || '<?= $productSku ?>';
+            const type = skuInput.getAttribute('data-type') || skuInput.dataset.type || '<?= $productType ?>';
+            const rawDiscount = skuInput.getAttribute('data-price') || skuInput.dataset.price || '<?= $productPrice ?>';
+            
+            if (!sku || !type) {
+                this.showMessage('Missing SKU or type.', false);
+                return false;
+            }
+            
+            // Try to get customer ID with fallback methods
+            let currentCustomerId = this.customerId;
+            if (!currentCustomerId) {
+                try {
+                    currentCustomerId = await this.getCustomerId();
+                    if (currentCustomerId) {
+                        this.customerId = currentCustomerId; // Update for future use
+                    }
+                } catch (e) {
+                    console.error('Error fetching customer ID:', e);
+                }
+            }
+            
+            if (!currentCustomerId) {
+                this.showMessage('Please log in to add this product to your cart.', false);
+                return false;
+            }
+            
+            if (type === 'discount_code') {
+                const discount = parseFloat(rawDiscount);
+                if (isNaN(discount)) {
+                    this.showMessage('Invalid discount value.', false);
+                    return false;
+                }
+                
+                const endpointUrl = `/rest/V1/loyalty/discount/${currentCustomerId}/claim-after-cart`;
+                
+                fetch(endpointUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discount, sku })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        this.showMessage(data.message, data.success);
+                        
+                        // Refresh the cart after successful API call
+                        if (data.success) {
+                            this.refreshCart();
+                        }
+                    })
+                    .catch(err => {
+                        this.showMessage('Discount request failed.', false);
+                        console.error(err);
+                    });
+            } else {
+                const endpointUrl = `/rest/V1/loyalty/shop/${currentCustomerId}/cart/add`;
+                
+                fetch(endpointUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sku })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        this.showMessage(data.message, data.success);
+                        
+                        // Refresh the cart after successful API call
+                        if (data.success) {
+                            this.refreshCart();
+                        }
+                    })
+                    .catch(err => {
+                        this.showMessage('Add to cart failed.', false);
+                        console.error(err);
+                    });
+            }
+            
+            return false;
+        },
+        
+        showMessage(message, isSuccess = true) {
+            // Create or get message bar
+            let messageBar = document.getElementById('loyalty-message-bar');
+            
+            if (!messageBar) {
+                messageBar = document.createElement('div');
+                messageBar.id = 'loyalty-message-bar';
+                messageBar.style.position = 'fixed';
+                messageBar.style.top = '0';
+                messageBar.style.left = '0';
+                messageBar.style.width = '100%';
+                messageBar.style.padding = '12px 20px';
+                messageBar.style.textAlign = 'center';
+                messageBar.style.fontWeight = 'bold';
+                messageBar.style.fontSize = '16px';
+                messageBar.style.zIndex = '10000';
+                messageBar.style.display = 'none';
+                document.body.prepend(messageBar);
+            }
+            
+            // Set styles based on success/failure
+            messageBar.style.background = isSuccess ? '#28a745' : '#ffc107';
+            messageBar.style.color = isSuccess ? '#fff' : '#212529';
+            messageBar.style.borderBottom = '2px solid ' + (isSuccess ? '#218838' : '#e0a800');
+            
+            // Set message and show
+            messageBar.textContent = message;
+            messageBar.style.display = 'block';
+            
+            // Hide after timeout
+            clearTimeout(window.loyaltyMessageTimeout);
+            window.loyaltyMessageTimeout = setTimeout(() => {
+                messageBar.style.display = 'none';
+            }, 4000);
+        }
+    }"
+>
+    <button 
+        type="button" 
+        class="le-add-to-cart-button action primary"
+        x-on:click="handleClick($el)"
+        data-loyalty-init="true">
+        <span><?= __('Add to Cart') ?></span>
+    </button>
+</div>
