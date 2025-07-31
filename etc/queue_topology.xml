@@ -6,5 +6,6 @@
         <binding id="loyaltyshop_return_binding" topic="loyaltyshop.return_event" destination="loyaltyshop.return_event"/>
         <binding id="loyaltyshop_free_product_purchase_binding" topic="loyaltyshop.free_product_purchase_event" destination="loyaltyshop.free_product_purchase_event"/>
         <binding id="loyaltyshop_free_product_remove_binding" topic="loyaltyshop.free_product_remove_event" destination="loyaltyshop.free_product_remove_event"/>
+        <binding id="loyaltyshop_review_binding" topic="loyaltyshop.review_event" destination="loyaltyshop.review_event"/>
     </exchange>
 </config>

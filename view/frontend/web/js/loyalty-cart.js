@@ -3,12 +3,48 @@ define(['jquery', 'Magento_Customer/js/customer-data'], function ($, customerDat
 
   return function () {
     window.loyaltyShopCustomerId = null;
+    window.loyaltyShopMessageConfig = null;
+
+    // Load message configuration
+    function loadMessageConfig() {
+      if (window.loyaltyShopMessageConfig) {
+        return Promise.resolve(window.loyaltyShopMessageConfig);
+      }
+
+      return fetch('/loyaltyengage_loyaltyshop/config/messages')
+        .then(response => response.json())
+        .then(config => {
+          window.loyaltyShopMessageConfig = config;
+          return config;
+        })
+        .catch(error => {
+          console.error('Failed to load message config:', error);
+          // Return default config
+          return {
+            success: {
+              message: 'Product successfully added to cart!',
+              backgroundColor: '#28a745',
+              textColor: '#ffffff'
+            },
+            error: {
+              message: 'There was an error adding the product to cart.',
+              backgroundColor: '#ffc107',
+              textColor: '#212529'
+            }
+          };
+        });
+    }
 
     function showLoyaltyMessageBar(message, isSuccess = true) {
-      let $bar = $('#loyalty-message-bar');
-    
-      if ($bar.length === 0) {
-        $bar = $('<div id="loyalty-message-bar"></div>').css({
+      loadMessageConfig().then(config => {
+        // Remove any existing message bars first
+        $('#loyalty-message-bar').remove();
+        
+        const messageConfig = isSuccess ? config.success : config.error;
+        const displayMessage = message || messageConfig.message;
+        
+        // Create new message bar
+        const $bar = $('<div id="loyalty-message-bar"></div>').css({
           position: 'fixed',
           top: 0,
           left: 0,
@@ -18,22 +54,34 @@ define(['jquery', 'Magento_Customer/js/customer-data'], function ($, customerDat
           'font-weight': 'bold',
           'font-size': '16px',
           'z-index': 10000,
+          background: messageConfig.backgroundColor,
+          color: messageConfig.textColor,
+          borderBottom: '2px solid ' + messageConfig.backgroundColor,
+          cursor: 'pointer',
           display: 'none'
+        }).text(displayMessage);
+        
+        // Add click to dismiss functionality
+        $bar.on('click', function() {
+          $(this).fadeOut(300, function() {
+            $(this).remove();
+          });
         });
+        
+        // Add to body and show
         $('body').prepend($bar);
-      }
-    
-      $bar.stop(true, true).css({
-        background: isSuccess ? '#28a745' : '#ffc107',
-        color: isSuccess ? '#fff' : '#212529',
-        borderBottom: '2px solid ' + (isSuccess ? '#218838' : '#e0a800')
-      }).text(message).fadeIn();
-    
-      clearTimeout($bar.data('timeoutId'));
-      const timeoutId = setTimeout(() => {
-        $bar.fadeOut();
-      }, 4000);
-      $bar.data('timeoutId', timeoutId);
+        $bar.fadeIn(300);
+        
+        // Auto-hide after 4 seconds
+        const timeoutId = setTimeout(() => {
+          $bar.fadeOut(300, function() {
+            $(this).remove();
+          });
+        }, 4000);
+        
+        // Store timeout ID for potential cleanup
+        $bar.data('timeoutId', timeoutId);
+      });
     }
 
     window.loyaltyShopHandleClick = function (button) {

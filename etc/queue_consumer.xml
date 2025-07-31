@@ -25,4 +25,10 @@
         connection="db"
         maxMessages="0"
     />
+    <consumer
+        name="loyaltyshop_review_event_consumer"
+        queue="loyaltyshop.review_event"
+        connection="db"
+        maxMessages="0"
+    />
 </config>

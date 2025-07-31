@@ -46,6 +46,11 @@
             type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteItemQtyValidatorPlugin" />
     </type>
     
+    <type name="Magento\Shipping\Model\Shipping">
+        <plugin name="loyaltyshop_shipping_method_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\ShippingMethodPlugin" />
+    </type>
+    
     <!-- Configure message queue consumers to run automatically -->
     <type name="Magento\Framework\MessageQueue\Consumer\Config\ConsumerConfigItem">
         <arguments>
@@ -62,6 +67,18 @@
                 <item name="loyaltyshop_free_product_remove_event_consumer" xsi:type="array">
                     <item name="autoStart" xsi:type="boolean">true</item>
                 </item>
+                <item name="loyaltyshop_review_event_consumer" xsi:type="array">
+                    <item name="autoStart" xsi:type="boolean">true</item>
+                </item>
+            </argument>
+        </arguments>
+    </type>
+    
+    <!-- Register console commands -->
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="loyaltyshop_sync_review" xsi:type="object">LoyaltyEngage\LoyaltyShop\Console\Command\SyncReview</item>
             </argument>
         </arguments>
     </type>

@@ -7,4 +7,7 @@
     <event name="sales_order_creditmemo_save_after">
         <observer name="loyaltyshop_return_event" instance="LoyaltyEngage\LoyaltyShop\Observer\ReturnObserver" />
     </event>
+    <event name="review_save_after">
+        <observer name="loyaltyshop_review_event" instance="LoyaltyEngage\LoyaltyShop\Observer\ReviewObserver" />
+    </event>
 </config>

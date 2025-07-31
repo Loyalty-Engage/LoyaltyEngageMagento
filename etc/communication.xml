@@ -13,4 +13,7 @@
     <topic name="loyaltyshop.free_product_remove_event" request="string">
         <handler name="loyaltyshop_free_product_remove_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductRemoveConsumer" method="process" />
     </topic>
+    <topic name="loyaltyshop.review_event" request="string">
+        <handler name="loyaltyshop_review_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\ReviewConsumer" method="process" />
+    </topic>
 </config>

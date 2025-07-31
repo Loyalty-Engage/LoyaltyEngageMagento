@@ -6,6 +6,19 @@
             comment="Loyalty Order Placed" />
         <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
             comment="Loyalty Order Retrieve Count" />
+        
+        <!-- Indexes for better query performance -->
+        <index referenceId="SALES_ORDER_LOYALTY_ORDER_PLACE" indexType="btree">
+            <column name="loyalty_order_place"/>
+        </index>
+        <index referenceId="SALES_ORDER_LOYALTY_ORDER_PLACE_RETRIEVE" indexType="btree">
+            <column name="loyalty_order_place_retrieve"/>
+        </index>
+        <index referenceId="SALES_ORDER_LOYALTY_COMPOSITE" indexType="btree">
+            <column name="loyalty_order_place"/>
+            <column name="loyalty_order_place_retrieve"/>
+            <column name="created_at"/>
+        </index>
     </table>
 
     <table name="sales_order_grid" resource="default" engine="innodb">
@@ -13,5 +26,18 @@
             comment="Loyalty Order Placed" />
         <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
             comment="Loyalty Order Retrieve Count" />
+        
+        <!-- Indexes for better query performance -->
+        <index referenceId="SALES_ORDER_GRID_LOYALTY_ORDER_PLACE" indexType="btree">
+            <column name="loyalty_order_place"/>
+        </index>
+        <index referenceId="SALES_ORDER_GRID_LOYALTY_ORDER_PLACE_RETRIEVE" indexType="btree">
+            <column name="loyalty_order_place_retrieve"/>
+        </index>
+        <index referenceId="SALES_ORDER_GRID_LOYALTY_COMPOSITE" indexType="btree">
+            <column name="loyalty_order_place"/>
+            <column name="loyalty_order_place_retrieve"/>
+            <column name="created_at"/>
+        </index>
     </table>
 </schema>

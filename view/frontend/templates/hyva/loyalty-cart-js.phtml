@@ -20,16 +20,49 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
             messageText: '',
             messageIsSuccess: true,
             timeoutId: null,
+            messageConfig: null,
 
             init() {
                 // Set global variable for backward compatibility
                 window.loyaltyShopCustomerId = this.customerId;
+                
+                // Load message configuration
+                this.loadMessageConfig();
                 
                 // Initialize dynamic buttons
                 this.initDynamicButtons();
                 
                 // Set up observer for dynamic content
                 this.setupObserver();
+            },
+
+            // Load message configuration
+            async loadMessageConfig() {
+                if (this.messageConfig) {
+                    return this.messageConfig;
+                }
+
+                try {
+                    const response = await fetch('/loyaltyengage_loyaltyshop/config/messages');
+                    this.messageConfig = await response.json();
+                } catch (error) {
+                    console.error('Failed to load message config:', error);
+                    // Set default config
+                    this.messageConfig = {
+                        success: {
+                            message: 'Product successfully added to cart!',
+                            backgroundColor: '#28a745',
+                            textColor: '#ffffff'
+                        },
+                        error: {
+                            message: 'There was an error adding the product to cart.',
+                            backgroundColor: '#ffc107',
+                            textColor: '#212529'
+                        }
+                    };
+                }
+
+                return this.messageConfig;
             },
             
             // Method to refresh the cart after successful API call
@@ -104,26 +137,29 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         wrapper.setAttribute('x-data', `{ 
                             customerId: ${this.customerId ? JSON.stringify(this.customerId) : 'null'},
                             
-                            handleClick(button) {
+                            async handleClick(button) {
+                                // Load message config
+                                const config = await this.loadMessageConfig();
+                                
                                 // Use the same handleClick method as the main component
                                 const sku = '${sku}';
                                 const type = '${type}';
                                 const price = '${price}';
                                 
                                 if (!sku || !type) {
-                                    this.showMessage('Missing SKU or type.', false);
+                                    this.showMessage('Missing SKU or type.', false, config);
                                     return false;
                                 }
                                 
                                 if (!this.customerId) {
-                                    this.showMessage('Please log in to add this product to your cart.', false);
+                                    this.showMessage('Please log in to add this product to your cart.', false, config);
                                     return false;
                                 }
                                 
                                 if (type === 'discount_code') {
                                     const discount = parseFloat(price);
                                     if (isNaN(discount)) {
-                                        this.showMessage('Invalid discount value.', false);
+                                        this.showMessage('Invalid discount value.', false, config);
                                         return false;
                                     }
                                     
@@ -136,7 +172,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                     })
                                         .then(res => res.json())
                                         .then(data => {
-                                            this.showMessage(data.message, data.success);
+                                            this.showMessage(data.message, data.success, config);
                                             
                                             // Refresh the cart after successful API call
                                             if (data.success) {
@@ -152,7 +188,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                             }
                                         })
                                         .catch(err => {
-                                            this.showMessage('Discount request failed.', false);
+                                            this.showMessage('Discount request failed.', false, config);
                                             console.error(err);
                                         });
                                 } else {
@@ -165,7 +201,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                     })
                                         .then(res => res.json())
                                         .then(data => {
-                                            this.showMessage(data.message, data.success);
+                                            this.showMessage(data.message, data.success, config);
                                             
                                             // Refresh the cart after successful API call
                                             if (data.success) {
@@ -181,49 +217,38 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                             }
                                         })
                                         .catch(err => {
-                                            this.showMessage('Add to cart failed.', false);
+                                            this.showMessage('Add to cart failed.', false, config);
                                             console.error(err);
                                         });
                                 }
                                 
                                 return false;
                             },
-                            
-                            showMessage(message, isSuccess = true) {
-                                // Create or get message bar
-                                let messageBar = document.getElementById('loyalty-message-bar');
-                                
-                                if (!messageBar) {
-                                    messageBar = document.createElement('div');
-                                    messageBar.id = 'loyalty-message-bar';
-                                    messageBar.style.position = 'fixed';
-                                    messageBar.style.top = '0';
-                                    messageBar.style.left = '0';
-                                    messageBar.style.width = '100%';
-                                    messageBar.style.padding = '12px 20px';
-                                    messageBar.style.textAlign = 'center';
-                                    messageBar.style.fontWeight = 'bold';
-                                    messageBar.style.fontSize = '16px';
-                                    messageBar.style.zIndex = '10000';
-                                    messageBar.style.display = 'none';
-                                    document.body.prepend(messageBar);
+
+                            async loadMessageConfig() {
+                                try {
+                                    const response = await fetch('/loyaltyengage_loyaltyshop/config/messages');
+                                    return await response.json();
+                                } catch (error) {
+                                    console.error('Failed to load message config:', error);
+                                    return {
+                                        success: {
+                                            message: 'Product successfully added to cart!',
+                                            backgroundColor: '#28a745',
+                                            textColor: '#ffffff'
+                                        },
+                                        error: {
+                                            message: 'There was an error adding the product to cart.',
+                                            backgroundColor: '#ffc107',
+                                            textColor: '#212529'
+                                        }
+                                    };
                                 }
-                                
-                                // Set styles based on success/failure
-                                messageBar.style.background = isSuccess ? '#28a745' : '#ffc107';
-                                messageBar.style.color = isSuccess ? '#fff' : '#212529';
-                                messageBar.style.borderBottom = '2px solid ' + (isSuccess ? '#218838' : '#e0a800');
-                                
-                                // Set message and show
-                                messageBar.textContent = message;
-                                messageBar.style.display = 'block';
-                                
-                                // Hide after timeout
-                                clearTimeout(window.loyaltyMessageTimeout);
-                                window.loyaltyMessageTimeout = setTimeout(() => {
-                                    messageBar.style.display = 'none';
-                                }, 4000);
-                            }
+                            },
+                            
+                            showMessage(message, isSuccess = true, config = null) {
+                                this.showMessageBar(message, isSuccess);
+                                }
                         }`);
                         
                         // Clone the button
@@ -250,29 +275,46 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                 });
             },
             
-            showMessageBar(message, isSuccess = true) {
-                this.messageText = message;
-                this.messageIsSuccess = isSuccess;
-                this.messageBarVisible = true;
+            async showMessageBar(message, isSuccess = true) {
+                const config = await this.loadMessageConfig();
+                const messageConfig = isSuccess ? config.success : config.error;
+                const displayMessage = message || messageConfig.message;
                 
+                // Hide any existing message first
+                this.messageBarVisible = false;
                 clearTimeout(this.timeoutId);
-                this.timeoutId = setTimeout(() => {
-                    this.messageBarVisible = false;
-                }, 4000);
+                
+                // Small delay to ensure previous message is hidden
+                setTimeout(() => {
+                    this.messageText = displayMessage;
+                    this.messageIsSuccess = isSuccess;
+                    this.messageBarVisible = true;
+                    
+                    // Auto-hide after 4 seconds
+                    this.timeoutId = setTimeout(() => {
+                        this.messageBarVisible = false;
+                    }, 4000);
+                }, 100);
+            },
+
+            // Method to manually dismiss message
+            dismissMessage() {
+                this.messageBarVisible = false;
+                clearTimeout(this.timeoutId);
             },
             
-            handleClick(button) {
+            async handleClick(button) {
                 // Find the product container
                 const container = button.closest('.loyalty-product-container');
                 if (!container) {
-                    this.showMessageBar('Product container not found.', false);
+                    await this.showMessageBar('Product container not found.', false);
                     return false;
                 }
                 
                 // Find the SKU input
                 const skuInput = container.querySelector('.product-sku');
                 if (!skuInput) {
-                    this.showMessageBar('Product SKU element not found.', false);
+                    await this.showMessageBar('Product SKU element not found.', false);
                     return false;
                 }
                 
@@ -283,19 +325,19 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                 
                 // Validate data
                 if (!sku || !type) {
-                    this.showMessageBar('Missing SKU or type.', false);
+                    await this.showMessageBar('Missing SKU or type.', false);
                     return false;
                 }
                 
                 if (!this.customerId) {
-                    this.showMessageBar('Please log in to add this product to your cart.', false);
+                    await this.showMessageBar('Please log in to add this product to your cart.', false);
                     return false;
                 }
                 
                 if (type === 'discount_code') {
                     const discount = parseFloat(rawDiscount);
                     if (isNaN(discount)) {
-                        this.showMessageBar('Invalid discount value.', false);
+                        await this.showMessageBar('Invalid discount value.', false);
                         return false;
                     }
                     
@@ -307,16 +349,16 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         body: JSON.stringify({ discount, sku })
                     })
                         .then(res => res.json())
-                        .then(data => {
-                            this.showMessageBar(data.message, data.success);
+                        .then(async data => {
+                            await this.showMessageBar(data.message, data.success);
                             
                             // Refresh the cart after successful API call
                             if (data.success) {
                                 this.refreshCart();
                             }
                         })
-                        .catch(err => {
-                            this.showMessageBar('Discount request failed. See console.', false);
+                        .catch(async err => {
+                            await this.showMessageBar('Discount request failed. See console.', false);
                             console.error(err);
                         });
                 } else {
@@ -328,16 +370,16 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         body: JSON.stringify({ sku })
                     })
                         .then(res => res.json())
-                        .then(data => {
-                            this.showMessageBar(data.message, data.success);
+                        .then(async data => {
+                            await this.showMessageBar(data.message, data.success);
                             
                             // Refresh the cart after successful API call
                             if (data.success) {
                                 this.refreshCart();
                             }
                         })
-                        .catch(err => {
-                            this.showMessageBar('Add to cart failed. See console.', false);
+                        .catch(async err => {
+                            await this.showMessageBar('Add to cart failed. See console.', false);
                             console.error(err);
                         });
                 }
@@ -348,7 +390,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
     });
 </script>
 
-<!-- Message bar component with Tailwind CSS -->
+<!-- Message bar component with dynamic styling -->
 <div x-data="loyaltyShop">
     <div 
         x-show="messageBarVisible" 
@@ -358,8 +400,10 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
         x-transition:leave="transition ease-in duration-300"
         x-transition:leave-start="opacity-100 transform translate-y-0"
         x-transition:leave-end="opacity-0 transform -translate-y-2"
-        :class="messageIsSuccess ? 'bg-green-500 text-white border-green-600' : 'bg-yellow-400 text-gray-800 border-yellow-500'"
-        class="fixed top-0 left-0 w-full py-3 px-5 text-center font-bold text-base z-50 border-b-2"
-        x-text="messageText">
+        class="fixed top-0 left-0 w-full py-3 px-5 text-center font-bold text-base z-50 border-b-2 cursor-pointer"
+        x-text="messageText"
+        x-on:click="dismissMessage()"
+        :style="messageBarVisible ? `background-color: ${messageConfig ? (messageIsSuccess ? messageConfig.success.backgroundColor : messageConfig.error.backgroundColor) : (messageIsSuccess ? '#28a745' : '#ffc107')}; color: ${messageConfig ? (messageIsSuccess ? messageConfig.success.textColor : messageConfig.error.textColor) : (messageIsSuccess ? '#ffffff' : '#212529')}; border-bottom-color: ${messageConfig ? (messageIsSuccess ? messageConfig.success.backgroundColor : messageConfig.error.backgroundColor) : (messageIsSuccess ? '#218838' : '#e0a800')};` : 'display: none;'"
+        title="Click to dismiss">
     </div>
 </div>

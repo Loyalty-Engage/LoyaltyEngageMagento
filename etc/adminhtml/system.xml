@@ -74,6 +74,89 @@
                     <label>Purchase Export</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
+
+                 <field id="review_event" translate="label" type="select" sortOrder="60"
+                    showInDefault="1"
+                    showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Review Export</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="review_min_characters" translate="label" type="text" sortOrder="70"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Minimum Review Characters</label>
+                    <comment>Minimum number of characters required for a review to be exported to LoyaltyEngage (0 = no minimum)</comment>
+                    <validate>validate-digits validate-zero-or-greater</validate>
+                    <depends>
+                        <field id="review_event">1</field>
+                    </depends>
+                </field>
+
+                <field id="review_debug_logging" translate="label" type="select" sortOrder="80"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Review Debug Logging</label>
+                    <comment>Enable detailed logging for review export troubleshooting</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="review_event">1</field>
+                    </depends>
+                </field>
+            </group>
+
+            <group id="free_shipping" translate="label" type="text" sortOrder="20"
+                showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Free Shipping Settings</label>
+
+                <field id="loyalty_levels" translate="label" type="text" sortOrder="10"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Loyalty Levels for Free Shipping</label>
+                    <comment>Enter loyalty level names separated by semicolons (e.g., "Grand Prix;Gold;Platinum")</comment>
+                </field>
+            </group>
+
+            <group id="messages" translate="label" type="text" sortOrder="25"
+                showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Message Customization</label>
+
+                <field id="success_message" translate="label" type="text" sortOrder="10"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Success Message Text</label>
+                    <comment>Message shown when loyalty product is successfully added to cart</comment>
+                </field>
+
+                <field id="success_color" translate="label" type="text" sortOrder="20"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Success Message Background Color</label>
+                    <comment><![CDATA[Hex color code (e.g., #28a745). <strong>Default:</strong> #28a745]]></comment>
+                    <validate>validate-hex-color</validate>
+                </field>
+
+                <field id="success_text_color" translate="label" type="text" sortOrder="30"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Success Message Text Color</label>
+                    <comment><![CDATA[Hex color code (e.g., #ffffff). <strong>Default:</strong> #ffffff]]></comment>
+                    <validate>validate-hex-color</validate>
+                </field>
+
+                <field id="error_message" translate="label" type="text" sortOrder="40"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Error Message Text</label>
+                    <comment>Message shown when there's an error adding loyalty product</comment>
+                </field>
+
+                <field id="error_color" translate="label" type="text" sortOrder="50"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Error Message Background Color</label>
+                    <comment><![CDATA[Hex color code (e.g., #ffc107). <strong>Default:</strong> #ffc107]]></comment>
+                    <validate>validate-hex-color</validate>
+                </field>
+
+                <field id="error_text_color" translate="label" type="text" sortOrder="60"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Error Message Text Color</label>
+                    <comment><![CDATA[Hex color code (e.g., #212529). <strong>Default:</strong> #212529]]></comment>
+                    <validate>validate-hex-color</validate>
+                </field>
             </group>
         </section>
     </system>

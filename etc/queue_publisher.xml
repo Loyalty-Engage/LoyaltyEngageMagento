@@ -13,4 +13,7 @@
     <publisher topic="loyaltyshop.free_product_remove_event">
         <connection name="db" exchange="magento" />
     </publisher>
+    <publisher topic="loyaltyshop.review_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
 </config>
