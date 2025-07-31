@@ -36,8 +36,14 @@ class OrderPlace
     {
         $LoyaltyOrderRetrieveLimit = $this->loyaltyengageCart->getLoyaltyOrderRetrieveLimit();
 
+        // Add filter for created_at between now-15min and now
+        $now = (new \DateTime())->format('Y-m-d H:i:s');
+        $minus15 = (new \DateTime('-15 minutes'))->format('Y-m-d H:i:s');
+
         $this->searchCriteriaBuilder->addFilter('loyalty_order_place', self::LOYALTY_ORDER_PLACE, 'eq');
         $this->searchCriteriaBuilder->addFilter('loyalty_order_place_retrieve', $LoyaltyOrderRetrieveLimit, 'lt');
+        $this->searchCriteriaBuilder->addFilter('created_at', $minus15, 'gteq');
+        $this->searchCriteriaBuilder->addFilter('created_at', $now, 'lteq');
 
         $searchCriteria = $this->searchCriteriaBuilder->create();
         // Get list of orders
