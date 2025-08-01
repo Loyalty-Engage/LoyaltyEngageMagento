@@ -7,6 +7,7 @@ use LoyaltyEngage\LoyaltyShop\Helper\Logger;
 use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Magento\Customer\Model\Session;
 use Magento\Store\Model\StoreManagerInterface;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CartProductAddObserver implements ObserverInterface
 {
@@ -35,12 +36,14 @@ class CartProductAddObserver implements ObserverInterface
      * @param EnterpriseDetection $enterpriseDetection
      * @param Session $customerSession
      * @param StoreManagerInterface $storeManager
+     * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
         Logger $loyaltyLogger,
         EnterpriseDetection $enterpriseDetection,
         Session $customerSession,
-        StoreManagerInterface $storeManager
+        StoreManagerInterface $storeManager,
+        protected LoyaltyHelper $loyaltyHelper
     ) {
         $this->loyaltyLogger = $loyaltyLogger;
         $this->enterpriseDetection = $enterpriseDetection;
@@ -56,64 +59,66 @@ class CartProductAddObserver implements ObserverInterface
      */
     public function execute(Observer $observer)
     {
-        try {
-            $quoteItem = $observer->getEvent()->getQuoteItem();
-            $product = $observer->getEvent()->getProduct();
-            
-            if (!$quoteItem || !$product) {
-                return;
+        if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            try {
+                $quoteItem = $observer->getEvent()->getQuoteItem();
+                $product = $observer->getEvent()->getProduct();
+
+                if (!$quoteItem || !$product) {
+                    return;
+                }
+
+                // Log environment context (once per session)
+                $this->logEnvironmentContext();
+
+                // Determine customer email
+                $customerEmail = $this->getCustomerEmail();
+
+                // Check if this is a loyalty product
+                $isLoyaltyProduct = $this->isLoyaltyProduct($quoteItem);
+                $productType = $isLoyaltyProduct ? Logger::ACTION_LOYALTY : Logger::ACTION_REGULAR;
+
+                // Determine source of addition
+                $source = $this->determineAdditionSource($quoteItem);
+
+                // Prepare additional data
+                $additionalData = [
+                    'product_id' => $product->getId(),
+                    'product_name' => $product->getName(),
+                    'price' => $product->getPrice(),
+                    'qty' => $quoteItem->getQty(),
+                    'quote_id' => $quoteItem->getQuoteId(),
+                    'item_id' => $quoteItem->getId(),
+                    'store_id' => $this->storeManager->getStore()->getId(),
+                    'is_loyalty_detected' => $isLoyaltyProduct,
+                    'detection_methods' => $this->getDetectionMethods($quoteItem)
+                ];
+
+                // Log the cart addition
+                $this->loyaltyLogger->logCartAddition(
+                    $productType,
+                    $product->getSku(),
+                    $customerEmail,
+                    $source,
+                    $additionalData
+                );
+
+                // If it's a loyalty product, log additional details
+                if ($isLoyaltyProduct) {
+                    $this->logLoyaltyProductDetails($quoteItem, $product);
+                }
+
+            } catch (\Exception $e) {
+                $this->loyaltyLogger->error(
+                    Logger::COMPONENT_OBSERVER,
+                    Logger::ACTION_ERROR,
+                    'Exception in CartProductAddObserver: ' . $e->getMessage(),
+                    [
+                        'exception' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]
+                );
             }
-
-            // Log environment context (once per session)
-            $this->logEnvironmentContext();
-
-            // Determine customer email
-            $customerEmail = $this->getCustomerEmail();
-            
-            // Check if this is a loyalty product
-            $isLoyaltyProduct = $this->isLoyaltyProduct($quoteItem);
-            $productType = $isLoyaltyProduct ? Logger::ACTION_LOYALTY : Logger::ACTION_REGULAR;
-            
-            // Determine source of addition
-            $source = $this->determineAdditionSource($quoteItem);
-            
-            // Prepare additional data
-            $additionalData = [
-                'product_id' => $product->getId(),
-                'product_name' => $product->getName(),
-                'price' => $product->getPrice(),
-                'qty' => $quoteItem->getQty(),
-                'quote_id' => $quoteItem->getQuoteId(),
-                'item_id' => $quoteItem->getId(),
-                'store_id' => $this->storeManager->getStore()->getId(),
-                'is_loyalty_detected' => $isLoyaltyProduct,
-                'detection_methods' => $this->getDetectionMethods($quoteItem)
-            ];
-
-            // Log the cart addition
-            $this->loyaltyLogger->logCartAddition(
-                $productType,
-                $product->getSku(),
-                $customerEmail,
-                $source,
-                $additionalData
-            );
-
-            // If it's a loyalty product, log additional details
-            if ($isLoyaltyProduct) {
-                $this->logLoyaltyProductDetails($quoteItem, $product);
-            }
-
-        } catch (\Exception $e) {
-            $this->loyaltyLogger->error(
-                Logger::COMPONENT_OBSERVER,
-                Logger::ACTION_ERROR,
-                'Exception in CartProductAddObserver: ' . $e->getMessage(),
-                [
-                    'exception' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]
-            );
         }
     }
 
@@ -131,7 +136,7 @@ class CartProductAddObserver implements ObserverInterface
                 'store_id' => $this->storeManager->getStore()->getId(),
                 'website_id' => $this->storeManager->getStore()->getWebsiteId()
             ];
-            
+
             $this->loyaltyLogger->logEnvironmentContext($environmentData);
             $logged = true;
         }
@@ -176,8 +181,10 @@ class CartProductAddObserver implements ObserverInterface
             $value = @unserialize($additionalOptions->getValue());
             if (is_array($value)) {
                 foreach ($value as $option) {
-                    if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
-                        isset($option['value']) && $option['value'] === '1') {
+                    if (
+                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
+                        isset($option['value']) && $option['value'] === '1'
+                    ) {
                         return true;
                     }
                 }
@@ -211,7 +218,7 @@ class CartProductAddObserver implements ObserverInterface
         // Check for specific request parameters or headers that might indicate source
         $request = \Magento\Framework\App\ObjectManager::getInstance()
             ->get(\Magento\Framework\App\RequestInterface::class);
-        
+
         if ($request->getParam('loyalty_add')) {
             return 'loyalty-frontend';
         }

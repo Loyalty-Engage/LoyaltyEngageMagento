@@ -13,6 +13,7 @@ use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
 use Magento\Quote\Model\QuoteRepository;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
 {
@@ -29,6 +30,7 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
      * @param LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory
      * @param CartRepositoryInterface $cartRepository
      * @param QuoteRepository $quoteRepository
+     * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
         protected CustomerRepositoryInterface $customerRepository,
@@ -38,6 +40,7 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
         protected LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory,
         protected CartRepositoryInterface $cartRepository,
         protected QuoteRepository $quoteRepository,
+        protected LoyaltyHelper $loyaltyHelper
     ) {
     }
 
@@ -52,6 +55,11 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
     public function removeProduct(string $sku, int $customerId, int $quantity): LoyaltyCartResponseInterface
     {
         $responseItem = $this->loyaltyCartResponseFactory->create();
+
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            // Return a successful response, as no error occurred, but no action was taken.
+            return $this->setSuccessResponse($responseItem, 'LoyaltyEngage module is disabled. No action taken.');
+        }
 
         try {
 

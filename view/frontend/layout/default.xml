@@ -5,7 +5,7 @@
     </head>
     <body>
         <referenceContainer name="before.body.end">
-            <block class="Magento\Framework\View\Element\Template" name="loyaltyshop.loyalty.cart.js" template="LoyaltyEngage_LoyaltyShop::loyalty-cart-js.phtml" />
+            <block class="Magento\Framework\View\Element\Template" ifconfig="loyalty/general/module_enable" name="loyaltyshop.loyalty.cart.js" template="LoyaltyEngage_LoyaltyShop::loyalty-cart-js.phtml" />
         </referenceContainer>
     </body>
 </page>

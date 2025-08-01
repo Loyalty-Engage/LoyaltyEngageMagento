@@ -24,24 +24,26 @@ class ReturnConsumer
 
     public function process(string $payloadJson): void
     {
-        $payload = json_decode($payloadJson, true);
+        if ($this->helper->isLoyaltyEngageEnabled()) {
+            $payload = json_decode($payloadJson, true);
 
-        try {
-            $apiUrl = $this->helper->getApiUrl();
-            $clientId = $this->helper->getClientId();
-            $clientSecret = $this->helper->getClientSecret();
-            $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
+            try {
+                $apiUrl = $this->helper->getApiUrl();
+                $clientId = $this->helper->getClientId();
+                $clientSecret = $this->helper->getClientSecret();
+                $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
 
-            $this->curl->addHeader("Content-Type", "application/json");
-            $this->curl->addHeader("Authorization", $authHeader);
-            $this->curl->post(rtrim($apiUrl, '/') . '/api/v1/events', json_encode($payload));
+                $this->curl->addHeader("Content-Type", "application/json");
+                $this->curl->addHeader("Authorization", $authHeader);
+                $this->curl->post(rtrim($apiUrl, '/') . '/api/v1/events', json_encode($payload));
 
-            $response = $this->curl->getBody();
-            $status = $this->curl->getStatus();
+                $response = $this->curl->getBody();
+                $status = $this->curl->getStatus();
 
-            $this->logger->info("[LoyaltyShop] Return API Response (HTTP $status): $response");
-        } catch (\Exception $e) {
-            $this->logger->error('[LoyaltyShop] Return API Error: ' . $e->getMessage());
+                $this->logger->info("[LoyaltyShop] Return API Response (HTTP $status): $response");
+            } catch (\Exception $e) {
+                $this->logger->error('[LoyaltyShop] Return API Error: ' . $e->getMessage());
+            }
         }
     }
 }

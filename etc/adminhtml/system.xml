@@ -15,11 +15,24 @@
                 showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Loyalty Cart Configuration</label>
 
+                <field id="module_enable" translate="label" type="select" sortOrder="5"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Enable Loyalty Engage Module</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Set to 'Yes' to enable the Loyalty Engage module functionality.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
                 <field id="loyalty_api_url" translate="label" type="text" sortOrder="10"
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Loyalty Api Url</label>
                     <validate>required-entry validate-url</validate>
                     <comment>Please ensure the URL starts with "https://".</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="tenant_id" translate="label" type="obscure" sortOrder="20"
@@ -27,6 +40,9 @@
                     <label>Client Id</label>
                     <validate>required-entry</validate>
                     <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PreserveValue</backend_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="bearer_token" translate="label" type="obscure" sortOrder="30"
@@ -34,6 +50,9 @@
                     <label>Client Secret</label>
                     <validate>required-entry</validate>
                     <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PreserveValue</backend_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="cart_expiry_time" translate="label" type="select" sortOrder="40"
@@ -41,6 +60,9 @@
                     <label>Cart Expiry Time</label>
                     <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\CartExpiryOptions</source_model>
                     <comment>select dropdown value for cart expiry.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="logger_enable" translate="label" type="select" sortOrder="50"
@@ -48,6 +70,9 @@
                     showInWebsite="0" showInStore="0" canRestore="1">
                     <label>Logger Enable</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="debug_logging" translate="label" type="select" sortOrder="55"
@@ -55,6 +80,9 @@
                     <label>Debug Logging</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <comment>Enable detailed debug logging for troubleshooting loyalty product detection issues.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                 <field id="loyalty_order_place_retrieve" translate="label" type="text"
@@ -62,6 +90,9 @@
                     canRestore="1">
                     <label>Loyalty Order Retrieve Limit</label>
                     <validate>validate-digits</validate>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
             </group>
             <group id="export" translate="label" type="text" sortOrder="15"
@@ -73,6 +104,9 @@
                     showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Return Export</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
 
                  <field id="purchase_event" translate="label" type="select" sortOrder="50"
@@ -80,6 +114,9 @@
                     showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Purchase Export</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
                 </field>
             </group>
         </section>

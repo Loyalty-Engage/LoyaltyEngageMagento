@@ -26,48 +26,52 @@ class PurchaseObserver implements ObserverInterface
 
     public function execute(Observer $observer)
     {
-        if (!$this->helper->isPurchaseExportEnabled()) {
-            return;
-        }
+        if ($this->helper->isLoyaltyEngageEnabled()) {
+            if (!$this->helper->isPurchaseExportEnabled()) {
+                return;
+            }
 
-        $order = $observer->getEvent()->getOrder();
-        if (!$order || !$order instanceof Order) {
-            return;
-        }
+            $order = $observer->getEvent()->getOrder();
+            if (!$order || !$order instanceof Order) {
+                return;
+            }
 
-        $originalStatus = $order->getOrigData('status');
-        $currentStatus = $order->getStatus();
+            $originalStatus = $order->getOrigData('status');
+            $currentStatus = $order->getStatus();
 
-        if ($originalStatus === $currentStatus || $currentStatus !== 'complete') {
-            return;
-        }
+            if ($originalStatus === $currentStatus || $currentStatus !== 'complete') {
+                return;
+            }
 
-        $email = $order->getCustomerEmail();
-        $orderId = $order->getIncrementId();
-        $orderDate = (new \DateTime($order->getCreatedAt()))->format('c');
-        $products = [];
+            $email = $order->getCustomerEmail();
+            $orderId = $order->getIncrementId();
+            $orderDate = (new \DateTime($order->getCreatedAt()))->format('c');
+            $products = [];
 
-        foreach ($order->getAllVisibleItems() as $item) {
-            $products[] = [
-                'sku' => $item->getSku(),
-                'price' => (float) $item->getPrice(),
-                'quantity' => (int) $item->getQtyOrdered()
+            foreach ($order->getAllVisibleItems() as $item) {
+                $products[] = [
+                    'sku' => $item->getSku(),
+                    'price' => (float) $item->getPrice(),
+                    'quantity' => (int) $item->getQtyOrdered()
+                ];
+            }
+
+            $payload = [
+                [
+                    'event' => 'Purchase',
+                    'email' => $email,
+                    'orderId' => $orderId,
+                    'orderDate' => $orderDate,
+                    'products' => $products
+                ]
             ];
-        }
 
-        $payload = [[
-            'event' => 'Purchase',
-            'email' => $email,
-            'orderId' => $orderId,
-            'orderDate' => $orderDate,
-            'products' => $products
-        ]];
-
-        try {
-            $this->publisher->publish('loyaltyshop.purchase_event', json_encode($payload));
-            $this->logger->info('[LoyaltyShop] Purchase payload published to queue.', $payload[0]);
-        } catch (\Exception $e) {
-            $this->logger->error('[LoyaltyShop] Failed to queue Purchase event: ' . $e->getMessage());
+            try {
+                $this->publisher->publish('loyaltyshop.purchase_event', json_encode($payload));
+                $this->logger->info('[LoyaltyShop] Purchase payload published to queue.', $payload[0]);
+            } catch (\Exception $e) {
+                $this->logger->error('[LoyaltyShop] Failed to queue Purchase event: ' . $e->getMessage());
+            }
         }
     }
 }

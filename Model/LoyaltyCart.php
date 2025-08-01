@@ -24,6 +24,7 @@ use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\SalesRule\Model\ResourceModel\Coupon\CollectionFactory as CouponCollectionFactory;
 use Psr\Log\LoggerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyCart implements LoyaltyCartInterface
 {
@@ -48,12 +49,19 @@ class LoyaltyCart implements LoyaltyCartInterface
         protected Session $customerSession,
         protected LoggerInterface $logger,
         protected CouponCollectionFactory $couponCollectionFactory,
-        protected LoyaltyLogger $loyaltyLogger
-    ) {}
+        protected LoyaltyLogger $loyaltyLogger,
+        protected LoyaltyHelper $loyaltyHelper
+    ) {
+    }
 
     public function addProduct(int $customerId, string $sku): LoyaltyCartResponseInterface
     {
         $response = $this->loyaltyCartResponseFactory->create();
+
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            // Return a successful response, as no error occurred, but no action was taken.
+            return $this->setSuccessResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
+        }
 
         // Log the start of loyalty product addition (debug only)
         $this->loyaltyLogger->debug(
@@ -118,7 +126,7 @@ class LoyaltyCart implements LoyaltyCartInterface
             }
 
             $quote = $this->getOrCreateCustomerQuote($customerId);
-            
+
             // Check if the product already exists in the cart
             $productAlreadyInCart = false;
             foreach ($quote->getAllItems() as $item) {
@@ -133,7 +141,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                     break;
                 }
             }
-            
+
             // Only add the product if it's not already in the cart
             if (!$productAlreadyInCart) {
                 $quoteItem = $quote->addProduct($product);
@@ -152,7 +160,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                         'quote_item_id' => $quoteItem->getId(),
                         'custom_price' => $quoteItem->getCustomPrice(),
                         'loyalty_locked_qty_data' => $quoteItem->getData('loyalty_locked_qty'),
-                        'loyalty_locked_qty_option' => $quoteItem->getOptionByCode('loyalty_locked_qty') ? 
+                        'loyalty_locked_qty_option' => $quoteItem->getOptionByCode('loyalty_locked_qty') ?
                             $quoteItem->getOptionByCode('loyalty_locked_qty')->getValue() : 'not_set'
                     ]
                 );
@@ -230,182 +238,192 @@ class LoyaltyCart implements LoyaltyCartInterface
     }
 
     public function ensureCartRuleExists(?string $code, float $discountRate, bool $forceCartFixed = false): string
-{
-    try {
-        if (empty($code)) {
-            $code = 'LOYALTY-' . strtoupper(bin2hex(random_bytes(4)));
-        }
-
-        $couponCollection = $this->couponCollectionFactory->create()
-            ->addFieldToFilter('code', $code);
-
-        if ($couponCollection->getSize() > 0) {
-            return $code;
-        }
-
-        $websiteId = (int) $this->storeManager->getStore()->getWebsiteId();
-        $customerGroupIds = [1, 2, 3];
-
-        $rule = $this->ruleFactory->create();
-        $rule->setName('LoyaltyEngage Auto Rule ' . $code)
-            ->setDescription('Auto-generated from LoyaltyEngage')
-            ->setFromDate(date('Y-m-d'))
-            ->setIsActive(1)
-            ->setSimpleAction($forceCartFixed ? 'cart_fixed' : 'by_percent') // 🔥 Belangrijk
-            ->setDiscountAmount($discountRate) // 🔥 Hier moet 50 staan, niet 0.5 of 277
-            ->setStopRulesProcessing(0)
-            ->setIsAdvanced(1)
-            ->setUsesPerCustomer(1)
-            ->setCustomerGroupIds($customerGroupIds)
-            ->setCouponType(2)
-            ->setCouponCode($code)
-            ->setUsesPerCoupon(1)
-            ->setWebsiteIds([$websiteId]);
-
-        $rule->save();
-
-        return $code;
-    } catch (\Throwable $e) {
-        $this->logger->critical('[LoyaltyShop] Unexpected error in ensureCartRuleExists', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        throw $e;
-    }
-}
-
-    /**
- * Add multiple products to the cart using loyalty points.
- *
- * @param int $customerId
- * @param string[] $skus
- * @return LoyaltyCartResponseInterface
- */
-public function addMultipleProducts(int $customerId, array $skus): LoyaltyCartResponseInterface
-{
-    $response = $this->loyaltyCartResponseFactory->create();
-
-    if (!$customerId || empty($skus)) {
-        return $this->setErrorResponse($response, 'customerId and SKUs are required.');
-    }
-
-    try {
-        $customer = $this->customerRepository->getById($customerId);
-        $email = $customer->getEmail();
-        $quote = $this->getOrCreateCustomerQuote($customerId);
-        $successCount = 0;
-        $failedSkus = [];
-
-        foreach ($skus as $sku) {
-            $apiResponse = $this->loyaltyengageCart->addToCart($email, $sku);
-
-            if ($apiResponse !== self::HTTP_OK) {
-                $failedSkus[] = $sku;
-                continue;
+    {
+        try {
+            if (empty($code)) {
+                $code = 'LOYALTY-' . strtoupper(bin2hex(random_bytes(4)));
             }
 
-            try {
-                $product = $this->productRepository->get($sku);
-                if (!$this->isValidProduct($product)) {
+            $couponCollection = $this->couponCollectionFactory->create()
+                ->addFieldToFilter('code', $code);
+
+            if ($couponCollection->getSize() > 0) {
+                return $code;
+            }
+
+            $websiteId = (int) $this->storeManager->getStore()->getWebsiteId();
+            $customerGroupIds = [1, 2, 3];
+
+            $rule = $this->ruleFactory->create();
+            $rule->setName('LoyaltyEngage Auto Rule ' . $code)
+                ->setDescription('Auto-generated from LoyaltyEngage')
+                ->setFromDate(date('Y-m-d'))
+                ->setIsActive(1)
+                ->setSimpleAction($forceCartFixed ? 'cart_fixed' : 'by_percent') // 🔥 Belangrijk
+                ->setDiscountAmount($discountRate) // 🔥 Hier moet 50 staan, niet 0.5 of 277
+                ->setStopRulesProcessing(0)
+                ->setIsAdvanced(1)
+                ->setUsesPerCustomer(1)
+                ->setCustomerGroupIds($customerGroupIds)
+                ->setCouponType(2)
+                ->setCouponCode($code)
+                ->setUsesPerCoupon(1)
+                ->setWebsiteIds([$websiteId]);
+
+            $rule->save();
+
+            return $code;
+        } catch (\Throwable $e) {
+            $this->logger->critical('[LoyaltyShop] Unexpected error in ensureCartRuleExists', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Add multiple products to the cart using loyalty points.
+     *
+     * @param int $customerId
+     * @param string[] $skus
+     * @return LoyaltyCartResponseInterface
+     */
+    public function addMultipleProducts(int $customerId, array $skus): LoyaltyCartResponseInterface
+    {
+        $response = $this->loyaltyCartResponseFactory->create();
+
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            // Return a successful response, as no error occurred, but no action was taken.
+            return $this->setSuccessResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
+        }
+
+        if (!$customerId || empty($skus)) {
+            return $this->setErrorResponse($response, 'customerId and SKUs are required.');
+        }
+
+        try {
+            $customer = $this->customerRepository->getById($customerId);
+            $email = $customer->getEmail();
+            $quote = $this->getOrCreateCustomerQuote($customerId);
+            $successCount = 0;
+            $failedSkus = [];
+
+            foreach ($skus as $sku) {
+                $apiResponse = $this->loyaltyengageCart->addToCart($email, $sku);
+
+                if ($apiResponse !== self::HTTP_OK) {
                     $failedSkus[] = $sku;
                     continue;
                 }
 
-                // Check if the product already exists in the cart
-                $productAlreadyInCart = false;
-                foreach ($quote->getAllItems() as $item) {
-                    if ($item->getProduct()->getSku() === $sku) {
-                        $productAlreadyInCart = true;
-                        break;
+                try {
+                    $product = $this->productRepository->get($sku);
+                    if (!$this->isValidProduct($product)) {
+                        $failedSkus[] = $sku;
+                        continue;
                     }
+
+                    // Check if the product already exists in the cart
+                    $productAlreadyInCart = false;
+                    foreach ($quote->getAllItems() as $item) {
+                        if ($item->getProduct()->getSku() === $sku) {
+                            $productAlreadyInCart = true;
+                            break;
+                        }
+                    }
+
+                    // Only add the product if it's not already in the cart
+                    if (!$productAlreadyInCart) {
+                        $quoteItem = $quote->addProduct($product);
+                        $quoteItem->setCustomPrice(0);
+                        $quoteItem->setOriginalCustomPrice(0);
+                        $quoteItem->setData('loyalty_locked_qty', 1);
+                        $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
+                        $successCount++;
+                    } else {
+                        $successCount++; // Count as success if already in cart
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->critical('[LoyaltyShop] Exception in addMultipleProducts for SKU: ' . $sku, [
+                        'message' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $failedSkus[] = $sku;
                 }
-                
-                // Only add the product if it's not already in the cart
-                if (!$productAlreadyInCart) {
-                    $quoteItem = $quote->addProduct($product);
-                    $quoteItem->setCustomPrice(0);
-                    $quoteItem->setOriginalCustomPrice(0);
-                    $quoteItem->setData('loyalty_locked_qty', 1);
-                    $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
-                    $successCount++;
-                } else {
-                    $successCount++; // Count as success if already in cart
-                }
-            } catch (\Exception $e) {
-                $this->logger->critical('[LoyaltyShop] Exception in addMultipleProducts for SKU: ' . $sku, [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                $failedSkus[] = $sku;
             }
+
+            $quote->collectTotals()->save();
+
+            if ($successCount === 0) {
+                return $this->setErrorResponse($response, 'Failed to add any products to the cart.');
+            }
+
+            $message = 'Successfully added ' . $successCount . ' product(s) to the cart.';
+            if (!empty($failedSkus)) {
+                $message .= ' Failed to add: ' . implode(', ', $failedSkus);
+            }
+
+            return $this->setSuccessResponse($response, $message);
+        } catch (\Throwable $e) {
+            $this->logger->critical('[LoyaltyShop] Exception in addMultipleProducts', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return $this->setErrorResponse($response, 'An error occurred while adding the products.');
         }
-
-        $quote->collectTotals()->save();
-
-        if ($successCount === 0) {
-            return $this->setErrorResponse($response, 'Failed to add any products to the cart.');
-        }
-
-        $message = 'Successfully added ' . $successCount . ' product(s) to the cart.';
-        if (!empty($failedSkus)) {
-            $message .= ' Failed to add: ' . implode(', ', $failedSkus);
-        }
-
-        return $this->setSuccessResponse($response, $message);
-    } catch (\Throwable $e) {
-        $this->logger->critical('[LoyaltyShop] Exception in addMultipleProducts', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        return $this->setErrorResponse($response, 'An error occurred while adding the products.');
     }
-}
 
-public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface
-{
-    $response = $this->loyaltyCartResponseFactory->create();
+    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface
+    {
+        $response = $this->loyaltyCartResponseFactory->create();
 
-    try {
-        $customer = $this->customerRepository->getById($customerId);
-        $email = $customer->getEmail();
-
-        $cartStatus = $this->loyaltyengageCart->addToCart($email, $sku);
-        if ($cartStatus !== 200) {
-            return $this->setErrorResponse($response, 'Failed to add product to loyalty cart.');
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            // Return a successful response, as no error occurred, but no action was taken.
+            return $this->setSuccessResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
         }
 
-        $sendToLoyaltyEngage = $discount > 1000
-            ? ((float)substr((string)$discount, -2)) / 100  // bijv. 1015 → 15 → 0.15
-            : $discount;
+        try {
+            $customer = $this->customerRepository->getById($customerId);
+            $email = $customer->getEmail();
 
-        $discountResult = $this->loyaltyengageCart->claimDiscount($email, $sendToLoyaltyEngage);
+            $cartStatus = $this->loyaltyengageCart->addToCart($email, $sku);
+            if ($cartStatus !== 200) {
+                return $this->setErrorResponse($response, 'Failed to add product to loyalty cart.');
+            }
 
-        $discountCode = $discountResult['discountCode'] ?? null;
-        if (!$discountCode) {
-            return $this->setErrorResponse($response, 'No discount code returned from LoyaltyEngage.');
+            $sendToLoyaltyEngage = $discount > 1000
+                ? ((float) substr((string) $discount, -2)) / 100  // bijv. 1015 → 15 → 0.15
+                : $discount;
+
+            $discountResult = $this->loyaltyengageCart->claimDiscount($email, $sendToLoyaltyEngage);
+
+            $discountCode = $discountResult['discountCode'] ?? null;
+            if (!$discountCode) {
+                return $this->setErrorResponse($response, 'No discount code returned from LoyaltyEngage.');
+            }
+
+            if (strlen($discountCode) > 255) {
+                return $this->setErrorResponse($response, 'Discount code is too long for Magento.');
+            }
+
+            $discountAmount = $discount > 1000
+                ? (float) substr((string) $discount, -2) // bijv. 1015 → 15 euro
+                : $discount;
+            $finalCode = $this->ensureCartRuleExists($discountCode, $discountAmount, true); // forceer cart_fixed
+
+            $quote = $this->getOrCreateCustomerQuote($customerId);
+            $quote->setCouponCode($finalCode);
+            $quote->collectTotals()->save();
+
+            return $this->setSuccessResponse($response, "Product added and discount code '{$finalCode}' applied.");
+        } catch (\Exception $e) {
+            $this->logger->critical('[LoyaltyShop] Exception in claimDiscountAfterAddToLoyaltyCart', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return $this->setErrorResponse($response, 'An unexpected error occurred while applying the discount.');
         }
-
-        if (strlen($discountCode) > 255) {
-            return $this->setErrorResponse($response, 'Discount code is too long for Magento.');
-        }
-
-        $discountAmount = $discount > 1000
-            ? (float)substr((string)$discount, -2) // bijv. 1015 → 15 euro
-            : $discount;
-        $finalCode = $this->ensureCartRuleExists($discountCode, $discountAmount, true); // forceer cart_fixed
-
-        $quote = $this->getOrCreateCustomerQuote($customerId);
-        $quote->setCouponCode($finalCode);
-        $quote->collectTotals()->save();
-
-        return $this->setSuccessResponse($response, "Product added and discount code '{$finalCode}' applied.");
-    } catch (\Exception $e) {
-        $this->logger->critical('[LoyaltyShop] Exception in claimDiscountAfterAddToLoyaltyCart', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        return $this->setErrorResponse($response, 'An unexpected error occurred while applying the discount.');
     }
-}
 
 }

@@ -8,6 +8,7 @@ use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Magento\Customer\Model\Session;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Checkout\Model\Session as CheckoutSession;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CartPageViewObserver implements ObserverInterface
 {
@@ -42,13 +43,15 @@ class CartPageViewObserver implements ObserverInterface
      * @param Session $customerSession
      * @param StoreManagerInterface $storeManager
      * @param CheckoutSession $checkoutSession
+     * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
         Logger $loyaltyLogger,
         EnterpriseDetection $enterpriseDetection,
         Session $customerSession,
         StoreManagerInterface $storeManager,
-        CheckoutSession $checkoutSession
+        CheckoutSession $checkoutSession,
+        protected LoyaltyHelper $loyaltyHelper
     ) {
         $this->loyaltyLogger = $loyaltyLogger;
         $this->enterpriseDetection = $enterpriseDetection;
@@ -65,65 +68,67 @@ class CartPageViewObserver implements ObserverInterface
      */
     public function execute(Observer $observer)
     {
-        try {
-            // Only process if this is the cart page
-            $fullActionName = $observer->getEvent()->getFullActionName();
-            if ($fullActionName !== 'checkout_cart_index') {
-                return;
-            }
+        if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            try {
+                // Only process if this is the cart page
+                $fullActionName = $observer->getEvent()->getFullActionName();
+                if ($fullActionName !== 'checkout_cart_index') {
+                    return;
+                }
 
-            // Get the quote from checkout session
-            $quote = $this->checkoutSession->getQuote();
-            
-            if (!$quote || !$quote->getId()) {
-                $this->loyaltyLogger->info(
-                    Logger::COMPONENT_CART,
-                    Logger::ACTION_REGULAR,
-                    'Cart page viewed - No active quote found',
-                    ['customer_email' => $this->getCustomerEmail()]
-                );
-                return;
-            }
+                // Get the quote from checkout session
+                $quote = $this->checkoutSession->getQuote();
 
-            // Skip if no items in cart
-            $items = $quote->getAllVisibleItems();
-            if (empty($items)) {
-                $this->loyaltyLogger->info(
+                if (!$quote || !$quote->getId()) {
+                    $this->loyaltyLogger->info(
+                        Logger::COMPONENT_CART,
+                        Logger::ACTION_REGULAR,
+                        'Cart page viewed - No active quote found',
+                        ['customer_email' => $this->getCustomerEmail()]
+                    );
+                    return;
+                }
+
+                // Skip if no items in cart
+                $items = $quote->getAllVisibleItems();
+                if (empty($items)) {
+                    $this->loyaltyLogger->info(
+                        Logger::COMPONENT_CART,
+                        Logger::ACTION_REGULAR,
+                        'Cart page viewed - Empty cart',
+                        [
+                            'customer_email' => $this->getCustomerEmail(),
+                            'quote_id' => $quote->getId()
+                        ]
+                    );
+                    return;
+                }
+
+                // Log environment context
+                $this->logEnvironmentContext();
+
+                // Log cart overview
+                $this->logCartOverview($quote, $items);
+
+                // Log each item in detail
+                foreach ($items as $item) {
+                    $this->logCartItem($item);
+                }
+
+                // Log cart totals
+                $this->logCartTotals($quote);
+
+            } catch (\Exception $e) {
+                $this->loyaltyLogger->error(
                     Logger::COMPONENT_CART,
-                    Logger::ACTION_REGULAR,
-                    'Cart page viewed - Empty cart',
+                    Logger::ACTION_ERROR,
+                    'Exception in CartPageViewObserver: ' . $e->getMessage(),
                     [
-                        'customer_email' => $this->getCustomerEmail(),
-                        'quote_id' => $quote->getId()
+                        'exception' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
                     ]
                 );
-                return;
             }
-
-            // Log environment context
-            $this->logEnvironmentContext();
-
-            // Log cart overview
-            $this->logCartOverview($quote, $items);
-
-            // Log each item in detail
-            foreach ($items as $item) {
-                $this->logCartItem($item);
-            }
-
-            // Log cart totals
-            $this->logCartTotals($quote);
-
-        } catch (\Exception $e) {
-            $this->loyaltyLogger->error(
-                Logger::COMPONENT_CART,
-                Logger::ACTION_ERROR,
-                'Exception in CartPageViewObserver: ' . $e->getMessage(),
-                [
-                    'exception' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]
-            );
         }
     }
 
@@ -141,7 +146,7 @@ class CartPageViewObserver implements ObserverInterface
                 'store_id' => $this->storeManager->getStore()->getId(),
                 'website_id' => $this->storeManager->getStore()->getWebsiteId()
             ];
-            
+
             $this->loyaltyLogger->logEnvironmentContext($environmentData);
             $logged = true;
         }
@@ -170,8 +175,12 @@ class CartPageViewObserver implements ObserverInterface
         $this->loyaltyLogger->info(
             Logger::COMPONENT_CART,
             Logger::ACTION_REGULAR,
-            sprintf('Cart page viewed - %d total items (%d loyalty, %d regular)', 
-                $totalItems, $loyaltyCount, $regularCount),
+            sprintf(
+                'Cart page viewed - %d total items (%d loyalty, %d regular)',
+                $totalItems,
+                $loyaltyCount,
+                $regularCount
+            ),
             [
                 'customer_email' => $this->getCustomerEmail(),
                 'quote_id' => $quote->getId(),
@@ -193,7 +202,7 @@ class CartPageViewObserver implements ObserverInterface
     {
         $isLoyalty = $this->isLoyaltyProduct($item);
         $productType = $isLoyalty ? Logger::ACTION_LOYALTY : Logger::ACTION_REGULAR;
-        
+
         $itemData = [
             'item_id' => $item->getId(),
             'product_id' => $item->getProductId(),
@@ -212,10 +221,11 @@ class CartPageViewObserver implements ObserverInterface
         $this->loyaltyLogger->info(
             Logger::COMPONENT_CART,
             $productType,
-            sprintf('Cart item: %s (%s) - Qty: %s, Price: $%.2f, Type: %s', 
-                $item->getName(), 
-                $item->getSku(), 
-                $item->getQty(), 
+            sprintf(
+                'Cart item: %s (%s) - Qty: %s, Price: $%.2f, Type: %s',
+                $item->getName(),
+                $item->getSku(),
+                $item->getQty(),
                 $item->getPrice(),
                 $isLoyalty ? 'LOYALTY' : 'REGULAR'
             ),
@@ -249,9 +259,10 @@ class CartPageViewObserver implements ObserverInterface
         $this->loyaltyLogger->info(
             Logger::COMPONENT_CART,
             Logger::ACTION_REGULAR,
-            sprintf('Cart totals - Subtotal: $%.2f, Grand Total: $%.2f, Items: %d', 
-                $quote->getSubtotal(), 
-                $quote->getGrandTotal(), 
+            sprintf(
+                'Cart totals - Subtotal: $%.2f, Grand Total: $%.2f, Items: %d',
+                $quote->getSubtotal(),
+                $quote->getGrandTotal(),
                 $quote->getItemsCount()
             ),
             $totalsData
@@ -297,8 +308,10 @@ class CartPageViewObserver implements ObserverInterface
             $value = @unserialize($additionalOptions->getValue());
             if (is_array($value)) {
                 foreach ($value as $option) {
-                    if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
-                        isset($option['value']) && $option['value'] === '1') {
+                    if (
+                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
+                        isset($option['value']) && $option['value'] === '1'
+                    ) {
                         return true;
                     }
                 }
@@ -369,8 +382,9 @@ class CartPageViewObserver implements ObserverInterface
         $this->loyaltyLogger->info(
             Logger::COMPONENT_CART,
             Logger::ACTION_LOYALTY,
-            sprintf('Loyalty item details for %s: %d options found', 
-                $item->getSku(), 
+            sprintf(
+                'Loyalty item details for %s: %d options found',
+                $item->getSku(),
                 count($options)
             ),
             $details

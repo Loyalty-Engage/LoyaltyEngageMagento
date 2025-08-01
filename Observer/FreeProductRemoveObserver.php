@@ -30,36 +30,38 @@ class FreeProductRemoveObserver implements ObserverInterface
 
     public function execute(Observer $observer)
     {
-        $item = $observer->getEvent()->getQuoteItem();
-        if (!$item) {
-            return;
-        }
+        if ($this->helper->isLoyaltyEngageEnabled()) {
+            $item = $observer->getEvent()->getQuoteItem();
+            if (!$item) {
+                return;
+            }
 
-        if ((float)$item->getPrice() !== 0.0) {
-            $this->logger->info("[LoyaltyShop] Removed item is not free, skipping.");
-            return;
-        }
+            if ((float) $item->getPrice() !== 0.0) {
+                $this->logger->info("[LoyaltyShop] Removed item is not free, skipping.");
+                return;
+            }
 
-        $sku = $item->getSku();
-        $qty = (int)$item->getQty();
+            $sku = $item->getSku();
+            $qty = (int) $item->getQty();
 
-        $email = $this->customerSession->getCustomer() ? $this->customerSession->getCustomer()->getEmail() : null;
-        if (!$email) {
-            $this->logger->warning("[LoyaltyShop] Cannot determine customer email for free product removal.");
-            return;
-        }
+            $email = $this->customerSession->getCustomer() ? $this->customerSession->getCustomer()->getEmail() : null;
+            if (!$email) {
+                $this->logger->warning("[LoyaltyShop] Cannot determine customer email for free product removal.");
+                return;
+            }
 
-        $payload = [
-            'email' => $email,
-            'sku' => $sku,
-            'quantity' => $qty
-        ];
+            $payload = [
+                'email' => $email,
+                'sku' => $sku,
+                'quantity' => $qty
+            ];
 
-        try {
-            $this->publisher->publish('loyaltyshop.free_product_remove_event', json_encode($payload));
-            $this->logger->info("[LoyaltyShop] Free product remove payload published to queue.", $payload);
-        } catch (\Exception $e) {
-            $this->logger->error("[LoyaltyShop] Failed to queue free product remove event: " . $e->getMessage());
+            try {
+                $this->publisher->publish('loyaltyshop.free_product_remove_event', json_encode($payload));
+                $this->logger->info("[LoyaltyShop] Free product remove payload published to queue.", $payload);
+            } catch (\Exception $e) {
+                $this->logger->error("[LoyaltyShop] Failed to queue free product remove event: " . $e->getMessage());
+            }
         }
     }
 }

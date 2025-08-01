@@ -7,6 +7,7 @@ use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Psr\Log\LoggerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Magento\Store\Model\StoreManagerInterface;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CheckoutCartItemRendererPlugin
 {
@@ -35,12 +36,14 @@ class CheckoutCartItemRendererPlugin
      * @param LoggerInterface $logger
      * @param LoyaltyLogger $loyaltyLogger
      * @param StoreManagerInterface $storeManager
+     * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
         EnterpriseDetection $enterpriseDetection,
         LoggerInterface $logger,
         LoyaltyLogger $loyaltyLogger,
-        StoreManagerInterface $storeManager
+        StoreManagerInterface $storeManager,
+        protected LoyaltyHelper $loyaltyHelper
     ) {
         $this->enterpriseDetection = $enterpriseDetection;
         $this->logger = $logger;
@@ -67,12 +70,16 @@ class CheckoutCartItemRendererPlugin
             return $result;
         }
 
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            // Skip processing for Disable configuration.
+            return $result;
+        }
         // Enhanced loyalty product detection with detailed logging
         $isLocked = $this->isLoyaltyProductWithLogging($item);
-        
+
         if ($isLocked) {
             $this->logger->info('[LOYALTY-CART] FINAL RESULT: LOYALTY PRODUCT - Quantity locked for: ' . $item->getName());
-            
+
             // Add JavaScript to mark the cart item as loyalty-locked
             $script = '<script>
                 require([\'jquery\', \'domReady!\'], function($) {
@@ -83,15 +90,15 @@ class CheckoutCartItemRendererPlugin
                     });
                 });
             </script>';
-            
+
             // Return a static qty display with a hidden input and the script
-            return '<span>Qty: ' . (float)$item->getQty() . '</span>' .
-                   '<input type="hidden" name="cart[' . $item->getId() . '][qty]" value="' . (float)$item->getQty() . '" />' .
-                   $script;
+            return '<span>Qty: ' . (float) $item->getQty() . '</span>' .
+                '<input type="hidden" name="cart[' . $item->getId() . '][qty]" value="' . (float) $item->getQty() . '" />' .
+                $script;
         } else {
             $this->logger->info('[LOYALTY-CART] FINAL RESULT: REGULAR PRODUCT - Normal display for: ' . $item->getName());
         }
-        
+
         return $result;
     }
 
@@ -102,8 +109,8 @@ class CheckoutCartItemRendererPlugin
     {
         static $logged = false;
         if (!$logged) {
-            $this->logger->info('[LOYALTY-CART] Environment: Enterprise=' . 
-                ($this->enterpriseDetection->isEnterpriseEdition() ? 'Yes' : 'No') . 
+            $this->logger->info('[LOYALTY-CART] Environment: Enterprise=' .
+                ($this->enterpriseDetection->isEnterpriseEdition() ? 'Yes' : 'No') .
                 ' | B2B Enabled=' . ($this->enterpriseDetection->isB2BEnabled() ? 'Yes' : 'No'));
             $logged = true;
         }
@@ -131,7 +138,7 @@ class CheckoutCartItemRendererPlugin
             $productId,
             $sku
         ));
-        
+
         $this->logger->info(sprintf(
             '[LOYALTY-CART] Price: $%.2f | Custom Price: %s | Options Count: %d | Enterprise: %s | B2B: %s',
             $price,
@@ -145,7 +152,7 @@ class CheckoutCartItemRendererPlugin
         $loyaltyOption = $item->getOptionByCode('loyalty_locked_qty');
         if ($loyaltyOption && $loyaltyOption->getValue() === '1') {
             $this->logger->info('[LOYALTY-CART] STRICT Detection Method 1 (loyalty_locked_qty option): CONFIRMED LOYALTY - option value: ' . $loyaltyOption->getValue());
-            
+
             // Additional validation: loyalty products should have custom price of 0
             if ($customPrice === 0.0 || $customPrice === '0.0000') {
                 $this->logger->info('[LOYALTY-CART] STRICT Validation: PASS - Custom price is 0 as expected for loyalty product');
@@ -159,7 +166,7 @@ class CheckoutCartItemRendererPlugin
                 return true;
             }
         } else {
-            $this->logger->info('[LOYALTY-CART] STRICT Detection Method 1 (loyalty_locked_qty option): FAIL - ' . 
+            $this->logger->info('[LOYALTY-CART] STRICT Detection Method 1 (loyalty_locked_qty option): FAIL - ' .
                 ($loyaltyOption ? 'option value: ' . $loyaltyOption->getValue() : 'no option found'));
         }
 
@@ -167,7 +174,7 @@ class CheckoutCartItemRendererPlugin
         $loyaltyData = $item->getData('loyalty_locked_qty');
         if ($loyaltyData === '1' || $loyaltyData === 1) {
             $this->logger->info('[LOYALTY-CART] STRICT Detection Method 2 (item data): CONFIRMED LOYALTY - data value: ' . $loyaltyData);
-            
+
             // Additional validation: loyalty products should have custom price of 0
             if ($customPrice === 0.0 || $customPrice === '0.0000') {
                 $this->logger->info('[LOYALTY-CART] STRICT Validation: PASS - Custom price is 0 as expected for loyalty product');
@@ -190,10 +197,12 @@ class CheckoutCartItemRendererPlugin
             $value = @unserialize($additionalOptions->getValue());
             if (is_array($value)) {
                 foreach ($value as $option) {
-                    if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
-                        isset($option['value']) && $option['value'] === '1') {
+                    if (
+                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
+                        isset($option['value']) && $option['value'] === '1'
+                    ) {
                         $this->logger->info('[LOYALTY-CART] STRICT Detection Method 3 (additional_options): CONFIRMED LOYALTY - found loyalty flag in additional options');
-                        
+
                         // Additional validation: loyalty products should have custom price of 0
                         if ($customPrice === 0.0 || $customPrice === '0.0000') {
                             $this->logger->info('[LOYALTY-CART] STRICT Validation: PASS - Custom price is 0 as expected for loyalty product');

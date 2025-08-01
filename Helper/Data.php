@@ -10,6 +10,19 @@ class Data extends AbstractHelper
     const XML_PATH_GENERAL = 'loyalty/general/';
 
     /**
+     * Check if LoyaltyEngageEnabled is enabled
+     *
+     * @return bool
+     */
+    public function isLoyaltyEngageEnabled(): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_GENERAL . 'module_enable',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    /**
      * Check if Return Export is enabled
      *
      * @return bool

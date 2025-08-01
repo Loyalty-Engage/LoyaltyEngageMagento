@@ -4,6 +4,7 @@
     <default>
         <loyalty>
             <general>
+                <module_enable>1</module_enable>
                 <loyalty_api_url>https://app.loyaltyengage.tech</loyalty_api_url>
                 <tenant_id></tenant_id>
                 <bearer_token></bearer_token>

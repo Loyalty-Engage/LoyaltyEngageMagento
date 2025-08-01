@@ -25,38 +25,42 @@ class ReturnObserver implements ObserverInterface
 
     public function execute(Observer $observer)
     {
-        if (!$this->helper->isReturnExportEnabled()) {
-            $this->logger->info('[LoyaltyShop] Return export is disabled.');
-            return;
-        }
+        if ($this->helper->isLoyaltyEngageEnabled()) {
+            if (!$this->helper->isReturnExportEnabled()) {
+                $this->logger->info('[LoyaltyShop] Return export is disabled.');
+                return;
+            }
 
-        $creditmemo = $observer->getEvent()->getCreditmemo();
-        $order = $creditmemo->getOrder();
+            $creditmemo = $observer->getEvent()->getCreditmemo();
+            $order = $creditmemo->getOrder();
 
-        $email = $order->getCustomerEmail();
-        $returnDate = (new \DateTime($creditmemo->getCreatedAt()))->format(DATE_ATOM);
-        $products = [];
+            $email = $order->getCustomerEmail();
+            $returnDate = (new \DateTime($creditmemo->getCreatedAt()))->format(DATE_ATOM);
+            $products = [];
 
-        foreach ($creditmemo->getAllItems() as $item) {
-            $products[] = [
-                'sku' => $item->getSku(),
-                'price' => (float) $item->getPrice(),
-                'quantity' => (int) $item->getQty()
+            foreach ($creditmemo->getAllItems() as $item) {
+                $products[] = [
+                    'sku' => $item->getSku(),
+                    'price' => (float) $item->getPrice(),
+                    'quantity' => (int) $item->getQty()
+                ];
+            }
+
+            $payload = [
+                [
+                    'event' => 'Return',
+                    'email' => $email,
+                    'orderDate' => $returnDate,
+                    'products' => $products
+                ]
             ];
-        }
 
-        $payload = [[
-            'event' => 'Return',
-            'email' => $email,
-            'orderDate' => $returnDate,
-            'products' => $products
-        ]];
-
-        try {
-            $this->publisher->publish('loyaltyshop.return_event', json_encode($payload));
-            $this->logger->info('[LoyaltyShop] Return payload published to queue.', $payload[0]);
-        } catch (\Exception $e) {
-            $this->logger->error('[LoyaltyShop] Failed to queue Return event: ' . $e->getMessage());
+            try {
+                $this->publisher->publish('loyaltyshop.return_event', json_encode($payload));
+                $this->logger->info('[LoyaltyShop] Return payload published to queue.', $payload[0]);
+            } catch (\Exception $e) {
+                $this->logger->error('[LoyaltyShop] Failed to queue Return event: ' . $e->getMessage());
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ namespace LoyaltyEngage\LoyaltyShop\Cron;
 
 use Psr\Log\LoggerInterface;
 use Magento\Framework\App\Filesystem\DirectoryList;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class ConsumerStarter
 {
@@ -17,10 +18,12 @@ class ConsumerStarter
      *
      * @param LoggerInterface $logger
      * @param DirectoryList $directoryList
+     * @param LoyaltyengageCart $loyaltyengageCart
      */
     public function __construct(
         protected LoggerInterface $logger,
-        protected DirectoryList $directoryList
+        protected DirectoryList $directoryList,
+        protected LoyaltyHelper $loyaltyHelper
     ) {
     }
 
@@ -31,20 +34,22 @@ class ConsumerStarter
      */
     public function execute(): void
     {
-        try {
-            // Check if consumer is already running
-            if ($this->isConsumerRunning()) {
-                return; // Consumer is already running, no action needed
+        if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            try {
+                // Check if consumer is already running
+                if ($this->isConsumerRunning()) {
+                    return; // Consumer is already running, no action needed
+                }
+
+                // Start the consumer
+                $this->startConsumer();
+
+            } catch (\Exception $e) {
+                $this->logger->error("[LoyaltyShop] Consumer Starter Error: " . $e->getMessage(), [
+                    'exception' => $e->getTraceAsString(),
+                    'timestamp' => date('Y-m-d H:i:s')
+                ]);
             }
-
-            // Start the consumer
-            $this->startConsumer();
-
-        } catch (\Exception $e) {
-            $this->logger->error("[LoyaltyShop] Consumer Starter Error: " . $e->getMessage(), [
-                'exception' => $e->getTraceAsString(),
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
         }
     }
 
@@ -57,8 +62,8 @@ class ConsumerStarter
     {
         // Check if process is running using ps command
         $command = "ps aux | grep '" . self::CONSUMER_NAME . "' | grep -v grep | wc -l";
-        $output = (int)shell_exec($command);
-        
+        $output = (int) shell_exec($command);
+
         return $output > 0;
     }
 

@@ -24,36 +24,38 @@ class FreeProductRemoveConsumer
 
     public function process(string $payloadJson): void
     {
-        $payload = json_decode($payloadJson, true);
+        if ($this->helper->isLoyaltyEngageEnabled()) {
+            $payload = json_decode($payloadJson, true);
 
-        try {
-            $clientId = $this->helper->getClientId();
-            $clientSecret = $this->helper->getClientSecret();
-            $apiUrl = rtrim($this->helper->getApiUrl(), '/');
-            $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
-            
-            $email = $payload['email'];
-            $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$email}/cart/remove";
+            try {
+                $clientId = $this->helper->getClientId();
+                $clientSecret = $this->helper->getClientSecret();
+                $apiUrl = rtrim($this->helper->getApiUrl(), '/');
+                $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
 
-            $this->logger->info("[LoyaltyShop] Sending DELETE request to: $endpoint with payload", $payload);
+                $email = $payload['email'];
+                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$email}/cart/remove";
 
-            // Using Curl class for DELETE request
-            $this->curl->addHeader("Content-Type", "application/json");
-            $this->curl->addHeader("Authorization", $authHeader);
-            
-            // Magento's Curl class doesn't have a direct delete method, so we use setOption
-            $this->curl->setOption(CURLOPT_CUSTOMREQUEST, "DELETE");
-            $this->curl->post($endpoint, json_encode([
-                'sku' => $payload['sku'],
-                'quantity' => $payload['quantity']
-            ]));
+                $this->logger->info("[LoyaltyShop] Sending DELETE request to: $endpoint with payload", $payload);
 
-            $response = $this->curl->getBody();
-            $status = $this->curl->getStatus();
+                // Using Curl class for DELETE request
+                $this->curl->addHeader("Content-Type", "application/json");
+                $this->curl->addHeader("Authorization", $authHeader);
 
-            $this->logger->info("[LoyaltyShop] Remove API Response (HTTP $status): $response");
-        } catch (\Exception $e) {
-            $this->logger->error("[LoyaltyShop] Free product remove error: " . $e->getMessage());
+                // Magento's Curl class doesn't have a direct delete method, so we use setOption
+                $this->curl->setOption(CURLOPT_CUSTOMREQUEST, "DELETE");
+                $this->curl->post($endpoint, json_encode([
+                    'sku' => $payload['sku'],
+                    'quantity' => $payload['quantity']
+                ]));
+
+                $response = $this->curl->getBody();
+                $status = $this->curl->getStatus();
+
+                $this->logger->info("[LoyaltyShop] Remove API Response (HTTP $status): $response");
+            } catch (\Exception $e) {
+                $this->logger->error("[LoyaltyShop] Free product remove error: " . $e->getMessage());
+            }
         }
     }
 }
