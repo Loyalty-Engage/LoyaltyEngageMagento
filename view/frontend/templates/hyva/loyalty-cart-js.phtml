@@ -5,10 +5,10 @@
  */
 $helper = $this->helper(\LoyaltyEngage\LoyaltyShop\Helper\Data::class);
 
-// Get customer ID from server-side
-$objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-$customerSession = $objectManager->get(\Magento\Customer\Model\Session::class);
-$customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId() : null;
+// Get customer ID from session
+$customerData = $helper->getCustomer();
+$customerId = $customerData['id'] ?? null;
+$customeremail = $customerData['email'] ?? null;
 ?>
 
 <script>
@@ -16,6 +16,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
     document.addEventListener('alpine:init', () => {
         Alpine.data('loyaltyShop', () => ({
             customerId: <?= json_encode($customerId) ?>,
+            customerEmail: <?= json_encode($customeremail) ?>,
             messageBarVisible: false,
             messageText: '',
             messageIsSuccess: true,
@@ -25,13 +26,13 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
             init() {
                 // Set global variable for backward compatibility
                 window.loyaltyShopCustomerId = this.customerId;
-                
+
                 // Load message configuration
                 this.loadMessageConfig();
-                
+
                 // Initialize dynamic buttons
                 this.initDynamicButtons();
-                
+
                 // Set up observer for dynamic content
                 this.setupObserver();
             },
@@ -64,14 +65,14 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
 
                 return this.messageConfig;
             },
-            
+
             // Method to refresh the cart after successful API call
             refreshCart() {
                 // Try different methods to refresh the cart
-                
+
                 // Method 1: Trigger Hyvä-specific cart update event
                 document.dispatchEvent(new CustomEvent('cart:refresh'));
-                
+
                 // Method 2: Reload customer sections data
                 try {
                     if (typeof require === 'function') {
@@ -82,7 +83,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                 } catch (e) {
                     console.log('RequireJS not available, using alternative refresh method');
                 }
-                
+
                 // Method 3: Reload the page after a short delay if on cart page
                 if (window.location.href.indexOf('checkout/cart') !== -1) {
                     setTimeout(() => {
@@ -90,14 +91,14 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                     }, 1000);
                 }
             },
-            
+
             initDynamicButtons() {
                 // For Hyvä, we need to wrap buttons in an Alpine component directly
                 const buttons = document.querySelectorAll('button.le-add-to-cart-button:not([data-loyalty-init]):not([x-on\\:click])');
                 buttons.forEach((btn) => {
                     // Mark as initialized
                     btn.setAttribute('data-loyalty-init', 'true');
-                    
+
                     // Check if the button is already in an Alpine component
                     if (btn.closest('[x-data]')) {
                         // If it's already in an Alpine component, just add the click handler
@@ -109,7 +110,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         let sku = '';
                         let type = '';
                         let price = '';
-                        
+
                         if (container) {
                             const skuInput = container.querySelector('.product-sku');
                             if (skuInput) {
@@ -118,7 +119,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                 price = skuInput.getAttribute('data-price') || '';
                             }
                         }
-                        
+
                         // Fallback to button attributes if not found in container
                         if (!sku) {
                             sku = btn.getAttribute('data-product-sku') || '';
@@ -129,10 +130,10 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         if (!price) {
                             price = btn.getAttribute('data-price') || '';
                         }
-                        
+
                         // Create a wrapper div with the Alpine component
                         const wrapper = document.createElement('div');
-                        
+
                         // Set Alpine data attribute with inline component
                         wrapper.setAttribute('x-data', `{ 
                             customerId: ${this.customerId ? JSON.stringify(this.customerId) : 'null'},
@@ -250,46 +251,46 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                                 this.showMessageBar(message, isSuccess);
                                 }
                         }`);
-                        
+
                         // Clone the button
                         const newBtn = btn.cloneNode(true);
-                        
+
                         // Add the click handler
                         newBtn.setAttribute('x-on:click', 'handleClick($el)');
-                        
+
                         // Replace the original button with the wrapped version
                         wrapper.appendChild(newBtn);
                         btn.parentNode.replaceChild(wrapper, btn);
                     }
                 });
             },
-            
+
             setupObserver() {
                 const observer = new MutationObserver(() => {
                     this.initDynamicButtons();
                 });
-                
+
                 observer.observe(document.body, {
                     childList: true,
                     subtree: true,
                 });
             },
-            
+
             async showMessageBar(message, isSuccess = true) {
                 const config = await this.loadMessageConfig();
                 const messageConfig = isSuccess ? config.success : config.error;
                 const displayMessage = message || messageConfig.message;
-                
+
                 // Hide any existing message first
                 this.messageBarVisible = false;
                 clearTimeout(this.timeoutId);
-                
+
                 // Small delay to ensure previous message is hidden
                 setTimeout(() => {
                     this.messageText = displayMessage;
                     this.messageIsSuccess = isSuccess;
                     this.messageBarVisible = true;
-                    
+
                     // Auto-hide after 4 seconds
                     this.timeoutId = setTimeout(() => {
                         this.messageBarVisible = false;
@@ -302,7 +303,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                 this.messageBarVisible = false;
                 clearTimeout(this.timeoutId);
             },
-            
+
             async handleClick(button) {
                 // Find the product container
                 const container = button.closest('.loyalty-product-container');
@@ -310,39 +311,39 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                     await this.showMessageBar('Product container not found.', false);
                     return false;
                 }
-                
+
                 // Find the SKU input
                 const skuInput = container.querySelector('.product-sku');
                 if (!skuInput) {
                     await this.showMessageBar('Product SKU element not found.', false);
                     return false;
                 }
-                
+
                 // Get data from attributes
                 const sku = skuInput.getAttribute('data-product-sku') || skuInput.dataset.productSku;
                 const type = skuInput.getAttribute('data-type') || skuInput.dataset.type;
                 const rawDiscount = skuInput.getAttribute('data-price') || skuInput.dataset.price;
-                
+
                 // Validate data
                 if (!sku || !type) {
                     await this.showMessageBar('Missing SKU or type.', false);
                     return false;
                 }
-                
+
                 if (!this.customerId) {
                     await this.showMessageBar('Please log in to add this product to your cart.', false);
                     return false;
                 }
-                
+
                 if (type === 'discount_code') {
                     const discount = parseFloat(rawDiscount);
                     if (isNaN(discount)) {
                         await this.showMessageBar('Invalid discount value.', false);
                         return false;
                     }
-                    
+
                     const endpointUrl = `/rest/V1/loyalty/discount/${this.customerId}/claim-after-cart`;
-                    
+
                     fetch(endpointUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -351,7 +352,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         .then(res => res.json())
                         .then(async data => {
                             await this.showMessageBar(data.message, data.success);
-                            
+
                             // Refresh the cart after successful API call
                             if (data.success) {
                                 this.refreshCart();
@@ -363,7 +364,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         });
                 } else {
                     const endpointUrl = `/rest/V1/loyalty/shop/${this.customerId}/cart/add`;
-                    
+
                     fetch(endpointUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -372,7 +373,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                         .then(res => res.json())
                         .then(async data => {
                             await this.showMessageBar(data.message, data.success);
-                            
+
                             // Refresh the cart after successful API call
                             if (data.success) {
                                 this.refreshCart();
@@ -383,7 +384,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
                             console.error(err);
                         });
                 }
-                
+
                 return false;
             }
         }));
@@ -392,9 +393,7 @@ $customerId = $customerSession->isLoggedIn() ? $customerSession->getCustomerId()
 
 <!-- Message bar component with dynamic styling -->
 <div x-data="loyaltyShop">
-    <div 
-        x-show="messageBarVisible" 
-        x-transition:enter="transition ease-out duration-300"
+    <div x-show="messageBarVisible" x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0 transform -translate-y-2"
         x-transition:enter-end="opacity-100 transform translate-y-0"
         x-transition:leave="transition ease-in duration-300"

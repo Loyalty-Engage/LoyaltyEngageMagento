@@ -1,10 +1,13 @@
 <?php
 namespace LoyaltyEngage\LoyaltyShop\Helper;
 
+use Magento\Customer\Model\Session;
 use Magento\Framework\App\Helper\AbstractHelper;
-use Magento\Framework\View\Design\Theme\ThemeProviderInterface;
+use Magento\Framework\App\Helper\Context;
 use Magento\Framework\View\DesignInterface;
+use Magento\Framework\View\Design\Theme\ThemeProviderInterface;
 use Magento\Store\Model\ScopeInterface;
+
 
 class Data extends AbstractHelper
 {
@@ -12,16 +15,44 @@ class Data extends AbstractHelper
     const XML_PATH_GENERAL = 'loyalty/general/';
     const XML_PATH_FREE_SHIPPING = 'loyalty/free_shipping/';
     const XML_PATH_MESSAGES = 'loyalty/messages/';
-    
+
     /**
-     * @param \Magento\Framework\App\Helper\Context $context
+     * Helper Construct
+     *
+     * @param Context $context
+     * @param DesignInterface $design
+     * @param ThemeProviderInterface $themeProvider
      */
     public function __construct(
-        \Magento\Framework\App\Helper\Context $context,
+        Context $context,
         protected DesignInterface $design,
-        protected ThemeProviderInterface $themeProvider
+        protected ThemeProviderInterface $themeProvider,
+        protected Session $customerSession
     ) {
         parent::__construct($context);
+    }
+
+    /**
+     * GetCustomer function
+     *
+     * @return array
+     */
+    public function getCustomer(): ?array
+    {
+        // Check if a customer is logged in
+        if (!$this->customerSession->isLoggedIn()) {
+            return null;
+        }
+
+        // Get the customer object from the session
+        $customer = $this->customerSession->getCustomer();
+
+        // The getData() method returns all customer attributes as an array
+        return [
+            'id' => $customer->getId(),
+            'email' => $customer->getEmail(),
+            'name' => $customer->getName(),
+        ];
     }
 
     /**
