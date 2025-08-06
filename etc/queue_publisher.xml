@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/publisher.xsd">
+    <publisher topic="loyaltyshop.purchase_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
+    <publisher topic="loyaltyshop.return_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
+    <publisher topic="loyaltyshop.free_product_purchase_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
+    <publisher topic="loyaltyshop.free_product_remove_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
+    <publisher topic="loyaltyshop.review_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
+</config>

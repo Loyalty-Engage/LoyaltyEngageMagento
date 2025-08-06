@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/crontab.xsd">
+    <group id="default">
+        <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
+            method="execute">
+            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+        </job>
+
+        <!-- Disabled: Regular cart purchase now handled by free product purchase flow only -->
+        <job name="loyalty_order_place" instance="LoyaltyEngage\LoyaltyShop\Cron\OrderPlace"
+            method="execute">
+            <schedule>*/5 * * * *</schedule>
+        </job>
+
+        <!-- Simple Consumer Starter - Processes queue messages directly -->
+        <job name="loyaltyshop_simple_consumer_starter" instance="LoyaltyEngage\LoyaltyShop\Cron\SimpleConsumerStarter" method="execute">
+            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+        </job>
+    </group>
+</config>

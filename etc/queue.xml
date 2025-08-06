@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/queue.xsd">
+    <broker topic="loyaltyshop.free_product_purchase_event" exchange="messages" type="db">
+        <queue name="loyaltyshop.free_product_purchase_event" consumer="loyaltyshop_free_product_purchase_event_consumer" consumerInstance="Magento\Framework\MessageQueue\Consumer" handler="LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductPurchaseConsumer::process"/>
+    </broker>
+    <broker topic="loyaltyshop.review_event" exchange="messages" type="db">
+        <queue name="loyaltyshop.review_event" consumer="loyaltyshop_review_event_consumer" consumerInstance="Magento\Framework\MessageQueue\Consumer" handler="LoyaltyEngage\LoyaltyShop\Model\Queue\ReviewConsumer::process"/>
+    </broker>
+</config>
