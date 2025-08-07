@@ -4,7 +4,7 @@
     <group id="default">
         <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
             method="execute">
-            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+            <schedule>0 * * * *</schedule> <!-- Runs every hour -->
         </job>
 
         <!-- Disabled: Regular cart purchase now handled by free product purchase flow only -->
@@ -13,9 +13,9 @@
             <schedule>*/5 * * * *</schedule>
         </job>
 
-        <!-- Simple Consumer Starter - Processes queue messages directly -->
+        <!-- Simple Consumer Starter - Processes queue messages with configurable frequency -->
         <job name="loyaltyshop_simple_consumer_starter" instance="LoyaltyEngage\LoyaltyShop\Cron\SimpleConsumerStarter" method="execute">
-            <schedule>* * * * *</schedule> <!-- Runs every minute -->
+            <schedule>*/5 * * * *</schedule> <!-- Default: Every 5 minutes (configurable in admin) -->
         </job>
     </group>
 </config>

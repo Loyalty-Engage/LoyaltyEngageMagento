@@ -156,4 +156,19 @@ class Data extends AbstractHelper
         
         return $duration ? (int)$duration : 600; // Default 10 minutes
     }
+
+    /**
+     * Get Queue Processing Frequency (cron schedule)
+     *
+     * @return string
+     */
+    public function getQueueProcessingFrequency(): string
+    {
+        $frequency = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'queue_processing_frequency',
+            ScopeInterface::SCOPE_STORE
+        );
+        
+        return $frequency ?: '*/5 * * * *'; // Default: Every 5 minutes
+    }
 }

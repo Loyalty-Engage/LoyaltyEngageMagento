@@ -19,7 +19,7 @@ class QuoteItemQtyValidatorPlugin
 
     /**
      * Prevent quantity changes for loyalty products (before validation)
-     * This approach is less intrusive and doesn't interfere with regular product processing
+     * CONSERVATIVE APPROACH: Only act on 100% confirmed loyalty products
      *
      * @param QuantityValidator $subject
      * @param Observer $observer
@@ -27,30 +27,52 @@ class QuoteItemQtyValidatorPlugin
      */
     public function beforeValidate(QuantityValidator $subject, Observer $observer)
     {
-        if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            $quoteItem = $observer->getEvent()->getItem();
-
-            // Only process confirmed loyalty products - leave regular products completely untouched
-            if ($quoteItem && $this->isConfirmedLoyaltyProduct($quoteItem)) {
-                // Get the original quantity for loyalty products
-                $originalQty = $quoteItem->getOrigData('qty');
-
-                // If the quantity was changed, revert it back to protect loyalty product quantities
-                if ($originalQty && $originalQty != $quoteItem->getQty()) {
-                    $quoteItem->setQty($originalQty);
-
-                    // Log the quantity protection action
-                    error_log(sprintf(
-                        '[LoyaltyShop] Quantity protection: Reverted qty for loyalty product %s from %s to %s',
-                        $quoteItem->getSku(),
-                        $quoteItem->getQty(),
-                        $originalQty
-                    ));
-                }
-            }
+        // Early exit if module is disabled
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            return;
         }
-        // Always allow normal Magento validation to proceed for ALL products
-        // No return value needed for beforeValidate - this ensures normal processing continues
+
+        $quoteItem = $observer->getEvent()->getItem();
+        
+        // Early exit if no quote item
+        if (!$quoteItem) {
+            return;
+        }
+
+        // ONLY process if this is a 100% confirmed loyalty product
+        // Use the most restrictive detection to avoid false positives
+        if (!$this->isConfirmedLoyaltyProduct($quoteItem)) {
+            return; // Leave regular products completely untouched
+        }
+
+        // Additional safety check: only protect if original qty exists and is different
+        $originalQty = $quoteItem->getOrigData('qty');
+        $currentQty = $quoteItem->getQty();
+        
+        if ($originalQty && $originalQty != $currentQty && $originalQty > 0) {
+            // Only revert if the change seems unintentional (not a legitimate update)
+            // Check if this is during a cart update operation
+            $request = \Magento\Framework\App\ObjectManager::getInstance()
+                ->get(\Magento\Framework\App\RequestInterface::class);
+            
+            // Skip protection during legitimate cart updates
+            if ($request->getActionName() === 'updatePost' || 
+                $request->getParam('update_cart_action') || 
+                $request->getParam('cart')) {
+                return; // Allow legitimate cart updates
+            }
+            
+            // Protect loyalty product quantity
+            $quoteItem->setQty($originalQty);
+
+            // Log the protection action
+            error_log(sprintf(
+                '[LoyaltyShop] Quantity protection: Reverted qty for loyalty product %s from %s to %s',
+                $quoteItem->getSku(),
+                $currentQty,
+                $originalQty
+            ));
+        }
     }
 
     /**

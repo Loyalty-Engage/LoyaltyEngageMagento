@@ -62,15 +62,21 @@ class LoyaltyTierChecker
 
     /**
      * Check if customer qualifies for free shipping based on loyalty tier
-     * Ultra-lightweight with multi-level caching
+     * Ultra-lightweight with multi-level caching and admin control
      *
      * @param string|null $customerEmail
      * @return bool
      */
     public function qualifiesForFreeShipping(?string $customerEmail = null): bool
     {
-        // Early exit if free shipping is disabled
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
+        // Early exit if module or free shipping is disabled
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+            return false;
+        }
+
+        // CRITICAL: Check if free shipping feature is enabled in admin
+        if (!$this->loyaltyHelper->isFreeShippingEnabled()) {
+            $this->logger->debug('[LOYALTY-TIER] Free shipping feature disabled in admin - skipping API calls');
             return false;
         }
 
@@ -80,18 +86,29 @@ class LoyaltyTierChecker
         }
 
         if (!$customerEmail) {
+            $this->logger->debug('[LOYALTY-TIER] No customer email available for free shipping check');
             return false;
         }
 
-        // Get customer's current tier
+        // Get customer's current tier (this may make API call)
         $currentTier = $this->getCustomerTier($customerEmail);
         if (!$currentTier) {
+            $this->logger->debug('[LOYALTY-TIER] No tier found for customer: ' . $customerEmail);
             return false;
         }
 
         // Check if tier qualifies for free shipping
         $qualifyingTiers = $this->loyaltyHelper->getFreeShippingTiersArray();
-        return in_array($currentTier, $qualifyingTiers, true);
+        $qualifies = in_array($currentTier, $qualifyingTiers, true);
+
+        $this->logger->info(sprintf(
+            '[LOYALTY-TIER] Free shipping check for %s: tier=%s, qualifies=%s',
+            $customerEmail,
+            $currentTier,
+            $qualifies ? 'YES' : 'NO'
+        ));
+
+        return $qualifies;
     }
 
     /**
