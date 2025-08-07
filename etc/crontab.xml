@@ -4,7 +4,7 @@
     <group id="default">
         <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
             method="execute">
-            <schedule>0 * * * *</schedule> <!-- Runs every hour -->
+            <schedule>0 0 * * *</schedule> <!-- Runs every hour -->
         </job>
 
         <!-- Disabled: Regular cart purchase now handled by free product purchase flow only -->
