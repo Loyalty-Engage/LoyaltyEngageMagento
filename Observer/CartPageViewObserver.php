@@ -4,7 +4,6 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger;
-use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Magento\Customer\Model\Session;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Checkout\Model\Session as CheckoutSession;
@@ -16,11 +15,6 @@ class CartPageViewObserver implements ObserverInterface
      * @var Logger
      */
     private $loyaltyLogger;
-
-    /**
-     * @var EnterpriseDetection
-     */
-    private $enterpriseDetection;
 
     /**
      * @var Session
@@ -39,7 +33,6 @@ class CartPageViewObserver implements ObserverInterface
 
     /**
      * @param Logger $loyaltyLogger
-     * @param EnterpriseDetection $enterpriseDetection
      * @param Session $customerSession
      * @param StoreManagerInterface $storeManager
      * @param CheckoutSession $checkoutSession
@@ -47,14 +40,12 @@ class CartPageViewObserver implements ObserverInterface
      */
     public function __construct(
         Logger $loyaltyLogger,
-        EnterpriseDetection $enterpriseDetection,
         Session $customerSession,
         StoreManagerInterface $storeManager,
         CheckoutSession $checkoutSession,
         protected LoyaltyHelper $loyaltyHelper
     ) {
         $this->loyaltyLogger = $loyaltyLogger;
-        $this->enterpriseDetection = $enterpriseDetection;
         $this->customerSession = $customerSession;
         $this->storeManager = $storeManager;
         $this->checkoutSession = $checkoutSession;
@@ -140,8 +131,6 @@ class CartPageViewObserver implements ObserverInterface
         static $logged = false;
         if (!$logged) {
             $environmentData = [
-                'is_enterprise' => $this->enterpriseDetection->isEnterpriseEdition(),
-                'is_b2b' => $this->enterpriseDetection->isB2BEnabled(),
                 'store_code' => $this->storeManager->getStore()->getCode(),
                 'store_id' => $this->storeManager->getStore()->getId(),
                 'website_id' => $this->storeManager->getStore()->getWebsiteId()
@@ -318,12 +307,10 @@ class CartPageViewObserver implements ObserverInterface
             }
         }
 
-        // Method 4: Check product data (Enterprise fallback)
-        if ($this->enterpriseDetection->isEnterpriseEdition()) {
-            $product = $item->getProduct();
-            if ($product && $product->getData('loyalty_locked_qty')) {
-                return true;
-            }
+        // Method 4: Check product data (universal fallback)
+        $product = $item->getProduct();
+        if ($product && $product->getData('loyalty_locked_qty')) {
+            return true;
         }
 
         return false;
@@ -349,10 +336,9 @@ class CartPageViewObserver implements ObserverInterface
         $additionalOptions = $item->getOptionByCode('additional_options');
         $methods['additional_options'] = $additionalOptions ? 'found' : 'not_found';
 
-        if ($this->enterpriseDetection->isEnterpriseEdition()) {
-            $product = $item->getProduct();
-            $methods['enterprise_fallback'] = ($product && $product->getData('loyalty_locked_qty')) ? 'found' : 'not_found';
-        }
+        // Universal product data fallback (works on both Community and Enterprise)
+        $product = $item->getProduct();
+        $methods['product_data_fallback'] = ($product && $product->getData('loyalty_locked_qty')) ? 'found' : 'not_found';
 
         return $methods;
     }

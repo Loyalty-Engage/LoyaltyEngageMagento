@@ -10,6 +10,9 @@
     <event name="checkout_cart_product_add_after">
         <observer name="loyaltyshop_cart_product_add" instance="LoyaltyEngage\LoyaltyShop\Observer\CartProductAddObserver" />
     </event>
+    <event name="checkout_cart_update_items_after">
+        <observer name="loyaltyshop_cart_update" instance="LoyaltyEngage\LoyaltyShop\Observer\CartUpdateObserver" />
+    </event>
     <event name="review_save_after">
         <observer name="loyaltyshop_review_export" instance="LoyaltyEngage\LoyaltyShop\Observer\ReviewObserver" />
     </event>

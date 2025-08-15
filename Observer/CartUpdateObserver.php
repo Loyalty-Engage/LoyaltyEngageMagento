@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-namespace LoyaltyEngage\LoyaltyShop\Plugin;
+namespace LoyaltyEngage\LoyaltyShop\Observer;
 
+use Magento\Framework\Event\ObserverInterface;
+use Magento\Framework\Event\Observer;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
-use Magento\CatalogInventory\Model\Quote\Item\QuantityValidator;
-use Magento\Framework\Event\Observer;
 use Psr\Log\LoggerInterface;
 
-class QuoteItemQtyValidatorPlugin
+class CartUpdateObserver implements ObserverInterface
 {
     /**
      * @var LoyaltyHelper
@@ -27,7 +27,7 @@ class QuoteItemQtyValidatorPlugin
     private $logger;
 
     /**
-     * QuoteItemQtyValidatorPlugin construct
+     * CartUpdateObserver constructor
      *
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoyaltyLogger $loyaltyLogger
@@ -44,55 +44,67 @@ class QuoteItemQtyValidatorPlugin
     }
 
     /**
-     * Enforce quantity = 1 for loyalty products (before validation)
-     * STRICT APPROACH: Always enforce qty = 1 for confirmed loyalty products
+     * Execute observer - enforce loyalty product quantities
      *
-     * @param QuantityValidator $subject
      * @param Observer $observer
      * @return void
      */
-    public function beforeValidate(QuantityValidator $subject, Observer $observer)
+    public function execute(Observer $observer)
     {
         // Early exit if module is disabled
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             return;
         }
 
-        $quoteItem = $observer->getEvent()->getItem();
-        
-        // Early exit if no quote item
-        if (!$quoteItem) {
+        // Get the cart/quote from the observer
+        $cart = $observer->getEvent()->getCart();
+        if (!$cart) {
             return;
         }
 
-        // ONLY process if this is a 100% confirmed loyalty product
-        if (!$this->isConfirmedLoyaltyProduct($quoteItem)) {
-            return; // Leave regular products completely untouched
+        $quote = $cart->getQuote();
+        if (!$quote) {
+            return;
         }
 
-        $currentQty = $quoteItem->getQty();
-        
-        // ALWAYS enforce quantity = 1 for loyalty products
-        if ($currentQty != 1) {
-            $quoteItem->setQty(1);
+        $this->logger->info('[LOYALTY-CART] Cart update observer triggered - checking loyalty products');
 
-            // Log the enforcement action
+        // Process all items in the cart
+        $itemsUpdated = 0;
+        foreach ($quote->getAllItems() as $item) {
+            if ($this->isConfirmedLoyaltyProduct($item)) {
+                $currentQty = $item->getQty();
+                
+                if ($currentQty != 1) {
+                    $item->setQty(1);
+                    $itemsUpdated++;
+
+                    $this->logger->info(sprintf(
+                        '[LOYALTY-CART] Cart update: Reset loyalty product %s (SKU: %s) from qty %s to 1',
+                        $item->getName(),
+                        $item->getSku(),
+                        $currentQty
+                    ));
+
+                    $this->loyaltyLogger->info(
+                        LoyaltyLogger::COMPONENT_OBSERVER,
+                        LoyaltyLogger::ACTION_LOYALTY,
+                        sprintf(
+                            'Cart update - Loyalty product quantity enforced: %s (SKU: %s) - Changed from %s to 1',
+                            $item->getName(),
+                            $item->getSku(),
+                            $currentQty
+                        )
+                    );
+                }
+            }
+        }
+
+        if ($itemsUpdated > 0) {
             $this->logger->info(sprintf(
-                '[LOYALTY-CART] Quantity enforcement: Reset qty for loyalty product %s from %s to 1',
-                $quoteItem->getSku(),
-                $currentQty
+                '[LOYALTY-CART] Cart update complete - %d loyalty product quantities enforced',
+                $itemsUpdated
             ));
-
-            $this->loyaltyLogger->info(
-                LoyaltyLogger::COMPONENT_PLUGIN,
-                LoyaltyLogger::ACTION_VALIDATION,
-                sprintf(
-                    'Loyalty product quantity enforced: %s (SKU: %s) - Changed from %s to 1',
-                    $quoteItem->getName(),
-                    $quoteItem->getSku(),
-                    $currentQty
-                )
-            );
         }
     }
 

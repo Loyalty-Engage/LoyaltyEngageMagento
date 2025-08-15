@@ -3,7 +3,6 @@ namespace LoyaltyEngage\LoyaltyShop\Plugin;
 
 use Magento\Checkout\Block\Cart\Item\Renderer as CartItemRenderer;
 use Magento\Quote\Model\Quote\Item as QuoteItem;
-use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Psr\Log\LoggerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Magento\Store\Model\StoreManagerInterface;
@@ -11,11 +10,6 @@ use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CheckoutCartItemRendererPlugin
 {
-    /**
-     * @var EnterpriseDetection
-     */
-    private $enterpriseDetection;
-
     /**
      * @var LoggerInterface
      */
@@ -32,20 +26,17 @@ class CheckoutCartItemRendererPlugin
     private $storeManager;
 
     /**
-     * @param EnterpriseDetection $enterpriseDetection
      * @param LoggerInterface $logger
      * @param LoyaltyLogger $loyaltyLogger
      * @param StoreManagerInterface $storeManager
      * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
-        EnterpriseDetection $enterpriseDetection,
         LoggerInterface $logger,
         LoyaltyLogger $loyaltyLogger,
         StoreManagerInterface $storeManager,
         protected LoyaltyHelper $loyaltyHelper
     ) {
-        $this->enterpriseDetection = $enterpriseDetection;
         $this->logger = $logger;
         $this->loyaltyLogger = $loyaltyLogger;
         $this->storeManager = $storeManager;
@@ -63,12 +54,6 @@ class CheckoutCartItemRendererPlugin
     {
         // Log environment context
         $this->logEnvironmentContext();
-
-        // Skip processing for B2B contexts
-        if ($this->enterpriseDetection->shouldSkipLoyaltyProcessing($item->getQuote())) {
-            $this->logger->info('[LOYALTY-CART] B2B Context - Plugin skipped for item: ' . $item->getName());
-            return $result;
-        }
 
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             // Skip processing for Disable configuration.
@@ -109,9 +94,7 @@ class CheckoutCartItemRendererPlugin
     {
         static $logged = false;
         if (!$logged) {
-            $this->logger->info('[LOYALTY-CART] Environment: Enterprise=' .
-                ($this->enterpriseDetection->isEnterpriseEdition() ? 'Yes' : 'No') .
-                ' | B2B Enabled=' . ($this->enterpriseDetection->isB2BEnabled() ? 'Yes' : 'No'));
+            $this->logger->info('[LOYALTY-CART] Environment: Store=' . $this->storeManager->getStore()->getCode());
             $logged = true;
         }
     }
@@ -140,12 +123,10 @@ class CheckoutCartItemRendererPlugin
         ));
 
         $this->logger->info(sprintf(
-            '[LOYALTY-CART] Price: $%.2f | Custom Price: %s | Options Count: %d | Enterprise: %s | B2B: %s',
+            '[LOYALTY-CART] Price: $%.2f | Custom Price: %s | Options Count: %d',
             $price,
             $customPrice !== null ? '$' . number_format($customPrice, 2) : 'null',
-            $optionsCount,
-            $this->enterpriseDetection->isEnterpriseEdition() ? 'Yes' : 'No',
-            $this->enterpriseDetection->isB2BEnabled() ? 'Yes' : 'No'
+            $optionsCount
         ));
 
         // STRICT METHOD 1: Check for explicit loyalty_locked_qty option with exact value match

@@ -43,6 +43,12 @@
             type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteItemQtyValidatorPlugin" />
     </type>
     
+    <type name="Magento\Checkout\Controller\Cart\UpdatePost">
+        <plugin name="loyaltyshop_cart_update_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\CartUpdatePlugin"
+            sortOrder="10" />
+    </type>
+    
     <type name="Magento\Shipping\Model\Rate\CarrierResult">
         <plugin name="loyaltyshop_shipping_method_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\ShippingMethodPlugin"

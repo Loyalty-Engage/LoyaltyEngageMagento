@@ -2,17 +2,11 @@
 
 namespace LoyaltyEngage\LoyaltyShop\ViewModel;
 
-use LoyaltyEngage\LoyaltyShop\Helper\EnterpriseDetection;
 use Psr\Log\LoggerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 
 class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentInterface
 {
-    /**
-     * @var EnterpriseDetection
-     */
-    private $enterpriseDetection;
-
     /**
      * @var LoggerInterface
      */
@@ -24,16 +18,13 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
     private $loyaltyLogger;
 
     /**
-     * @param EnterpriseDetection $enterpriseDetection
      * @param LoggerInterface $logger
      * @param LoyaltyLogger $loyaltyLogger
      */
     public function __construct(
-        EnterpriseDetection $enterpriseDetection,
         LoggerInterface $logger,
         LoyaltyLogger $loyaltyLogger
     ) {
-        $this->enterpriseDetection = $enterpriseDetection;
         $this->logger = $logger;
         $this->loyaltyLogger = $loyaltyLogger;
     }
@@ -46,12 +37,6 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
      */
     public function isQtyLocked($item): bool
     {
-        // Skip processing for B2B contexts
-        if ($this->enterpriseDetection->shouldSkipLoyaltyProcessing($item->getQuote())) {
-            $this->logger->info('[LOYALTY-CART] ViewModel - B2B Context - Skipped for item: ' . $item->getName());
-            return false;
-        }
-
         $this->logger->info('[LOYALTY-CART] ViewModel - Processing item: ' . $item->getName());
 
         return $this->isLoyaltyProductWithLogging($item);
