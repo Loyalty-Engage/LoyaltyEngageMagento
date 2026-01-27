@@ -196,6 +196,23 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     }
 
     /**
+     * Collect validated attributes
+     *
+     * This method is required for compatibility with rule conditions.
+     * Since we're validating customer attributes (not product attributes),
+     * we don't need to add any product attributes to the collection.
+     *
+     * @param \Magento\Catalog\Model\ResourceModel\Product\Collection $productCollection
+     * @return $this
+     */
+    public function collectValidatedAttributes($productCollection)
+    {
+        // Customer loyalty attributes are not product attributes,
+        // so we don't need to add anything to the product collection.
+        return $this;
+    }
+
+    /**
      * Get default operator input by type
      *
      * @return array

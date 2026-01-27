@@ -178,6 +178,24 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     }
 
     /**
+     * Collect validated attributes for catalog rule
+     *
+     * This method is required for catalog rules to work properly.
+     * Since we're validating customer attributes (not product attributes),
+     * we don't need to add any product attributes to the collection.
+     *
+     * @param \Magento\Catalog\Model\ResourceModel\Product\Collection $productCollection
+     * @return $this
+     */
+    public function collectValidatedAttributes($productCollection)
+    {
+        // Customer loyalty attributes are not product attributes,
+        // so we don't need to add anything to the product collection.
+        // This method is required to prevent "Invalid method" errors.
+        return $this;
+    }
+
+    /**
      * Get condition label
      *
      * @return \Magento\Framework\Phrase
