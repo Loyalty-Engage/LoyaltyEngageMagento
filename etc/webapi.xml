@@ -33,4 +33,11 @@
         </resources>
     </route>
 
+    <route method="POST" url="/V1/loyalty/customer/update">
+        <service class="LoyaltyEngage\LoyaltyShop\Api\CustomerLoyaltyInterface" method="updateCustomerLoyaltyData"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+    </route>
+
 </routes>

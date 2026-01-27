@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
+    <fieldset name="customer">
+        <field name="le_current_tier" formElement="input">
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+                    <item name="source" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <settings>
+                <dataType>text</dataType>
+                <label translate="true">Current Loyalty Tier</label>
+                <visible>true</visible>
+                <disabled>true</disabled>
+            </settings>
+        </field>
+        <field name="le_points" formElement="input">
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+                    <item name="source" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <settings>
+                <dataType>number</dataType>
+                <label translate="true">Loyalty Points</label>
+                <visible>true</visible>
+                <disabled>true</disabled>
+            </settings>
+        </field>
+        <field name="le_available_coins" formElement="input">
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+                    <item name="source" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <settings>
+                <dataType>number</dataType>
+                <label translate="true">Available Loyalty Coins</label>
+                <visible>true</visible>
+                <disabled>true</disabled>
+            </settings>
+        </field>
+        <field name="le_next_tier" formElement="input">
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+                    <item name="source" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <settings>
+                <dataType>text</dataType>
+                <label translate="true">Next Loyalty Tier</label>
+                <visible>true</visible>
+                <disabled>true</disabled>
+            </settings>
+        </field>
+        <field name="le_points_to_next_tier" formElement="input">
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+                    <item name="source" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <settings>
+                <dataType>number</dataType>
+                <label translate="true">Points to Next Tier</label>
+                <visible>true</visible>
+                <disabled>true</disabled>
+            </settings>
+        </field>
+    </fieldset>
+</form>

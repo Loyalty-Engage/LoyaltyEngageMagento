@@ -34,6 +34,11 @@ class Logger extends AbstractHelper
     private $logger;
 
     /**
+     * @var bool Flag to check if logging is enabled (cached)
+     */
+    private $loggingEnabled = null;
+
+    /**
      * @param Context $context
      * @param LoggerInterface $logger
      */
@@ -127,16 +132,22 @@ class Logger extends AbstractHelper
      */
     public function logCartAddition(string $productType, string $sku, string $customerEmail, string $source, array $additionalData = []): void
     {
+        // Only log if logging is enabled
+        if (!$this->isLoggingEnabled()) {
+            return;
+        }
+
+        $maskedEmail = $this->maskEmail($customerEmail);
         $message = sprintf(
             'Product %s added via %s for %s',
             $sku,
             $source,
-            $customerEmail
+            $maskedEmail
         );
         
         $context = array_merge([
             'sku' => $sku,
-            'customer_email' => $customerEmail,
+            'customer_email' => $maskedEmail,
             'source' => $source,
             'product_type' => $productType
         ], $additionalData);
@@ -233,5 +244,66 @@ class Logger extends AbstractHelper
     private function formatMessage(string $component, string $action, string $message): string
     {
         return sprintf('%s [%s] [%s] - %s', self::LOG_PREFIX, $component, $action, $message);
+    }
+
+    /**
+     * Mask email address for privacy in logs
+     * Example: customer@example.com -> c***r@e***.com
+     *
+     * @param string $email
+     * @return string
+     */
+    public function maskEmail(string $email): string
+    {
+        if (empty($email) || $email === 'guest') {
+            return $email;
+        }
+
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return '***';
+        }
+
+        $name = $parts[0];
+        $domain = $parts[1];
+
+        // Mask the name part
+        if (strlen($name) <= 2) {
+            $maskedName = str_repeat('*', strlen($name));
+        } else {
+            $maskedName = substr($name, 0, 1) . str_repeat('*', strlen($name) - 2) . substr($name, -1);
+        }
+
+        // Mask the domain part (keep TLD)
+        $domainParts = explode('.', $domain);
+        if (count($domainParts) >= 2) {
+            $tld = array_pop($domainParts);
+            $domainName = implode('.', $domainParts);
+            if (strlen($domainName) <= 2) {
+                $maskedDomain = str_repeat('*', strlen($domainName)) . '.' . $tld;
+            } else {
+                $maskedDomain = substr($domainName, 0, 1) . str_repeat('*', strlen($domainName) - 1) . '.' . $tld;
+            }
+        } else {
+            $maskedDomain = '***';
+        }
+
+        return $maskedName . '@' . $maskedDomain;
+    }
+
+    /**
+     * Check if general logging is enabled
+     *
+     * @return bool
+     */
+    public function isLoggingEnabled(): bool
+    {
+        if ($this->loggingEnabled === null) {
+            $this->loggingEnabled = $this->scopeConfig->isSetFlag(
+                'loyalty/general/logger_enable',
+                ScopeInterface::SCOPE_STORE
+            );
+        }
+        return $this->loggingEnabled;
     }
 }

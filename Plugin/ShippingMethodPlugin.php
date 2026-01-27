@@ -49,24 +49,34 @@ class ShippingMethodPlugin
      */
     public function afterGetResult(CarrierResult $subject, CarrierResult $result)
     {
+        // Temporary debug - force log to system log
+        error_log('[LOYALTY-DEBUG] ShippingMethodPlugin::afterGetResult called');
+        
         try {
             // Early exit if features disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
                 $this->logger->info('[LOYALTY-SHIPPING] Free shipping disabled, skipping');
+                error_log('[LOYALTY-DEBUG] Free shipping disabled, skipping');
                 return $result;
             }
+
+            error_log('[LOYALTY-DEBUG] Free shipping enabled, checking customer qualification');
 
             // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
                 $this->logger->info('[LOYALTY-SHIPPING] Customer does not qualify for free shipping');
+                error_log('[LOYALTY-DEBUG] Customer does not qualify for free shipping');
                 return $result;
             }
+
+            error_log('[LOYALTY-DEBUG] Customer qualifies for free shipping, applying to rates');
 
             // Apply free shipping to all methods
             $this->applyFreeShippingToRates($result);
 
         } catch (\Exception $e) {
             $this->logger->error('[LOYALTY-SHIPPING] Error applying free shipping: ' . $e->getMessage());
+            error_log('[LOYALTY-DEBUG] Error applying free shipping: ' . $e->getMessage());
         }
 
         return $result;
@@ -89,15 +99,12 @@ class ShippingMethodPlugin
             if ($rate instanceof ShippingMethod) {
                 $originalPrice = $rate->getPrice();
                 
-                // Apply free shipping
+                // Apply free shipping - set price to 0 but keep original method
                 $rate->setPrice(0);
                 $rate->setCost(0);
                 
-                // Update method title to indicate loyalty discount
-                $originalTitle = $rate->getMethodTitle();
-                if (strpos($originalTitle, '(Loyalty Free Shipping)') === false) {
-                    $rate->setMethodTitle($originalTitle . ' (Loyalty Free Shipping)');
-                }
+                // Don't modify the method title - keep original shipping method names
+                // This ensures existing shipping options remain unchanged except for price
 
                 $freeShippingApplied = true;
 
@@ -111,7 +118,7 @@ class ShippingMethodPlugin
         }
 
         if ($freeShippingApplied) {
-            $this->logger->info('[LOYALTY-SHIPPING] Loyalty tier free shipping applied to all qualifying methods');
+            $this->logger->info('[LOYALTY-SHIPPING] Loyalty tier free shipping applied to all existing methods');
         } else {
             $this->logger->warning('[LOYALTY-SHIPPING] No shipping methods found to apply free shipping');
         }

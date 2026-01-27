@@ -4,7 +4,9 @@ namespace LoyaltyEngage\LoyaltyShop\Model;
 use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\App\CacheInterface;
 use Magento\Customer\Model\Session as CustomerSession;
+use Magento\Customer\Api\CustomerRepositoryInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Psr\Log\LoggerInterface;
 
 class LoyaltyTierChecker
@@ -35,6 +37,16 @@ class LoyaltyTierChecker
     private $logger;
 
     /**
+     * @var LoyaltyLogger
+     */
+    private $loyaltyLogger;
+
+    /**
+     * @var CustomerRepositoryInterface
+     */
+    private $customerRepository;
+
+    /**
      * @var array In-memory cache for current request
      */
     private $memoryCache = [];
@@ -43,21 +55,27 @@ class LoyaltyTierChecker
      * @param Curl $curl
      * @param CacheInterface $cache
      * @param CustomerSession $customerSession
+     * @param CustomerRepositoryInterface $customerRepository
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoggerInterface $logger
+     * @param LoyaltyLogger $loyaltyLogger
      */
     public function __construct(
         Curl $curl,
         CacheInterface $cache,
         CustomerSession $customerSession,
+        CustomerRepositoryInterface $customerRepository,
         LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->curl = $curl;
         $this->cache = $cache;
         $this->customerSession = $customerSession;
+        $this->customerRepository = $customerRepository;
         $this->loyaltyHelper = $loyaltyHelper;
         $this->logger = $logger;
+        $this->loyaltyLogger = $loyaltyLogger;
     }
 
     /**
@@ -76,7 +94,6 @@ class LoyaltyTierChecker
 
         // CRITICAL: Check if free shipping feature is enabled in admin
         if (!$this->loyaltyHelper->isFreeShippingEnabled()) {
-            $this->logger->debug('[LOYALTY-TIER] Free shipping feature disabled in admin - skipping API calls');
             return false;
         }
 
@@ -86,14 +103,12 @@ class LoyaltyTierChecker
         }
 
         if (!$customerEmail) {
-            $this->logger->debug('[LOYALTY-TIER] No customer email available for free shipping check');
             return false;
         }
 
         // Get customer's current tier (this may make API call)
         $currentTier = $this->getCustomerTier($customerEmail);
         if (!$currentTier) {
-            $this->logger->debug('[LOYALTY-TIER] No tier found for customer: ' . $customerEmail);
             return false;
         }
 
@@ -101,18 +116,25 @@ class LoyaltyTierChecker
         $qualifyingTiers = $this->loyaltyHelper->getFreeShippingTiersArray();
         $qualifies = in_array($currentTier, $qualifyingTiers, true);
 
-        $this->logger->info(sprintf(
-            '[LOYALTY-TIER] Free shipping check for %s: tier=%s, qualifies=%s',
-            $customerEmail,
-            $currentTier,
-            $qualifies ? 'YES' : 'NO'
-        ));
+        // Only log if debug is enabled (uses masked email for privacy)
+        if ($this->loyaltyLogger->isDebugEnabled()) {
+            $this->loyaltyLogger->debug(
+                LoyaltyLogger::COMPONENT_PLUGIN,
+                'FREE-SHIPPING',
+                sprintf(
+                    'Free shipping check for %s: tier=%s, qualifies=%s',
+                    $this->loyaltyLogger->maskEmail($customerEmail),
+                    $currentTier,
+                    $qualifies ? 'YES' : 'NO'
+                )
+            );
+        }
 
         return $qualifies;
     }
 
     /**
-     * Get customer's loyalty tier with aggressive caching
+     * Get customer's loyalty tier from local customer attributes
      *
      * @param string $customerEmail
      * @return string|null
@@ -124,24 +146,69 @@ class LoyaltyTierChecker
             return $this->memoryCache[$customerEmail];
         }
 
-        // Level 2: Persistent cache (Redis/File)
-        $cacheKey = 'loyalty_tier_' . md5($customerEmail);
-        $cachedTier = $this->cache->load($cacheKey);
+        // Level 2: Get from local customer attributes (much faster than API)
+        $tier = $this->fetchTierFromCustomerAttributes($customerEmail);
         
-        if ($cachedTier !== false) {
-            $this->memoryCache[$customerEmail] = $cachedTier;
-            return $cachedTier ?: null;
-        }
-
-        // Level 3: API call (only if not cached)
-        $tier = $this->fetchTierFromAPI($customerEmail);
-        
-        // Cache the result (even if null/empty)
-        $cacheDuration = $this->loyaltyHelper->getTierCacheDuration();
-        $this->cache->save($tier ?: '', $cacheKey, ['loyalty_tier'], $cacheDuration);
+        // Cache the result in memory for this request
         $this->memoryCache[$customerEmail] = $tier;
 
         return $tier;
+    }
+
+    /**
+     * Fetch customer tier from local customer attributes
+     *
+     * @param string $customerEmail
+     * @return string|null
+     */
+    private function fetchTierFromCustomerAttributes(string $customerEmail): ?string
+    {
+        try {
+            // First try to get from current session if it's the same customer
+            if ($this->customerSession->isLoggedIn() && 
+                $this->customerSession->getCustomer()->getEmail() === $customerEmail) {
+                
+                $customer = $this->customerSession->getCustomer();
+                $tier = $customer->getData('le_current_tier');
+                
+                if ($tier) {
+                    return $tier;
+                }
+            }
+
+            // Get customer by email from repository
+            $customer = $this->customerRepository->get($customerEmail);
+            
+            // Get attribute value - handle both model and data objects
+            $tier = null;
+            if ($customer instanceof \Magento\Customer\Model\Customer) {
+                // Customer model object
+                $tier = $customer->getData('le_current_tier');
+            } elseif ($customer instanceof \Magento\Customer\Api\Data\CustomerInterface) {
+                // Customer data object from repository
+                $attribute = $customer->getCustomAttribute('le_current_tier');
+                if ($attribute) {
+                    $tier = $attribute->getValue();
+                }
+            }
+
+            return $tier ?: null;
+
+        } catch (\Exception $e) {
+            // Only log errors (not routine operations)
+            $this->loyaltyLogger->error(
+                LoyaltyLogger::COMPONENT_PLUGIN,
+                LoyaltyLogger::ACTION_ERROR,
+                sprintf(
+                    'Exception fetching tier from attributes for %s: %s',
+                    $this->loyaltyLogger->maskEmail($customerEmail),
+                    $e->getMessage()
+                )
+            );
+            
+            // Fallback to API if local data fails
+            return $this->fetchTierFromAPI($customerEmail);
+        }
     }
 
     /**
@@ -154,7 +221,6 @@ class LoyaltyTierChecker
     {
         $apiUrl = $this->loyaltyHelper->getApiUrl();
         if (!$apiUrl) {
-            $this->logger->warning('[LOYALTY-TIER] API URL not configured');
             return null;
         }
 
@@ -185,52 +251,35 @@ class LoyaltyTierChecker
             $httpCode = $this->curl->getStatus();
             $response = $this->curl->getBody();
 
-            // Enhanced logging - Log full API request/response details
-            $this->logger->info(sprintf(
-                '[LOYALTY-TIER] API Request - URL: %s, Customer: %s, HTTP Code: %d',
-                $endpoint,
-                $customerEmail,
-                $httpCode
-            ));
-
-            $this->logger->info(sprintf(
-                '[LOYALTY-TIER] API Response - Customer: %s, Response: %s',
-                $customerEmail,
-                $response
-            ));
-
             if ($httpCode >= 200 && $httpCode < 300) {
                 $data = json_decode($response, true);
                 
                 if (isset($data['currentTier'])) {
-                    $this->logger->info(sprintf(
-                        '[LOYALTY-TIER] Tier successfully parsed for %s: %s',
-                        $customerEmail,
-                        $data['currentTier']
-                    ));
                     return $data['currentTier'];
-                } else {
-                    $this->logger->warning(sprintf(
-                        '[LOYALTY-TIER] No currentTier field in response for %s. Full response: %s',
-                        $customerEmail,
-                        $response
-                    ));
                 }
             } else {
-                $this->logger->error(sprintf(
-                    '[LOYALTY-TIER] API error for %s - HTTP %d: %s',
-                    $customerEmail,
-                    $httpCode,
-                    $response
-                ));
+                // Only log API errors (not successful requests)
+                $this->loyaltyLogger->error(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_ERROR,
+                    sprintf(
+                        'API error for %s - HTTP %d',
+                        $this->loyaltyLogger->maskEmail($customerEmail),
+                        $httpCode
+                    )
+                );
             }
 
         } catch (\Exception $e) {
-            $this->logger->error(sprintf(
-                '[LOYALTY-TIER] Exception fetching tier for %s: %s',
-                $customerEmail,
-                $e->getMessage()
-            ));
+            $this->loyaltyLogger->error(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_ERROR,
+                sprintf(
+                    'Exception fetching tier for %s: %s',
+                    $this->loyaltyLogger->maskEmail($customerEmail),
+                    $e->getMessage()
+                )
+            );
         }
 
         return null;

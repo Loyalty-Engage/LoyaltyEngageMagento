@@ -5,6 +5,7 @@ use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\MessageQueue\PublisherInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Psr\Log\LoggerInterface;
 
 class ReviewObserver implements ObserverInterface
@@ -25,22 +26,31 @@ class ReviewObserver implements ObserverInterface
     private $logger;
 
     /**
+     * @var LoyaltyLogger
+     */
+    private $loyaltyLogger;
+
+    /**
      * @param PublisherInterface $publisher
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoggerInterface $logger
+     * @param LoyaltyLogger $loyaltyLogger
      */
     public function __construct(
         PublisherInterface $publisher,
         LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->publisher = $publisher;
         $this->loyaltyHelper = $loyaltyHelper;
         $this->logger = $logger;
+        $this->loyaltyLogger = $loyaltyLogger;
     }
 
     /**
      * Execute observer - lightweight review capture
+     * Note: Logging is now minimal for privacy
      *
      * @param Observer $observer
      * @return void
@@ -63,11 +73,12 @@ class ReviewObserver implements ObserverInterface
             // Get customer email (lightweight approach)
             $customerEmail = $this->getCustomerEmail($review);
             if (!$customerEmail) {
-                $this->logger->info('[LOYALTY-REVIEW] No customer email found for review ID: ' . $review->getId());
+                // No logging for missing email - this is expected for guest reviews
                 return;
             }
 
             // Prepare lightweight review data for queue
+            // Note: Email is needed in queue data for API call, but not logged
             $reviewData = [
                 'review_id' => $review->getId(),
                 'customer_email' => $customerEmail,
@@ -78,10 +89,21 @@ class ReviewObserver implements ObserverInterface
             // Queue the review data (async processing)
             $this->publisher->publish('loyaltyshop.review_event', json_encode($reviewData));
             
-            $this->logger->info('[LOYALTY-REVIEW] Review queued for export: ' . $review->getId());
+            // Only log if debug is enabled, and use masked email
+            if ($this->loyaltyLogger->isDebugEnabled()) {
+                $this->loyaltyLogger->debug(
+                    LoyaltyLogger::COMPONENT_QUEUE,
+                    'REVIEW',
+                    sprintf('Review %d queued for %s', $review->getId(), $this->loyaltyLogger->maskEmail($customerEmail))
+                );
+            }
 
         } catch (\Exception $e) {
-            $this->logger->error('[LOYALTY-REVIEW] Error queuing review: ' . $e->getMessage());
+            $this->loyaltyLogger->error(
+                LoyaltyLogger::COMPONENT_OBSERVER,
+                LoyaltyLogger::ACTION_ERROR,
+                'Error queuing review: ' . $e->getMessage()
+            );
         }
     }
 
@@ -101,7 +123,7 @@ class ReviewObserver implements ObserverInterface
                 $customer = $customerRepository->getById($review->getCustomerId());
                 return $customer->getEmail();
             } catch (\Exception $e) {
-                $this->logger->warning('[LOYALTY-REVIEW] Could not load customer: ' . $e->getMessage());
+                // Silently fail - no need to log this
             }
         }
 

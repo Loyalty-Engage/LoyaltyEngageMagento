@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Acl/etc/acl.xsd">
+    <acl>
+        <resources>
+            <resource id="Magento_Backend::admin">
+                <resource id="LoyaltyEngage_LoyaltyShop::loyalty" title="Loyalty Shop" sortOrder="100">
+                    <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty" title="Customer Loyalty Management" sortOrder="10">
+                        <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty_update" title="Update Customer Loyalty Data" sortOrder="10"/>
+                    </resource>
+                </resource>
+            </resource>
+        </resources>
+    </acl>
+</config>

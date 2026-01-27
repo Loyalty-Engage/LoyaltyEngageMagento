@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<listing xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
+    <listingToolbar name="listing_top">
+        <filters name="listing_filters">
+            <filterSelect name="le_current_tier" provider="${ $.parentName }">
+                <settings>
+                    <options class="Magento\Customer\Ui\Component\Listing\Column\Group\Options"/>
+                    <caption translate="true">Select...</caption>
+                    <label translate="true">Current Loyalty Tier</label>
+                    <dataScope>le_current_tier</dataScope>
+                    <imports>
+                        <link name="visible">componentType = column, index = ${ $.index }:visible</link>
+                    </imports>
+                </settings>
+            </filterSelect>
+        </filters>
+    </listingToolbar>
+    <columns name="customer_columns">
+        <column name="le_current_tier" sortOrder="200">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">Current Loyalty Tier</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="le_points" sortOrder="201">
+            <settings>
+                <filter>textRange</filter>
+                <label translate="true">Loyalty Points</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="le_available_coins" sortOrder="202">
+            <settings>
+                <filter>textRange</filter>
+                <label translate="true">Available Loyalty Coins</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="le_next_tier" sortOrder="203">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">Next Loyalty Tier</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+        <column name="le_points_to_next_tier" sortOrder="204">
+            <settings>
+                <filter>textRange</filter>
+                <label translate="true">Points to Next Tier</label>
+                <visible>false</visible>
+            </settings>
+        </column>
+    </columns>
+</listing>

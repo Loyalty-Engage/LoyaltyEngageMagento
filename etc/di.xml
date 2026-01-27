@@ -9,6 +9,10 @@
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemsRemoveAll" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItemRemove" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\CustomerLoyaltyInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\CustomerLoyalty" />
+    <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\CustomerLoyaltyUpdateResponseInterface"
+        type="LoyaltyEngage\LoyaltyShop\Model\Data\CustomerLoyaltyUpdateResponse" />
     <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
         type="Magento\Sales\Model\ResourceModel\Grid">
         <arguments>
@@ -76,5 +80,32 @@
                 </item>
             </argument>
         </arguments>
+    </type>
+    
+    <!-- Add loyalty conditions to catalog price rules -->
+    <type name="Magento\CatalogRule\Model\Rule\Condition\Combine">
+        <plugin name="loyaltyshop_catalog_rule_condition_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\CatalogRule\Model\Rule\Condition\CombinePlugin"
+            sortOrder="100" />
+    </type>
+    
+    <!-- Add loyalty conditions to cart price rules -->
+    <type name="Magento\SalesRule\Model\Rule\Condition\Combine">
+        <plugin name="loyaltyshop_sales_rule_condition_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\SalesRule\Model\Rule\Condition\CombinePlugin"
+            sortOrder="100" />
+    </type>
+    
+    <!-- Target shipping carriers directly -->
+    <type name="Magento\OfflineShipping\Model\Carrier\Tablerate">
+        <plugin name="loyaltyshop_tablerate_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\Shipping\TableratePlugin"
+            sortOrder="100" />
+    </type>
+    
+    <type name="Magento\OfflineShipping\Model\Carrier\Flatrate">
+        <plugin name="loyaltyshop_flatrate_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\Shipping\FlatratePlugin"
+            sortOrder="100" />
     </type>
 </config>

@@ -3,6 +3,7 @@ namespace LoyaltyEngage\LoyaltyShop\Model\Queue;
 
 use Magento\Framework\HTTP\Client\Curl;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Psr\Log\LoggerInterface;
 
 class ReviewConsumer
@@ -23,22 +24,31 @@ class ReviewConsumer
     private $logger;
 
     /**
+     * @var LoyaltyLogger
+     */
+    private $loyaltyLogger;
+
+    /**
      * @param Curl $curl
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoggerInterface $logger
+     * @param LoyaltyLogger $loyaltyLogger
      */
     public function __construct(
         Curl $curl,
         LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->curl = $curl;
         $this->loyaltyHelper = $loyaltyHelper;
         $this->logger = $logger;
+        $this->loyaltyLogger = $loyaltyLogger;
     }
 
     /**
      * Process review export queue message
+     * Note: Logging is now minimal for privacy
      *
      * @param string $message
      * @return void
@@ -48,20 +58,27 @@ class ReviewConsumer
         try {
             // Early exit if module or review export is disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isReviewExportEnabled()) {
-                $this->logger->info('[LOYALTY-REVIEW-CONSUMER] Review export disabled, skipping message');
                 return;
             }
 
             $reviewData = json_decode($message, true);
             if (!$reviewData || !isset($reviewData['review_id'], $reviewData['customer_email'])) {
-                $this->logger->error('[LOYALTY-REVIEW-CONSUMER] Invalid review data: ' . $message);
+                $this->loyaltyLogger->error(
+                    LoyaltyLogger::COMPONENT_QUEUE,
+                    LoyaltyLogger::ACTION_ERROR,
+                    'Invalid review data in queue'
+                );
                 return;
             }
 
             $this->exportReviewToLoyaltyEngage($reviewData);
 
         } catch (\Exception $e) {
-            $this->logger->error('[LOYALTY-REVIEW-CONSUMER] Error processing review: ' . $e->getMessage());
+            $this->loyaltyLogger->error(
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_ERROR,
+                'Error processing review: ' . $e->getMessage()
+            );
             throw $e; // Re-throw to trigger retry mechanism
         }
     }
@@ -76,11 +93,10 @@ class ReviewConsumer
     {
         $apiUrl = $this->loyaltyHelper->getApiUrl();
         if (!$apiUrl) {
-            $this->logger->error('[LOYALTY-REVIEW-CONSUMER] API URL not configured');
             return;
         }
 
-        // Prepare API payload
+        // Prepare API payload (email is needed for API, not logged)
         $payload = [
             'event' => 'Review',
             'identifier' => $reviewData['customer_email'],
@@ -91,70 +107,61 @@ class ReviewConsumer
         $endpoint = rtrim($apiUrl, '/') . '/api/v1/events';
 
         try {
-            // Set headers with Basic Authentication (same as working cart code)
-            $tenantId = $this->loyaltyHelper->getClientId(); // Actually tenant_id
-            $bearerToken = $this->loyaltyHelper->getClientSecret(); // Actually bearer_token
+            // Set headers with Basic Authentication
+            $tenantId = $this->loyaltyHelper->getClientId();
+            $bearerToken = $this->loyaltyHelper->getClientSecret();
+            
+            $headers = [
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json'
+            ];
             
             if ($tenantId && $bearerToken) {
                 $authString = base64_encode($tenantId . ':' . $bearerToken);
-                $this->curl->setHeaders([
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Basic ' . $authString
-                ]);
-            } else {
-                $this->curl->setHeaders([
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json'
-                ]);
+                $headers['Authorization'] = 'Basic ' . $authString;
             }
 
-            // Set timeout for performance
+            $this->curl->setHeaders($headers);
             $this->curl->setTimeout(10);
 
             // Make API call
             $this->curl->post($endpoint, json_encode($payload));
             
             $httpCode = $this->curl->getStatus();
-            $response = $this->curl->getBody();
 
-            // Enhanced logging - Log full API request/response details
-            $this->logger->info(sprintf(
-                '[LOYALTY-REVIEW-CONSUMER] API Request - URL: %s, Payload: %s, HTTP Code: %d',
-                $endpoint,
-                json_encode($payload),
-                $httpCode
-            ));
-
-            $this->logger->info(sprintf(
-                '[LOYALTY-REVIEW-CONSUMER] API Response - Review ID: %s, Response: %s',
-                $reviewData['review_id'],
-                $response
-            ));
-
-            if ($httpCode >= 200 && $httpCode < 300) {
-                $this->logger->info(sprintf(
-                    '[LOYALTY-REVIEW-CONSUMER] Review exported successfully - ID: %s, Customer: %s, HTTP: %d',
-                    $reviewData['review_id'],
-                    $reviewData['customer_email'],
-                    $httpCode
-                ));
-            } else {
-                $this->logger->error(sprintf(
-                    '[LOYALTY-REVIEW-CONSUMER] API error - HTTP %d: %s - Review ID: %s',
-                    $httpCode,
-                    $response,
-                    $reviewData['review_id']
-                ));
+            if ($httpCode < 200 || $httpCode >= 300) {
+                // Only log errors
+                $this->loyaltyLogger->error(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_ERROR,
+                    sprintf(
+                        'Review export failed - ID: %s, HTTP: %d',
+                        $reviewData['review_id'],
+                        $httpCode
+                    )
+                );
                 throw new \Exception('API returned HTTP ' . $httpCode);
             }
 
+            // Only log success if debug is enabled
+            if ($this->loyaltyLogger->isDebugEnabled()) {
+                $this->loyaltyLogger->debug(
+                    LoyaltyLogger::COMPONENT_QUEUE,
+                    LoyaltyLogger::ACTION_SUCCESS,
+                    sprintf(
+                        'Review exported - ID: %s, Customer: %s',
+                        $reviewData['review_id'],
+                        $this->loyaltyLogger->maskEmail($reviewData['customer_email'])
+                    )
+                );
+            }
+
         } catch (\Exception $e) {
-            $this->logger->error(sprintf(
-                '[LOYALTY-REVIEW-CONSUMER] Export failed - Review ID: %s, Error: %s',
-                $reviewData['review_id'],
-                $e->getMessage()
-            ));
+            $this->loyaltyLogger->error(
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_ERROR,
+                sprintf('Export failed - Review ID: %s, Error: %s', $reviewData['review_id'], $e->getMessage())
+            );
             throw $e;
         }
     }
