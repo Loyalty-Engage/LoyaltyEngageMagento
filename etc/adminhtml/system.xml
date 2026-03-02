@@ -101,6 +101,45 @@
                         <field id="loyalty/general/module_enable">1</field>
                     </depends>
                 </field>
+
+                <field id="minimum_order_value" translate="label comment" type="text" sortOrder="90"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Minimum Order Value for Loyalty Products</label>
+                    <validate>validate-number validate-zero-or-greater</validate>
+                    <comment><![CDATA[Minimum cart subtotal (excluding loyalty products) required before customers can add loyalty products. Set to 0 to disable this restriction.]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                <field id="minimum_order_value_message" translate="label comment" type="textarea" sortOrder="91"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Minimum Order Value Error Message</label>
+                    <comment><![CDATA[Custom error message when minimum order value is not met. Use {{minimum}} for the minimum value and {{current}} for the current cart subtotal. Example: "Your cart must have at least €{{minimum}} to add loyalty products. Current: €{{current}}"]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                <field id="minimum_order_value_bar_color" translate="label comment" type="text" sortOrder="92"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Minimum Order Value Message Bar Color</label>
+                    <validate>validate-color</validate>
+                    <comment><![CDATA[Background color for the error message bar. Use hex color code (e.g., #ff0000 for red, #ffc107 for warning yellow). Default: #e74c3c]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                <field id="minimum_order_value_text_color" translate="label comment" type="text" sortOrder="93"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Minimum Order Value Message Text Color</label>
+                    <validate>validate-color</validate>
+                    <comment><![CDATA[Text color for the error message. Use hex color code (e.g., #ffffff for white). Default: #ffffff]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
             </group>
             <group id="export" translate="label" type="text" sortOrder="15"
                 showInDefault="1" showInWebsite="1" showInStore="1">

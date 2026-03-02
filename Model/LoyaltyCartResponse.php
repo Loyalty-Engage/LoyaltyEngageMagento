@@ -19,6 +19,21 @@ class LoyaltyCartResponse implements LoyaltyCartResponseInterface
     protected $message;
 
     /**
+     * @var string|null
+     */
+    protected $barColor;
+
+    /**
+     * @var string|null
+     */
+    protected $textColor;
+
+    /**
+     * @var string|null
+     */
+    protected $errorType;
+
+    /**
      * Set success status
      *
      * @param bool $success
@@ -60,5 +75,71 @@ class LoyaltyCartResponse implements LoyaltyCartResponseInterface
     public function getMessage(): string
     {
         return $this->message;
+    }
+
+    /**
+     * Set bar color for error messages
+     *
+     * @param string|null $color
+     * @return $this
+     */
+    public function setBarColor(?string $color)
+    {
+        $this->barColor = $color;
+        return $this;
+    }
+
+    /**
+     * Get bar color for error messages
+     *
+     * @return string|null
+     */
+    public function getBarColor(): ?string
+    {
+        return $this->barColor;
+    }
+
+    /**
+     * Set text color for error messages
+     *
+     * @param string|null $color
+     * @return $this
+     */
+    public function setTextColor(?string $color)
+    {
+        $this->textColor = $color;
+        return $this;
+    }
+
+    /**
+     * Get text color for error messages
+     *
+     * @return string|null
+     */
+    public function getTextColor(): ?string
+    {
+        return $this->textColor;
+    }
+
+    /**
+     * Set error type
+     *
+     * @param string|null $errorType
+     * @return $this
+     */
+    public function setErrorType(?string $errorType)
+    {
+        $this->errorType = $errorType;
+        return $this;
+    }
+
+    /**
+     * Get error type
+     *
+     * @return string|null
+     */
+    public function getErrorType(): ?string
+    {
+        return $this->errorType;
     }
 }

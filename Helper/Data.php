@@ -173,4 +173,92 @@ class Data extends AbstractHelper
         
         return $frequency ?: '*/5 * * * *'; // Default: Every 5 minutes
     }
+
+    /**
+     * Get Minimum Order Value for Loyalty Products
+     *
+     * @return float
+     */
+    public function getMinimumOrderValueForLoyalty(): float
+    {
+        $value = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'minimum_order_value',
+            ScopeInterface::SCOPE_STORE
+        );
+        
+        return $value ? (float)$value : 0.0;
+    }
+
+    /**
+     * Check if minimum order value restriction is enabled
+     *
+     * @return bool
+     */
+    public function isMinimumOrderValueEnabled(): bool
+    {
+        return $this->getMinimumOrderValueForLoyalty() > 0;
+    }
+
+    /**
+     * Get Minimum Order Value Error Message (with placeholders)
+     *
+     * @return string
+     */
+    public function getMinimumOrderValueMessage(): string
+    {
+        $message = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'minimum_order_value_message',
+            ScopeInterface::SCOPE_STORE
+        );
+        
+        return $message ?: 'Your cart subtotal must be at least €{{minimum}} to add loyalty products. Current subtotal: €{{current}}';
+    }
+
+    /**
+     * Get formatted Minimum Order Value Error Message with actual values
+     *
+     * @param float $minimumValue
+     * @param float $currentValue
+     * @return string
+     */
+    public function getFormattedMinimumOrderValueMessage(float $minimumValue, float $currentValue): string
+    {
+        $message = $this->getMinimumOrderValueMessage();
+        
+        return str_replace(
+            ['{{minimum}}', '{{current}}'],
+            [number_format($minimumValue, 2), number_format($currentValue, 2)],
+            $message
+        );
+    }
+
+    /**
+     * Get Minimum Order Value Message Bar Color
+     *
+     * @return string
+     */
+    public function getMinimumOrderValueBarColor(): string
+    {
+        $color = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'minimum_order_value_bar_color',
+            ScopeInterface::SCOPE_STORE
+        );
+        
+        return $color ?: '#e74c3c';
+    }
+
+    /**
+     * Get Minimum Order Value Message Text Color
+     *
+     * @return string
+     */
+    public function getMinimumOrderValueTextColor(): string
+    {
+        $color = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'minimum_order_value_text_color',
+            ScopeInterface::SCOPE_STORE
+        );
+        
+        return $color ?: '#ffffff';
+    }
 }

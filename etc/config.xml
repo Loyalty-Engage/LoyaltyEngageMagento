@@ -11,6 +11,10 @@
                 <cart_expiry_time>1</cart_expiry_time>
                 <logger_enable>1</logger_enable>
                 <loyalty_order_place_retrieve>5</loyalty_order_place_retrieve>
+                <minimum_order_value>0</minimum_order_value>
+                <minimum_order_value_message><![CDATA[Your cart subtotal must be at least €{{minimum}} to add loyalty products. Current subtotal: €{{current}}]]></minimum_order_value_message>
+                <minimum_order_value_bar_color>#e74c3c</minimum_order_value_bar_color>
+                <minimum_order_value_text_color>#ffffff</minimum_order_value_text_color>
             </general>
         </loyalty>
         <consumers_runner>

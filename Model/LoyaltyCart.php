@@ -71,6 +71,26 @@ class LoyaltyCart implements LoyaltyCartInterface
             ['customer_id' => $customerId, 'sku' => $sku]
         );
 
+        // Check minimum order value requirement
+        if ($this->loyaltyHelper->isMinimumOrderValueEnabled()) {
+            $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty();
+            $cartSubtotal = $this->getCartSubtotalExcludingLoyaltyProducts($customerId);
+            
+            if ($cartSubtotal < $minimumOrderValue) {
+                $this->loyaltyLogger->info(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_VALIDATION,
+                    sprintf('Minimum order value not met - Required: %.2f, Current: %.2f', $minimumOrderValue, $cartSubtotal),
+                    ['customer_id' => $customerId, 'minimum' => $minimumOrderValue, 'current' => $cartSubtotal]
+                );
+                
+                // Use configurable message from admin
+                $errorMessage = $this->loyaltyHelper->getFormattedMinimumOrderValueMessage($minimumOrderValue, $cartSubtotal);
+                
+                return $this->setMinimumOrderValueErrorResponse($response, $errorMessage);
+            }
+        }
+
         if (!$customerId || !$sku) {
             $this->loyaltyLogger->error(
                 LoyaltyLogger::COMPONENT_API,
@@ -226,6 +246,44 @@ class LoyaltyCart implements LoyaltyCartInterface
         }
     }
 
+    /**
+     * Calculate cart subtotal excluding loyalty products (products with custom price of 0)
+     *
+     * @param int $customerId
+     * @return float
+     */
+    private function getCartSubtotalExcludingLoyaltyProducts(int $customerId): float
+    {
+        try {
+            $quote = $this->quoteRepository->getActiveForCustomer($customerId);
+            $subtotal = 0.0;
+
+            foreach ($quote->getAllVisibleItems() as $item) {
+                // Skip loyalty products (items with custom price of 0 or loyalty_locked_qty option)
+                $customPrice = $item->getCustomPrice();
+                $loyaltyLockedQty = $item->getOptionByCode('loyalty_locked_qty');
+                
+                if ($customPrice !== null && (float)$customPrice === 0.0) {
+                    // This is a loyalty product, skip it
+                    continue;
+                }
+                
+                if ($loyaltyLockedQty && $loyaltyLockedQty->getValue()) {
+                    // This is a loyalty product, skip it
+                    continue;
+                }
+
+                // Add the row total of non-loyalty products
+                $subtotal += (float)$item->getRowTotal();
+            }
+
+            return $subtotal;
+        } catch (NoSuchEntityException $e) {
+            // No active cart exists, return 0
+            return 0.0;
+        }
+    }
+
     private function setSuccessResponse(LoyaltyCartResponseInterface $response, string $message): LoyaltyCartResponseInterface
     {
         return $response->setSuccess(true)->setMessage($message);
@@ -235,6 +293,29 @@ class LoyaltyCart implements LoyaltyCartInterface
     {
         $this->response->setHttpResponseCode(self::HTTP_BAD_REQUEST);
         return $response->setSuccess(false)->setMessage($message);
+    }
+
+    /**
+     * Set error response for minimum order value with configurable styling
+     *
+     * @param LoyaltyCartResponseInterface $response
+     * @param string $message
+     * @return LoyaltyCartResponseInterface
+     */
+    private function setMinimumOrderValueErrorResponse(LoyaltyCartResponseInterface $response, string $message): LoyaltyCartResponseInterface
+    {
+        $this->response->setHttpResponseCode(self::HTTP_BAD_REQUEST);
+        
+        // Add styling information to the response for frontend rendering
+        $barColor = $this->loyaltyHelper->getMinimumOrderValueBarColor();
+        $textColor = $this->loyaltyHelper->getMinimumOrderValueTextColor();
+        
+        return $response
+            ->setSuccess(false)
+            ->setMessage($message)
+            ->setBarColor($barColor)
+            ->setTextColor($textColor)
+            ->setErrorType('minimum_order_value');
     }
 
     public function ensureCartRuleExists(?string $code, float $discountRate, bool $forceCartFixed = false): string
@@ -300,6 +381,26 @@ class LoyaltyCart implements LoyaltyCartInterface
 
         if (!$customerId || empty($skus)) {
             return $this->setErrorResponse($response, 'customerId and SKUs are required.');
+        }
+
+        // Check minimum order value requirement
+        if ($this->loyaltyHelper->isMinimumOrderValueEnabled()) {
+            $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty();
+            $cartSubtotal = $this->getCartSubtotalExcludingLoyaltyProducts($customerId);
+            
+            if ($cartSubtotal < $minimumOrderValue) {
+                $this->loyaltyLogger->info(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_VALIDATION,
+                    sprintf('Minimum order value not met for multiple products - Required: %.2f, Current: %.2f', $minimumOrderValue, $cartSubtotal),
+                    ['customer_id' => $customerId, 'minimum' => $minimumOrderValue, 'current' => $cartSubtotal, 'skus' => $skus]
+                );
+                
+                // Use configurable message from admin
+                $errorMessage = $this->loyaltyHelper->getFormattedMinimumOrderValueMessage($minimumOrderValue, $cartSubtotal);
+                
+                return $this->setMinimumOrderValueErrorResponse($response, $errorMessage);
+            }
         }
 
         try {

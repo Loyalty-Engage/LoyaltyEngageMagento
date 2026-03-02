@@ -84,10 +84,19 @@ class Add implements HttpPostActionInterface
             // Use the existing loyalty cart service
             $response = $this->loyaltyCart->addProduct($customerId, $sku);
 
-            return $result->setData([
+            $responseData = [
                 'success' => $response->getSuccess(),
                 'message' => $response->getMessage()
-            ]);
+            ];
+
+            // Add styling information for minimum order value errors
+            if ($response->getErrorType() === 'minimum_order_value') {
+                $responseData['bar_color'] = $response->getBarColor();
+                $responseData['text_color'] = $response->getTextColor();
+                $responseData['error_type'] = $response->getErrorType();
+            }
+
+            return $result->setData($responseData);
 
         } catch (\Exception $e) {
             $this->logger->error('LoyaltyShop Cart Add Error: ' . $e->getMessage(), [
