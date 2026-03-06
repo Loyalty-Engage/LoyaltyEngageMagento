@@ -475,12 +475,18 @@ class LoyaltyCart implements LoyaltyCartInterface
         }
     }
 
-    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface
+    /**
+     * Buy a discount code product using loyalty coins and apply the discount to the cart
+     *
+     * @param int $customerId
+     * @param string $sku SKU of the discount code product in LoyaltyEngage
+     * @return LoyaltyCartResponseInterface
+     */
+    public function buyDiscountCodeProduct(int $customerId, string $sku): LoyaltyCartResponseInterface
     {
         $response = $this->loyaltyCartResponseFactory->create();
 
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            // Return a successful response, as no error occurred, but no action was taken.
             return $this->setSuccessResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
         }
 
@@ -488,18 +494,25 @@ class LoyaltyCart implements LoyaltyCartInterface
             $customer = $this->customerRepository->getById($customerId);
             $email = $customer->getEmail();
 
-            $cartStatus = $this->loyaltyengageCart->addToCart($email, $sku);
-            if ($cartStatus !== 200) {
-                return $this->setErrorResponse($response, 'Failed to add product to loyalty cart.');
+            // Call the new buyDiscountCode API endpoint
+            $discountResult = $this->loyaltyengageCart->buyDiscountCode($email, $sku);
+
+            if (!$discountResult) {
+                $this->loyaltyLogger->error(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_ERROR,
+                    sprintf('Failed to buy discount code for SKU %s - API returned error', $sku),
+                    ['email' => $email, 'sku' => $sku]
+                );
+                return $this->setErrorResponse($response, 'Failed to purchase discount code. Please check your available coins.');
             }
 
-            $sendToLoyaltyEngage = $discount > 1000
-                ? ((float) substr((string) $discount, -2)) / 100  // bijv. 1015 → 15 → 0.15
-                : $discount;
-
-            $discountResult = $this->loyaltyengageCart->claimDiscount($email, $sendToLoyaltyEngage);
-
             $discountCode = $discountResult['discountCode'] ?? null;
+            $discountPercentage = $discountResult['discountPercentage'] ?? null;
+            $discountAmount = $discountResult['discountAmount'] ?? null;
+            $spentCoins = $discountResult['spentCoins'] ?? 0;
+            $availableCoins = $discountResult['availableCoins'] ?? 0;
+
             if (!$discountCode) {
                 return $this->setErrorResponse($response, 'No discount code returned from LoyaltyEngage.');
             }
@@ -508,18 +521,42 @@ class LoyaltyCart implements LoyaltyCartInterface
                 return $this->setErrorResponse($response, 'Discount code is too long for Magento.');
             }
 
-            $discountAmount = $discount > 1000
-                ? (float) substr((string) $discount, -2) // bijv. 1015 → 15 euro
-                : $discount;
-            $finalCode = $this->ensureCartRuleExists($discountCode, $discountAmount, true); // forceer cart_fixed
+            // Determine discount type and amount
+            // If discountPercentage is set, use percentage discount
+            // If discountAmount is set, use fixed amount discount
+            $usePercentage = $discountPercentage !== null && $discountPercentage > 0;
+            $discountValue = $usePercentage ? $discountPercentage : ($discountAmount ?? 0);
 
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf('Discount code purchased: %s (%.2f%s)', $discountCode, $discountValue, $usePercentage ? '%' : ' fixed'),
+                [
+                    'email' => $email,
+                    'sku' => $sku,
+                    'discount_code' => $discountCode,
+                    'discount_percentage' => $discountPercentage,
+                    'discount_amount' => $discountAmount,
+                    'spent_coins' => $spentCoins,
+                    'available_coins' => $availableCoins
+                ]
+            );
+
+            // Create Magento cart rule - use percentage if available, otherwise fixed amount
+            $finalCode = $this->ensureCartRuleExists($discountCode, $discountValue, !$usePercentage);
+
+            // Apply coupon to cart
             $quote = $this->getOrCreateCustomerQuote($customerId);
             $quote->setCouponCode($finalCode);
             $quote->collectTotals()->save();
 
-            return $this->setSuccessResponse($response, "Product added and discount code '{$finalCode}' applied.");
+            $discountTypeText = $usePercentage ? "{$discountPercentage}%" : "€{$discountAmount}";
+            return $this->setSuccessResponse(
+                $response, 
+                "Discount code '{$finalCode}' ({$discountTypeText}) applied successfully. You spent {$spentCoins} coins."
+            );
         } catch (\Exception $e) {
-            $this->logger->critical('[LoyaltyShop] Exception in claimDiscountAfterAddToLoyaltyCart', [
+            $this->logger->critical('[LoyaltyShop] Exception in buyDiscountCodeProduct', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

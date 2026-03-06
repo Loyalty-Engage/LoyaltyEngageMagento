@@ -63,28 +63,26 @@ class Claim implements HttpPostActionInterface
             $postData = $this->request->getContent();
             $data = json_decode($postData, true);
             
-            if (!$data || !isset($data['sku']) || !isset($data['discount'])) {
+            if (!$data || !isset($data['sku'])) {
                 return $result->setData([
                     'success' => false,
-                    'message' => 'SKU and discount amount are required.'
+                    'message' => 'SKU is required.'
                 ]);
             }
 
             $customerId = (int) $this->customerSession->getCustomerId();
             $sku = $data['sku'];
-            $discount = (float) $data['discount'];
 
             // Debug logging to check customer session
-            $this->logger->info('LoyaltyShop Discount Claim Debug:', [
+            $this->logger->info('LoyaltyShop Buy Discount Code Debug:', [
                 'customer_id' => $customerId,
                 'is_logged_in' => $this->customerSession->isLoggedIn(),
                 'customer_email' => $this->customerSession->getCustomer()->getEmail(),
-                'sku' => $sku,
-                'discount' => $discount
+                'sku' => $sku
             ]);
 
-            // Use the existing loyalty cart service
-            $response = $this->loyaltyCart->claimDiscountAfterAddToLoyaltyCart($customerId, $discount, $sku);
+            // Use the new buyDiscountCodeProduct method
+            $response = $this->loyaltyCart->buyDiscountCodeProduct($customerId, $sku);
 
             return $result->setData([
                 'success' => $response->getSuccess(),

@@ -18,14 +18,13 @@ interface LoyaltyCartInterface
     public function addProduct(int $customerId, string $sku);
 
     /**
-     * Claim a discount after adding product using customer ID.
+     * Buy a discount code product using loyalty coins and apply the discount to the cart.
      *
      * @param int $customerId
-     * @param float $discount
-     * @param string $sku
+     * @param string $sku SKU of the discount code product in LoyaltyEngage
      * @return LoyaltyCartResponseInterface
      */
-    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, float $discount, string $sku): LoyaltyCartResponseInterface;
+    public function buyDiscountCodeProduct(int $customerId, string $sku): LoyaltyCartResponseInterface;
 
     /**
      * Add multiple products to the cart using loyalty points.

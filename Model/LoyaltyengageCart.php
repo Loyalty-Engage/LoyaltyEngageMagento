@@ -254,12 +254,19 @@ class LoyaltyengageCart
         return $responseCode;
     }
 
-    public function claimDiscount(string $email, float $discount): ?array
+    /**
+     * Buy a discount code product using loyalty coins
+     *
+     * @param string $email Customer email
+     * @param string $sku SKU of the discount code product
+     * @return array|null Response array with discountCode, discountPercentage, etc. or null on failure
+     */
+    public function buyDiscountCode(string $email, string $sku): ?array
     {
         $apiUrl = $this->getapiUrl();
-        $url = $apiUrl . '/api/v1/discount/' . $email . '/claim';
+        $url = $apiUrl . '/api/v1/loyalty/shop/' . $email . '/cart/buy_discount_code';
 
-        $payload = ['discount' => $discount];
+        $payload = ['sku' => $sku];
 
         $this->curl->addHeader('Content-Type', 'application/json');
         $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
@@ -269,9 +276,9 @@ class LoyaltyengageCart
         $body = $this->curl->getBody();
 
         if ($this->getLoggerStatus()) {
-            $this->logger->info('LoyaltyEngage Discount Claim Response:', [
+            $this->logger->info('LoyaltyEngage Buy Discount Code Response:', [
                 'email' => $email,
-                'discount' => $discount,
+                'sku' => $sku,
                 'response_code' => $status,
                 'response_body' => $body
             ]);
