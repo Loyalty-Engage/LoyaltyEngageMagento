@@ -49,25 +49,16 @@ class FlatratePlugin
      */
     public function afterCollectRates(Flatrate $subject, $result, RateRequest $request)
     {
-        // Debug logging
-        error_log('[LOYALTY-DEBUG] FlatratePlugin::afterCollectRates called');
-        
         try {
             // Early exit if features disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
-                error_log('[LOYALTY-DEBUG] Flatrate: Free shipping disabled, skipping');
                 return $result;
             }
-
-            error_log('[LOYALTY-DEBUG] Flatrate: Free shipping enabled, checking customer qualification');
 
             // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
-                error_log('[LOYALTY-DEBUG] Flatrate: Customer does not qualify for free shipping');
                 return $result;
             }
-
-            error_log('[LOYALTY-DEBUG] Flatrate: Customer qualifies for free shipping, applying to rates');
 
             // Apply free shipping to all rates in the result
             if ($result && $result->getAllRates()) {
@@ -76,8 +67,8 @@ class FlatratePlugin
                     $rate->setPrice(0);
                     $rate->setCost(0);
                     
-                    error_log(sprintf(
-                        '[LOYALTY-DEBUG] Flatrate: Free shipping applied - Method: %s, Original Price: $%.2f, New Price: $0.00',
+                    $this->logger->debug(sprintf(
+                        '[LOYALTY-SHIPPING] Flatrate: Free shipping applied - Method: %s, Original Price: $%.2f',
                         $rate->getMethod(),
                         $originalPrice
                     ));
@@ -86,7 +77,6 @@ class FlatratePlugin
 
         } catch (\Exception $e) {
             $this->logger->error('[LOYALTY-SHIPPING] Error in flatrate plugin: ' . $e->getMessage());
-            error_log('[LOYALTY-DEBUG] Flatrate: Error applying free shipping: ' . $e->getMessage());
         }
 
         return $result;

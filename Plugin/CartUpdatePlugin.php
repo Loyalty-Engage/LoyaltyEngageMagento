@@ -162,24 +162,46 @@ class CartUpdatePlugin
         // Method 3: Check additional_options for loyalty flag
         $additionalOptions = $quoteItem->getOptionByCode('additional_options');
         if ($additionalOptions) {
-            try {
-                $value = unserialize($additionalOptions->getValue());
-                if (is_array($value)) {
-                    foreach ($value as $option) {
-                        if (
-                            isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
-                            isset($option['value']) && $option['value'] === '1'
-                        ) {
-                            return true;
-                        }
+            $value = $this->safeUnserialize($additionalOptions->getValue());
+            if (is_array($value)) {
+                foreach ($value as $option) {
+                    if (
+                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
+                        isset($option['value']) && $option['value'] === '1'
+                    ) {
+                        return true;
                     }
                 }
-            } catch (\Exception $e) {
-                // Silently handle unserialize errors - not a loyalty product
             }
         }
 
         // Not a confirmed loyalty product
         return false;
+    }
+
+    /**
+     * Safely unserialize data with JSON fallback
+     * Prevents PHP object injection vulnerabilities
+     *
+     * @param string|null $data
+     * @return array|null
+     */
+    private function safeUnserialize(?string $data): ?array
+    {
+        if (empty($data)) {
+            return null;
+        }
+
+        $jsonResult = json_decode($data, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonResult)) {
+            return $jsonResult;
+        }
+
+        try {
+            $result = @unserialize($data, ['allowed_classes' => false]);
+            return is_array($result) ? $result : null;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }

@@ -11,6 +11,7 @@ use Magento\SalesRule\Model\Rule;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Customer\Model\ResourceModel\Group\CollectionFactory as CustomerGroupCollectionFactory;
 use Magento\Framework\App\State;
+use Psr\Log\LoggerInterface;
 
 class CreateLoyaltyFreeShippingRule implements DataPatchInterface
 {
@@ -40,24 +41,32 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
     private $appState;
 
     /**
+     * @var LoggerInterface
+     */
+    private $logger;
+
+    /**
      * @param RuleFactory $ruleFactory
      * @param RuleResource $ruleResource
      * @param StoreManagerInterface $storeManager
      * @param CustomerGroupCollectionFactory $customerGroupCollectionFactory
      * @param State $appState
+     * @param LoggerInterface $logger
      */
     public function __construct(
         RuleFactory $ruleFactory,
         RuleResource $ruleResource,
         StoreManagerInterface $storeManager,
         CustomerGroupCollectionFactory $customerGroupCollectionFactory,
-        State $appState
+        State $appState,
+        LoggerInterface $logger
     ) {
         $this->ruleFactory = $ruleFactory;
         $this->ruleResource = $ruleResource;
         $this->storeManager = $storeManager;
         $this->customerGroupCollectionFactory = $customerGroupCollectionFactory;
         $this->appState = $appState;
+        $this->logger = $logger;
     }
 
     /**
@@ -149,7 +158,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
             $this->ruleResource->save($rule);
         } catch (\Exception $e) {
             // Rule creation failed, but don't break the installation
-            error_log('Failed to create loyalty free shipping rule: ' . $e->getMessage());
+            $this->logger->error('Failed to create loyalty free shipping rule: ' . $e->getMessage());
         }
 
         return $this;

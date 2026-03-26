@@ -47,32 +47,22 @@ class AddressPlugin
      */
     public function afterCollectShippingRates(Address $subject, Address $result)
     {
-        // Temporary debug - force log to system log
-        error_log('[LOYALTY-DEBUG] AddressPlugin::afterCollectShippingRates called');
-        
         try {
             // Early exit if features disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
-                error_log('[LOYALTY-DEBUG] Free shipping disabled, skipping');
                 return $result;
             }
-
-            error_log('[LOYALTY-DEBUG] Free shipping enabled, checking customer qualification');
 
             // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
-                error_log('[LOYALTY-DEBUG] Customer does not qualify for free shipping');
                 return $result;
             }
-
-            error_log('[LOYALTY-DEBUG] Customer qualifies for free shipping, applying to rates');
 
             // Apply free shipping to all shipping rates
             $this->applyFreeShippingToRates($result);
 
         } catch (\Exception $e) {
             $this->logger->error('[LOYALTY-SHIPPING] Error applying free shipping: ' . $e->getMessage());
-            error_log('[LOYALTY-DEBUG] Error applying free shipping: ' . $e->getMessage());
         }
 
         return $result;
@@ -89,8 +79,6 @@ class AddressPlugin
         $shippingRatesCollection = $address->getShippingRatesCollection();
         $freeShippingApplied = false;
 
-        error_log('[LOYALTY-DEBUG] Processing shipping rates collection');
-
         foreach ($shippingRatesCollection as $rate) {
             $originalPrice = $rate->getPrice();
             
@@ -100,8 +88,8 @@ class AddressPlugin
             
             $freeShippingApplied = true;
 
-            error_log(sprintf(
-                '[LOYALTY-DEBUG] Free shipping applied - Method: %s_%s, Original Price: $%.2f, New Price: $0.00',
+            $this->logger->debug(sprintf(
+                '[LOYALTY-SHIPPING] Free shipping applied - Method: %s_%s, Original Price: $%.2f',
                 $rate->getCarrier(),
                 $rate->getMethod(),
                 $originalPrice
@@ -109,9 +97,7 @@ class AddressPlugin
         }
 
         if ($freeShippingApplied) {
-            error_log('[LOYALTY-DEBUG] Loyalty tier free shipping applied to all existing methods');
-        } else {
-            error_log('[LOYALTY-DEBUG] No shipping methods found to apply free shipping');
+            $this->logger->info('[LOYALTY-SHIPPING] Loyalty tier free shipping applied to all existing methods');
         }
     }
 }

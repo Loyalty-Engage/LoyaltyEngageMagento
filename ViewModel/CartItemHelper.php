@@ -113,7 +113,7 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
         // STRICT METHOD 3: Check additional_options for loyalty flag with exact value match
         $additionalOptions = $item->getOptionByCode('additional_options');
         if ($additionalOptions) {
-            $value = @unserialize($additionalOptions->getValue());
+            $value = $this->safeUnserialize($additionalOptions->getValue());
             if (is_array($value)) {
                 foreach ($value as $option) {
                     if (isset($option['label']) && $option['label'] === 'loyalty_locked_qty' && 
@@ -152,5 +152,31 @@ class CartItemHelper implements \Magento\Framework\View\Element\Block\ArgumentIn
         ));
 
         return false;
+    }
+
+    /**
+     * Safely unserialize data with JSON fallback
+     * Prevents PHP object injection vulnerabilities
+     *
+     * @param string|null $data
+     * @return array|null
+     */
+    private function safeUnserialize(?string $data): ?array
+    {
+        if (empty($data)) {
+            return null;
+        }
+
+        $jsonResult = json_decode($data, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonResult)) {
+            return $jsonResult;
+        }
+
+        try {
+            $result = @unserialize($data, ['allowed_classes' => false]);
+            return is_array($result) ? $result : null;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }

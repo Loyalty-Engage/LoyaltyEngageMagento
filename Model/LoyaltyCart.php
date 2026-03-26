@@ -20,8 +20,12 @@ use Magento\Quote\Api\Data\CartItemInterfaceFactory;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Customer\Model\Session;
 use Magento\SalesRule\Model\RuleFactory;
+use Magento\SalesRule\Model\ResourceModel\Rule\CollectionFactory as RuleCollectionFactory;
+use Magento\SalesRule\Model\CouponFactory;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\SalesRule\Model\ResourceModel\Coupon\CollectionFactory as CouponCollectionFactory;
+use Magento\Customer\Api\GroupRepositoryInterface;
+use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Psr\Log\LoggerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
@@ -50,7 +54,11 @@ class LoyaltyCart implements LoyaltyCartInterface
         protected LoggerInterface $logger,
         protected CouponCollectionFactory $couponCollectionFactory,
         protected LoyaltyLogger $loyaltyLogger,
-        protected LoyaltyHelper $loyaltyHelper
+        protected LoyaltyHelper $loyaltyHelper,
+        protected ?RuleCollectionFactory $ruleCollectionFactory = null,
+        protected ?CouponFactory $couponFactory = null,
+        protected ?GroupRepositoryInterface $customerGroupRepository = null,
+        protected ?SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory = null
     ) {
     }
 
@@ -318,6 +326,16 @@ class LoyaltyCart implements LoyaltyCartInterface
             ->setErrorType('minimum_order_value');
     }
 
+    /**
+     * Ensure a cart rule exists for the given discount code.
+     * If a rule with the same discount value and type already exists, add the coupon to that rule.
+     * Otherwise, create a new rule.
+     *
+     * @param string|null $code The coupon code
+     * @param float $discountRate The discount amount (percentage or fixed)
+     * @param bool $forceCartFixed If true, use fixed amount discount; otherwise use percentage
+     * @return string The coupon code
+     */
     public function ensureCartRuleExists(?string $code, float $discountRate, bool $forceCartFixed = false): string
     {
         try {
@@ -325,6 +343,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                 $code = 'LOYALTY-' . strtoupper(bin2hex(random_bytes(4)));
             }
 
+            // Check if this coupon code already exists
             $couponCollection = $this->couponCollectionFactory->create()
                 ->addFieldToFilter('code', $code);
 
@@ -333,25 +352,94 @@ class LoyaltyCart implements LoyaltyCartInterface
             }
 
             $websiteId = (int) $this->storeManager->getStore()->getWebsiteId();
-            $customerGroupIds = [1, 2, 3];
+            $customerGroupIds = $this->getAllCustomerGroupIds();
+            $simpleAction = $forceCartFixed ? 'cart_fixed' : 'by_percent';
+            
+            // Generate a consistent rule name based on discount type and value
+            $ruleName = $this->generateLoyaltyRuleName($discountRate, $forceCartFixed);
+            
+            // Try to find an existing rule with the same discount value and type
+            $existingRule = null;
+            
+            // Log dependency status for debugging
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_LOYALTY,
+                'Checking dependencies for rule reuse',
+                [
+                    'ruleCollectionFactory_available' => $this->ruleCollectionFactory !== null,
+                    'couponFactory_available' => $this->couponFactory !== null,
+                    'discount_rate' => $discountRate,
+                    'simple_action' => $simpleAction,
+                    'rule_name' => $ruleName
+                ]
+            );
+            
+            if ($this->ruleCollectionFactory !== null && $this->couponFactory !== null) {
+                $existingRule = $this->findExistingLoyaltyRule($discountRate, $simpleAction, $websiteId);
+            } else {
+                $this->loyaltyLogger->error(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_ERROR,
+                    'Dependencies not available - falling back to creating new rule. Run setup:di:compile',
+                    [
+                        'ruleCollectionFactory' => $this->ruleCollectionFactory !== null ? 'available' : 'NULL',
+                        'couponFactory' => $this->couponFactory !== null ? 'available' : 'NULL'
+                    ]
+                );
+            }
+            
+            if ($existingRule && $this->couponFactory !== null) {
+                // Add the new coupon code to the existing rule
+                $this->addCouponToRule($existingRule, $code);
+                
+                $this->loyaltyLogger->info(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_SUCCESS,
+                    sprintf('Added coupon %s to existing rule: %s', $code, $existingRule->getName()),
+                    [
+                        'coupon_code' => $code,
+                        'rule_id' => $existingRule->getId(),
+                        'rule_name' => $existingRule->getName(),
+                        'discount_rate' => $discountRate,
+                        'discount_type' => $simpleAction
+                    ]
+                );
+                
+                return $code;
+            }
 
+            // No existing rule found OR factories not available - create a new rule with the coupon code directly
             $rule = $this->ruleFactory->create();
-            $rule->setName('LoyaltyEngage Auto Rule ' . $code)
+            $rule->setName($ruleName)
                 ->setDescription('Auto-generated from LoyaltyEngage')
                 ->setFromDate(date('Y-m-d'))
                 ->setIsActive(1)
-                ->setSimpleAction($forceCartFixed ? 'cart_fixed' : 'by_percent') // 🔥 Belangrijk
-                ->setDiscountAmount($discountRate) // 🔥 Hier moet 50 staan, niet 0.5 of 277
+                ->setSimpleAction($simpleAction)
+                ->setDiscountAmount($discountRate)
                 ->setStopRulesProcessing(0)
                 ->setIsAdvanced(1)
                 ->setUsesPerCustomer(1)
                 ->setCustomerGroupIds($customerGroupIds)
-                ->setCouponType(2)
-                ->setCouponCode($code)
+                ->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_SPECIFIC)
+                ->setCouponCode($code) // Set coupon code directly on the rule
                 ->setUsesPerCoupon(1)
                 ->setWebsiteIds([$websiteId]);
 
             $rule->save();
+
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf('Created new rule: %s with coupon: %s', $ruleName, $code),
+                [
+                    'coupon_code' => $code,
+                    'rule_id' => $rule->getId(),
+                    'rule_name' => $ruleName,
+                    'discount_rate' => $discountRate,
+                    'discount_type' => $simpleAction
+                ]
+            );
 
             return $code;
         } catch (\Throwable $e) {
@@ -360,6 +448,156 @@ class LoyaltyCart implements LoyaltyCartInterface
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Generate a consistent rule name based on discount type and value
+     *
+     * @param float $discountRate
+     * @param bool $isFixed
+     * @return string
+     */
+    private function generateLoyaltyRuleName(float $discountRate, bool $isFixed): string
+    {
+        if ($isFixed) {
+            return sprintf('LoyaltyEngage Fixed €%.2f', $discountRate);
+        }
+        return sprintf('LoyaltyEngage Percentage %.1f%%', $discountRate);
+    }
+
+    /**
+     * Find an existing LoyaltyEngage rule with the same discount value and type
+     *
+     * @param float $discountRate
+     * @param string $simpleAction
+     * @param int $websiteId
+     * @return \Magento\SalesRule\Model\Rule|null
+     */
+    private function findExistingLoyaltyRule(float $discountRate, string $simpleAction, int $websiteId)
+    {
+        // If RuleCollectionFactory is not available, return null (fallback to old behavior)
+        if ($this->ruleCollectionFactory === null) {
+            $this->loyaltyLogger->debug(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_LOYALTY,
+                'RuleCollectionFactory is null, cannot search for existing rules'
+            );
+            return null;
+        }
+        
+        $ruleName = $this->generateLoyaltyRuleName($discountRate, $simpleAction === 'cart_fixed');
+        
+        $this->loyaltyLogger->debug(
+            LoyaltyLogger::COMPONENT_API,
+            LoyaltyLogger::ACTION_LOYALTY,
+            sprintf('Searching for existing rule: %s', $ruleName),
+            ['rule_name' => $ruleName, 'simple_action' => $simpleAction, 'discount_rate' => $discountRate]
+        );
+        
+        $ruleCollection = $this->ruleCollectionFactory->create()
+            ->addFieldToFilter('name', $ruleName)
+            ->addFieldToFilter('simple_action', $simpleAction)
+            ->addFieldToFilter('discount_amount', $discountRate)
+            ->addFieldToFilter('is_active', 1);
+        
+        if ($ruleCollection->getSize() > 0) {
+            $rule = $ruleCollection->getFirstItem();
+            
+            // Ensure the rule supports multiple coupons (coupon_type = 3 = auto-generation)
+            // If it's still type 2 (specific), we need to update it
+            if ((int)$rule->getCouponType() !== \Magento\SalesRule\Model\Rule::COUPON_TYPE_AUTO) {
+                $this->loyaltyLogger->debug(
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_LOYALTY,
+                    sprintf('Updating rule %s coupon_type from %d to AUTO (3)', $rule->getName(), $rule->getCouponType()),
+                    ['rule_id' => $rule->getId(), 'old_coupon_type' => $rule->getCouponType()]
+                );
+                
+                $rule->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_AUTO);
+                $rule->setUseAutoGeneration(1);
+                $rule->save();
+            }
+            
+            $this->loyaltyLogger->debug(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf('Found existing rule: %s (ID: %d)', $rule->getName(), $rule->getId()),
+                ['rule_id' => $rule->getId(), 'rule_name' => $rule->getName()]
+            );
+            
+            return $rule;
+        }
+        
+        $this->loyaltyLogger->debug(
+            LoyaltyLogger::COMPONENT_API,
+            LoyaltyLogger::ACTION_LOYALTY,
+            sprintf('No existing rule found for: %s', $ruleName)
+        );
+        
+        return null;
+    }
+
+    /**
+     * Add a coupon code to an existing rule
+     *
+     * @param \Magento\SalesRule\Model\Rule $rule
+     * @param string $code
+     * @return void
+     */
+    private function addCouponToRule($rule, string $code): void
+    {
+        // If CouponFactory is not available, throw an exception
+        if ($this->couponFactory === null) {
+            throw new \RuntimeException('CouponFactory is not available. Please run setup:di:compile.');
+        }
+        
+        $coupon = $this->couponFactory->create();
+        $coupon->setRuleId($rule->getId())
+            ->setCode($code)
+            ->setUsageLimit(1) // Each coupon can only be used once
+            ->setUsagePerCustomer(1)
+            ->setIsPrimary(false)
+            ->setType(\Magento\SalesRule\Model\Coupon::TYPE_GENERATED);
+        
+        $coupon->save();
+    }
+
+    /**
+     * Get all customer group IDs from the database
+     * This ensures we only use customer groups that actually exist
+     *
+     * @return array
+     */
+    private function getAllCustomerGroupIds(): array
+    {
+        // If the repository is not available, fall back to common defaults
+        if ($this->customerGroupRepository === null || $this->searchCriteriaBuilderFactory === null) {
+            // Return only group 0 (NOT LOGGED IN) and 1 (General) as safe defaults
+            return [0, 1];
+        }
+
+        try {
+            $searchCriteria = $this->searchCriteriaBuilderFactory->create()->create();
+            $customerGroups = $this->customerGroupRepository->getList($searchCriteria);
+            
+            $groupIds = [];
+            foreach ($customerGroups->getItems() as $group) {
+                $groupIds[] = (int) $group->getId();
+            }
+            
+            // Ensure we have at least some groups
+            if (empty($groupIds)) {
+                return [0, 1];
+            }
+            
+            return $groupIds;
+        } catch (\Exception $e) {
+            $this->logger->warning('[LoyaltyShop] Could not fetch customer groups, using defaults', [
+                'message' => $e->getMessage()
+            ]);
+            // Fall back to safe defaults
+            return [0, 1];
         }
     }
 
@@ -545,10 +783,39 @@ class LoyaltyCart implements LoyaltyCartInterface
             // Create Magento cart rule - use percentage if available, otherwise fixed amount
             $finalCode = $this->ensureCartRuleExists($discountCode, $discountValue, !$usePercentage);
 
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_LOYALTY,
+                sprintf('Attempting to apply coupon %s to cart for customer %d', $finalCode, $customerId),
+                ['coupon_code' => $finalCode, 'customer_id' => $customerId]
+            );
+
             // Apply coupon to cart
             $quote = $this->getOrCreateCustomerQuote($customerId);
+            
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_LOYALTY,
+                sprintf('Got quote ID %s for customer %d, applying coupon %s', $quote->getId(), $customerId, $finalCode),
+                ['quote_id' => $quote->getId(), 'coupon_code' => $finalCode]
+            );
+            
             $quote->setCouponCode($finalCode);
             $quote->collectTotals()->save();
+            
+            // Verify the coupon was applied
+            $appliedCoupon = $quote->getCouponCode();
+            $this->loyaltyLogger->info(
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf('Coupon application result - Requested: %s, Applied: %s', $finalCode, $appliedCoupon ?: 'NONE'),
+                [
+                    'requested_coupon' => $finalCode,
+                    'applied_coupon' => $appliedCoupon,
+                    'quote_id' => $quote->getId(),
+                    'discount_amount' => $quote->getShippingAddress()->getDiscountAmount()
+                ]
+            );
 
             $discountTypeText = $usePercentage ? "{$discountPercentage}%" : "€{$discountAmount}";
             return $this->setSuccessResponse(

@@ -1,42 +1,35 @@
 <?xml version="1.0"?>
+<!--
+    SECURITY NOTE: 
+    
+    1. FRONTEND ENDPOINTS (Session-based authentication):
+       The cart management endpoints (add product, claim discount) are handled 
+       by frontend controllers with session-based authentication:
+       - loyaltyshop/cart/add (Controller/Cart/Add.php)
+       - loyaltyshop/discount/claim (Controller/Discount/Claim.php)
+       These controllers validate that the customer is logged in via CustomerSession.
+    
+    2. REST API ENDPOINTS (Basic Auth via Plugin):
+       The endpoints below are called by the external LoyaltyEngage backend system.
+       They use "anonymous" resource but are protected by the AuthenticationPlugin
+       (Plugin/WebApi/AuthenticationPlugin.php) which validates Basic Auth credentials
+       against the configured tenant_id and bearer_token.
+       
+       The LoyaltyEngage backend must send:
+       Authorization: Basic base64(tenant_id:bearer_token)
+-->
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi/etc/webapi.xsd">
-    <route method="POST" url="V1/loyalty/shop/:customer_id/cart/add">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="addProduct"/>
-        <resources>
-            <resource ref="anonymous"/>
-        </resources>
-    </route>
-    <route method="POST" url="/V1/loyalty/shop/:customerId/cart/remove">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemRemoveApiInterface" method="removeProduct" />
-        <resources>
-            <resource ref="anonymous" />
-        </resources>
-    </route>
-    <route method="DELETE" url="/V1/loyalty/shop/:customerId/cart">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface" method="removeAllProduct" />
-        <resources>
-            <resource ref="anonymous" />
-        </resources>
-    </route>
-    <route url="/V1/loyalty/discount/:customerId/claim-after-cart" method="POST">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="claimDiscountAfterAddToLoyaltyCart"/>
-        <resources>
-            <resource ref="anonymous"/>
-        </resources>
-    </route>
     
-    <route method="POST" url="V1/loyalty/shop/:customer_id/cart/add-multiple">
-        <service class="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface" method="addMultipleProducts"/>
-        <resources>
-            <resource ref="anonymous"/>
-        </resources>
-    </route>
-
+    <!-- 
+        Customer loyalty data update endpoint
+        Called by LoyaltyEngage backend to sync customer loyalty attributes (tier, points, coins)
+        Protected by Basic Auth via AuthenticationPlugin
+    -->
     <route method="POST" url="/V1/loyalty/customer/update">
         <service class="LoyaltyEngage\LoyaltyShop\Api\CustomerLoyaltyInterface" method="updateCustomerLoyaltyData"/>
         <resources>
-            <resource ref="self"/>
+            <resource ref="anonymous"/>
         </resources>
     </route>
 

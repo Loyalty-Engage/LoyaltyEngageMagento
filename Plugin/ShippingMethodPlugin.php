@@ -49,34 +49,26 @@ class ShippingMethodPlugin
      */
     public function afterGetResult(CarrierResult $subject, CarrierResult $result)
     {
-        // Temporary debug - force log to system log
-        error_log('[LOYALTY-DEBUG] ShippingMethodPlugin::afterGetResult called');
-        
         try {
             // Early exit if features disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
-                $this->logger->info('[LOYALTY-SHIPPING] Free shipping disabled, skipping');
-                error_log('[LOYALTY-DEBUG] Free shipping disabled, skipping');
+                $this->logger->debug('[LOYALTY-SHIPPING] Free shipping disabled, skipping');
                 return $result;
             }
-
-            error_log('[LOYALTY-DEBUG] Free shipping enabled, checking customer qualification');
 
             // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
-                $this->logger->info('[LOYALTY-SHIPPING] Customer does not qualify for free shipping');
-                error_log('[LOYALTY-DEBUG] Customer does not qualify for free shipping');
+                $this->logger->debug('[LOYALTY-SHIPPING] Customer does not qualify for free shipping');
                 return $result;
             }
 
-            error_log('[LOYALTY-DEBUG] Customer qualifies for free shipping, applying to rates');
+            $this->logger->debug('[LOYALTY-SHIPPING] Customer qualifies for free shipping, applying to rates');
 
             // Apply free shipping to all methods
             $this->applyFreeShippingToRates($result);
 
         } catch (\Exception $e) {
             $this->logger->error('[LOYALTY-SHIPPING] Error applying free shipping: ' . $e->getMessage());
-            error_log('[LOYALTY-DEBUG] Error applying free shipping: ' . $e->getMessage());
         }
 
         return $result;
@@ -93,7 +85,7 @@ class ShippingMethodPlugin
         $rates = $result->getAllRates();
         $freeShippingApplied = false;
 
-        $this->logger->info('[LOYALTY-SHIPPING] Processing ' . count($rates) . ' shipping rates');
+        $this->logger->debug('[LOYALTY-SHIPPING] Processing ' . count($rates) . ' shipping rates');
 
         foreach ($rates as $rate) {
             if ($rate instanceof ShippingMethod) {
@@ -108,7 +100,7 @@ class ShippingMethodPlugin
 
                 $freeShippingApplied = true;
 
-                $this->logger->info(sprintf(
+                $this->logger->debug(sprintf(
                     '[LOYALTY-SHIPPING] Free shipping applied - Method: %s_%s, Original Price: $%.2f, New Price: $0.00',
                     $rate->getCarrier(),
                     $rate->getMethod(),

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;
+use Magento\Framework\App\Helper\Context;
+use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
 
 class Data extends AbstractHelper
@@ -11,6 +13,23 @@ class Data extends AbstractHelper
     const XML_PATH_EXPORT = 'loyalty/export/';
     const XML_PATH_GENERAL = 'loyalty/general/';
     const XML_PATH_SHIPPING = 'loyalty/shipping/';
+
+    /**
+     * @var EncryptorInterface
+     */
+    private $encryptor;
+
+    /**
+     * @param Context $context
+     * @param EncryptorInterface $encryptor
+     */
+    public function __construct(
+        Context $context,
+        EncryptorInterface $encryptor
+    ) {
+        parent::__construct($context);
+        $this->encryptor = $encryptor;
+    }
 
     /**
      * Check if LoyaltyEngageEnabled is enabled
@@ -53,28 +72,44 @@ class Data extends AbstractHelper
 
     /**
      * Get Client ID (Tenant ID) from config
+     * Note: This value is stored encrypted in the database
      *
      * @return string|null
      */
     public function getClientId(): ?string
     {
-        return $this->scopeConfig->getValue(
+        $value = $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'tenant_id',
             ScopeInterface::SCOPE_STORE
         );
+        
+        if (empty($value)) {
+            return null;
+        }
+        
+        // Decrypt the value - Magento's Encrypted backend stores values encrypted
+        return $this->encryptor->decrypt($value);
     }
 
     /**
      * Get Client Secret (Bearer Token) from config
+     * Note: This value is stored encrypted in the database
      *
      * @return string|null
      */
     public function getClientSecret(): ?string
     {
-        return $this->scopeConfig->getValue(
+        $value = $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'bearer_token',
             ScopeInterface::SCOPE_STORE
         );
+        
+        if (empty($value)) {
+            return null;
+        }
+        
+        // Decrypt the value - Magento's Encrypted backend stores values encrypted
+        return $this->encryptor->decrypt($value);
     }
 
     /**

@@ -36,7 +36,8 @@
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Client Id</label>
                     <validate>required-entry</validate>
-                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PreserveValue</backend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>This value is stored encrypted in the database.</comment>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
                     </depends>
@@ -46,7 +47,8 @@
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Client Secret</label>
                     <validate>required-entry</validate>
-                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PreserveValue</backend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>This value is stored encrypted in the database.</comment>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
                     </depends>

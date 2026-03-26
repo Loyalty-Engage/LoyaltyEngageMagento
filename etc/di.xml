@@ -108,4 +108,21 @@
             type="LoyaltyEngage\LoyaltyShop\Plugin\Shipping\FlatratePlugin"
             sortOrder="100" />
     </type>
+    
+    <!-- Configure LoyaltyCart dependencies for rule reuse -->
+    <type name="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart">
+        <arguments>
+            <argument name="ruleCollectionFactory" xsi:type="object">Magento\SalesRule\Model\ResourceModel\Rule\CollectionFactory</argument>
+            <argument name="couponFactory" xsi:type="object">Magento\SalesRule\Model\CouponFactory</argument>
+            <argument name="customerGroupRepository" xsi:type="object">Magento\Customer\Api\GroupRepositoryInterface</argument>
+            <argument name="searchCriteriaBuilderFactory" xsi:type="object">Magento\Framework\Api\SearchCriteriaBuilderFactory</argument>
+        </arguments>
+    </type>
+    
+    <!-- REST API Authentication Plugin - validates Basic Auth for LoyaltyEngage endpoints -->
+    <type name="Magento\Webapi\Controller\Rest">
+        <plugin name="loyaltyshop_webapi_authentication_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\WebApi\AuthenticationPlugin"
+            sortOrder="10" />
+    </type>
 </config>
