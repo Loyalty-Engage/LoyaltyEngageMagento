@@ -9,8 +9,10 @@
                 <tenant_id></tenant_id>
                 <bearer_token></bearer_token>
                 <cart_expiry_time>1</cart_expiry_time>
-                <logger_enable>1</logger_enable>
+                <logger_enable>0</logger_enable>
+                <debug_logging>0</debug_logging>
                 <loyalty_order_place_retrieve>5</loyalty_order_place_retrieve>
+                <queue_processing_frequency>*/5 * * * *</queue_processing_frequency>
                 <minimum_order_value>0</minimum_order_value>
                 <minimum_order_value_message><![CDATA[Your cart subtotal must be at least €{{minimum}} to add loyalty products. Current subtotal: €{{current}}]]></minimum_order_value_message>
                 <minimum_order_value_bar_color>#e74c3c</minimum_order_value_bar_color>

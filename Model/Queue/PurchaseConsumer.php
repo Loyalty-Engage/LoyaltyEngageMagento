@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Model\Queue;
 
 use LoyaltyEngage\LoyaltyShop\Helper\Data;

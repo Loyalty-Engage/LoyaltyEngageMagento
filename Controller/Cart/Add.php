@@ -73,14 +73,6 @@ class Add implements HttpPostActionInterface
             $customerId = (int) $this->customerSession->getCustomerId();
             $sku = $data['sku'];
 
-            // Debug logging to check customer session
-            $this->logger->info('LoyaltyShop Cart Add Debug:', [
-                'customer_id' => $customerId,
-                'is_logged_in' => $this->customerSession->isLoggedIn(),
-                'customer_email' => $this->customerSession->getCustomer()->getEmail(),
-                'sku' => $sku
-            ]);
-
             // Use the existing loyalty cart service
             $response = $this->loyaltyCart->addProduct($customerId, $sku);
 

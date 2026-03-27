@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Plugin\Shipping;
 
 use Magento\OfflineShipping\Model\Carrier\Flatrate;
@@ -50,33 +53,23 @@ class FlatratePlugin
     public function afterCollectRates(Flatrate $subject, $result, RateRequest $request)
     {
         try {
-            // Early exit if features disabled
             if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
                 return $result;
             }
 
-            // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
                 return $result;
             }
 
-            // Apply free shipping to all rates in the result
             if ($result && $result->getAllRates()) {
                 foreach ($result->getAllRates() as $rate) {
-                    $originalPrice = $rate->getPrice();
                     $rate->setPrice(0);
                     $rate->setCost(0);
-                    
-                    $this->logger->debug(sprintf(
-                        '[LOYALTY-SHIPPING] Flatrate: Free shipping applied - Method: %s, Original Price: $%.2f',
-                        $rate->getMethod(),
-                        $originalPrice
-                    ));
                 }
             }
 
         } catch (\Exception $e) {
-            $this->logger->error('[LOYALTY-SHIPPING] Error in flatrate plugin: ' . $e->getMessage());
+            $this->logger->error('[LoyaltyShop] Error in flatrate plugin: ' . $e->getMessage());
         }
 
         return $result;

@@ -7,7 +7,6 @@ use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
-use Psr\Log\LoggerInterface;
 
 class CartUpdateObserver implements ObserverInterface
 {
@@ -22,25 +21,17 @@ class CartUpdateObserver implements ObserverInterface
     private $loyaltyLogger;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * CartUpdateObserver constructor
      *
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoyaltyLogger $loyaltyLogger
-     * @param LoggerInterface $logger
      */
     public function __construct(
         LoyaltyHelper $loyaltyHelper,
-        LoyaltyLogger $loyaltyLogger,
-        LoggerInterface $logger
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->loyaltyHelper = $loyaltyHelper;
         $this->loyaltyLogger = $loyaltyLogger;
-        $this->logger = $logger;
     }
 
     /**
@@ -67,30 +58,21 @@ class CartUpdateObserver implements ObserverInterface
             return;
         }
 
-        $this->logger->info('[LOYALTY-CART] Cart update observer triggered - checking loyalty products');
-
         // Process all items in the cart
         $itemsUpdated = 0;
         foreach ($quote->getAllItems() as $item) {
             if ($this->isConfirmedLoyaltyProduct($item)) {
                 $currentQty = $item->getQty();
-                
+
                 if ($currentQty != 1) {
                     $item->setQty(1);
                     $itemsUpdated++;
 
-                    $this->logger->info(sprintf(
-                        '[LOYALTY-CART] Cart update: Reset loyalty product %s (SKU: %s) from qty %s to 1',
-                        $item->getName(),
-                        $item->getSku(),
-                        $currentQty
-                    ));
-
-                    $this->loyaltyLogger->info(
+                    $this->loyaltyLogger->debug(
                         LoyaltyLogger::COMPONENT_OBSERVER,
                         LoyaltyLogger::ACTION_LOYALTY,
                         sprintf(
-                            'Cart update - Loyalty product quantity enforced: %s (SKU: %s) - Changed from %s to 1',
+                            'Loyalty product quantity enforced: %s (SKU: %s) - Changed from %s to 1',
                             $item->getName(),
                             $item->getSku(),
                             $currentQty
@@ -98,13 +80,6 @@ class CartUpdateObserver implements ObserverInterface
                     );
                 }
             }
-        }
-
-        if ($itemsUpdated > 0) {
-            $this->logger->info(sprintf(
-                '[LOYALTY-CART] Cart update complete - %d loyalty product quantities enforced',
-                $itemsUpdated
-            ));
         }
     }
 

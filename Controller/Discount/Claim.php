@@ -73,14 +73,6 @@ class Claim implements HttpPostActionInterface
             $customerId = (int) $this->customerSession->getCustomerId();
             $sku = $data['sku'];
 
-            // Debug logging to check customer session
-            $this->logger->info('LoyaltyShop Buy Discount Code Debug:', [
-                'customer_id' => $customerId,
-                'is_logged_in' => $this->customerSession->isLoggedIn(),
-                'customer_email' => $this->customerSession->getCustomer()->getEmail(),
-                'sku' => $sku
-            ]);
-
             // Use the new buyDiscountCodeProduct method
             $response = $this->loyaltyCart->buyDiscountCodeProduct($customerId, $sku);
 

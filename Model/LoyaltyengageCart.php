@@ -21,7 +21,7 @@ class LoyaltyengageCart
 
     protected const XML_PATH_CART_EXPIRY_TIME = 'loyalty/general/cart_expiry_time';
 
-    protected const XML_PATH_LOGGEER = 'loyalty/general/logger_enable';
+    protected const XML_PATH_LOGGER = 'loyalty/general/logger_enable';
 
     protected const XML_PATH_LOYALTY_ORDER_PLACE_RETRIEVE = 'loyalty/general/loyalty_order_place_retrieve';
 
@@ -105,7 +105,7 @@ class LoyaltyengageCart
     public function getLoggerStatus(): ?string
     {
         $bearerToken = $this->scopeConfig->getValue(
-            self::XML_PATH_LOGGEER,
+            self::XML_PATH_LOGGER,
             \Magento\Store\Model\ScopeInterface::SCOPE_STORE
         );
         return $bearerToken;
@@ -118,7 +118,7 @@ class LoyaltyengageCart
      */
     private function basicAuth(): string
     {
-        $tenantId = $this->getTenantId();
+        $tenantId = $this->getTenantID();
         $bearerToken = $this->getBearerToken();
 
         $authString = base64_encode($tenantId . ':' . $bearerToken);

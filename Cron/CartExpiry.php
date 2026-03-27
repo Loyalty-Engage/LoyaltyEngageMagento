@@ -120,8 +120,7 @@ class CartExpiry
                         if ($loggerStatus) {
                             $this->logger->warning(
                                 sprintf(
-                                    '[CartExpiry] Could not remove loyalty products from external system for %s (Quote ID: %d). Response: %d',
-                                    $email,
+                                    '[CartExpiry] Could not remove loyalty products from external system for quote ID %d. Response: %d',
                                     $quote->getId(),
                                     $response
                                 )

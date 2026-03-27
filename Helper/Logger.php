@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;

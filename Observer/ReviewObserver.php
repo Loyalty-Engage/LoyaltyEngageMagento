@@ -1,12 +1,15 @@
 <?php
+
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Observer;
 
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\MessageQueue\PublisherInterface;
+use Magento\Customer\Api\CustomerRepositoryInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
-use Psr\Log\LoggerInterface;
 
 class ReviewObserver implements ObserverInterface
 {
@@ -21,41 +24,40 @@ class ReviewObserver implements ObserverInterface
     private $loyaltyHelper;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * @var LoyaltyLogger
      */
     private $loyaltyLogger;
 
     /**
+     * @var CustomerRepositoryInterface
+     */
+    private $customerRepository;
+
+    /**
      * @param PublisherInterface $publisher
      * @param LoyaltyHelper $loyaltyHelper
-     * @param LoggerInterface $logger
      * @param LoyaltyLogger $loyaltyLogger
+     * @param CustomerRepositoryInterface $customerRepository
      */
     public function __construct(
         PublisherInterface $publisher,
         LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger,
-        LoyaltyLogger $loyaltyLogger
+        LoyaltyLogger $loyaltyLogger,
+        CustomerRepositoryInterface $customerRepository
     ) {
         $this->publisher = $publisher;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
         $this->loyaltyLogger = $loyaltyLogger;
+        $this->customerRepository = $customerRepository;
     }
 
     /**
-     * Execute observer - lightweight review capture
-     * Note: Logging is now minimal for privacy
+     * Execute observer - queue approved review for loyalty export
      *
      * @param Observer $observer
      * @return void
      */
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         // Early exit if module or review export is disabled
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isReviewExportEnabled()) {
@@ -64,21 +66,19 @@ class ReviewObserver implements ObserverInterface
 
         try {
             $review = $observer->getEvent()->getObject();
-            
+
             // Only process approved reviews
             if ($review->getStatusId() != \Magento\Review\Model\Review::STATUS_APPROVED) {
                 return;
             }
 
-            // Get customer email (lightweight approach)
+            // Get customer email via DI (no ObjectManager)
             $customerEmail = $this->getCustomerEmail($review);
             if (!$customerEmail) {
-                // No logging for missing email - this is expected for guest reviews
                 return;
             }
 
-            // Prepare lightweight review data for queue
-            // Note: Email is needed in queue data for API call, but not logged
+            // Prepare review data for queue
             $reviewData = [
                 'review_id' => $review->getId(),
                 'customer_email' => $customerEmail,
@@ -86,14 +86,13 @@ class ReviewObserver implements ObserverInterface
                 'timestamp' => time()
             ];
 
-            // Queue the review data (async processing)
+            // Queue the review data for async processing
             $this->publisher->publish('loyaltyshop.review_event', json_encode($reviewData));
-            
-            // Only log if debug is enabled, and use masked email
+
             if ($this->loyaltyLogger->isDebugEnabled()) {
                 $this->loyaltyLogger->debug(
                     LoyaltyLogger::COMPONENT_QUEUE,
-                    'REVIEW',
+                    LoyaltyLogger::ACTION_LOYALTY,
                     sprintf('Review %d queued for %s', $review->getId(), $this->loyaltyLogger->maskEmail($customerEmail))
                 );
             }
@@ -108,7 +107,7 @@ class ReviewObserver implements ObserverInterface
     }
 
     /**
-     * Get customer email from review (lightweight method)
+     * Get customer email from review using DI-injected repository
      *
      * @param \Magento\Review\Model\Review $review
      * @return string|null
@@ -118,12 +117,10 @@ class ReviewObserver implements ObserverInterface
         // Try to get from customer ID first (most efficient)
         if ($review->getCustomerId()) {
             try {
-                $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-                $customerRepository = $objectManager->get(\Magento\Customer\Api\CustomerRepositoryInterface::class);
-                $customer = $customerRepository->getById($review->getCustomerId());
+                $customer = $this->customerRepository->getById($review->getCustomerId());
                 return $customer->getEmail();
             } catch (\Exception $e) {
-                // Silently fail - no need to log this
+                // Customer not found, fall through to nickname check
             }
         }
 

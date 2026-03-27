@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Model\Queue;
 
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
@@ -35,20 +37,18 @@ class FreeProductPurchaseConsumer
                 $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
 
                 $email = $payload['email'];
-                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$email}/cart/purchase";
+                $maskedEmail = $this->maskEmail($email);
+                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/" . rawurlencode($email) . "/cart/purchase";
 
                 $requestPayload = [
                     'orderId' => $payload['orderId'],
                     'products' => $payload['products']
                 ];
 
-                // Log the request details
                 $this->logger->info("[LoyaltyShop] Free Product Purchase API Request", [
-                    'endpoint' => $endpoint,
-                    'email' => $email,
+                    'email' => $maskedEmail,
                     'orderId' => $payload['orderId'],
                     'products_count' => count($payload['products']),
-                    'request_payload' => $requestPayload,
                     'timestamp' => date('Y-m-d H:i:s')
                 ]);
 
@@ -64,19 +64,17 @@ class FreeProductPurchaseConsumer
                 if ($status >= 200 && $status < 300) {
                     $this->logger->info("[LoyaltyShop] Free Product Purchase API Success", [
                         'http_status' => $status,
-                        'email' => $email,
+                        'email' => $maskedEmail,
                         'orderId' => $payload['orderId'],
-                        'response_body' => $response,
                         'processing_time_ms' => $processingTime,
                         'timestamp' => date('Y-m-d H:i:s')
                     ]);
                 } else {
                     $this->logger->error("[LoyaltyShop] Free Product Purchase API Error", [
                         'http_status' => $status,
-                        'email' => $email,
+                        'email' => $maskedEmail,
                         'orderId' => $payload['orderId'],
                         'response_body' => $response,
-                        'request_payload' => $requestPayload,
                         'processing_time_ms' => $processingTime,
                         'timestamp' => date('Y-m-d H:i:s')
                     ]);
@@ -84,15 +82,35 @@ class FreeProductPurchaseConsumer
 
             } catch (\Exception $e) {
                 $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+                $maskedEmail = isset($payload['email']) ? $this->maskEmail($payload['email']) : 'unknown';
                 $this->logger->error("[LoyaltyShop] Free Product Purchase Exception", [
                     'error_message' => $e->getMessage(),
-                    'error_trace' => $e->getTraceAsString(),
-                    'email' => $payload['email'] ?? 'unknown',
+                    'email' => $maskedEmail,
                     'orderId' => $payload['orderId'] ?? 'unknown',
                     'processing_time_ms' => $processingTime,
                     'timestamp' => date('Y-m-d H:i:s')
                 ]);
             }
         }
+    }
+
+    /**
+     * Mask email address for privacy in logs
+     *
+     * @param string $email
+     * @return string
+     */
+    private function maskEmail(string $email): string
+    {
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return '***';
+        }
+        $name = $parts[0];
+        $domain = $parts[1];
+        $maskedName = strlen($name) > 2
+            ? substr($name, 0, 1) . '***' . substr($name, -1)
+            : '***';
+        return $maskedName . '@' . $domain;
     }
 }

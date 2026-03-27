@@ -34,9 +34,15 @@ class FreeProductRemoveConsumer
                 $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
 
                 $email = $payload['email'];
-                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$email}/cart/remove";
+                // Mask email in URL for logging
+                $maskedEmail = $this->maskEmail($email);
+                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/" . rawurlencode($email) . "/cart/remove";
 
-                $this->logger->info("[LoyaltyShop] Sending DELETE request to: $endpoint with payload", $payload);
+                $this->logger->info("[LoyaltyShop] Sending free product remove request", [
+                    'email' => $maskedEmail,
+                    'sku' => $payload['sku'] ?? 'unknown',
+                    'quantity' => $payload['quantity'] ?? 0
+                ]);
 
                 // Using Curl class for DELETE request
                 $this->curl->addHeader("Content-Type", "application/json");
@@ -57,5 +63,25 @@ class FreeProductRemoveConsumer
                 $this->logger->error("[LoyaltyShop] Free product remove error: " . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Mask email address for privacy in logs
+     *
+     * @param string $email
+     * @return string
+     */
+    private function maskEmail(string $email): string
+    {
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return '***';
+        }
+        $name = $parts[0];
+        $domain = $parts[1];
+        $maskedName = strlen($name) > 2
+            ? substr($name, 0, 1) . '***' . substr($name, -1)
+            : '***';
+        return $maskedName . '@' . $domain;
     }
 }

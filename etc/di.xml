@@ -19,13 +19,6 @@
             <argument name="columns" xsi:type="array">
                 <item name="loyalty_order_place" xsi:type="string">
                     sales_order.loyalty_order_place</item>
-            </argument>
-        </arguments>
-    </virtualType>
-    <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
-        type="Magento\Sales\Model\ResourceModel\Grid">
-        <arguments>
-            <argument name="columns" xsi:type="array">
                 <item name="loyalty_order_place_retrieve" xsi:type="string">
                     sales_order.loyalty_order_place_retrieve</item>
             </argument>

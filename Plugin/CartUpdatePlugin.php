@@ -8,7 +8,6 @@ use Magento\Framework\App\RequestInterface;
 use Magento\Checkout\Model\Session as CheckoutSession;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
-use Psr\Log\LoggerInterface;
 
 class CartUpdatePlugin
 {
@@ -33,31 +32,23 @@ class CartUpdatePlugin
     private $loyaltyLogger;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * CartUpdatePlugin constructor
      *
      * @param RequestInterface $request
      * @param CheckoutSession $checkoutSession
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoyaltyLogger $loyaltyLogger
-     * @param LoggerInterface $logger
      */
     public function __construct(
         RequestInterface $request,
         CheckoutSession $checkoutSession,
         LoyaltyHelper $loyaltyHelper,
-        LoyaltyLogger $loyaltyLogger,
-        LoggerInterface $logger
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->request = $request;
         $this->checkoutSession = $checkoutSession;
         $this->loyaltyHelper = $loyaltyHelper;
         $this->loyaltyLogger = $loyaltyLogger;
-        $this->logger = $logger;
     }
 
     /**
@@ -83,10 +74,8 @@ class CartUpdatePlugin
             return;
         }
 
-        $this->logger->info('[LOYALTY-CART] Cart update plugin triggered - processing cart data');
-
         $updatesEnforced = 0;
-        
+
         // Process each item in the cart update request
         foreach ($cartData as $itemId => $itemData) {
             if (!isset($itemData['qty'])) {
@@ -95,7 +84,7 @@ class CartUpdatePlugin
 
             $requestedQty = (float)$itemData['qty'];
             $quoteItem = $quote->getItemById($itemId);
-            
+
             if (!$quoteItem) {
                 continue;
             }
@@ -107,18 +96,11 @@ class CartUpdatePlugin
                     $cartData[$itemId]['qty'] = 1;
                     $updatesEnforced++;
 
-                    $this->logger->info(sprintf(
-                        '[LOYALTY-CART] Cart update plugin: Enforced qty=1 for loyalty product %s (SKU: %s) - requested qty was %s',
-                        $quoteItem->getName(),
-                        $quoteItem->getSku(),
-                        $requestedQty
-                    ));
-
-                    $this->loyaltyLogger->info(
+                    $this->loyaltyLogger->debug(
                         LoyaltyLogger::COMPONENT_PLUGIN,
                         LoyaltyLogger::ACTION_LOYALTY,
                         sprintf(
-                            'Cart update - Loyalty product quantity enforced: %s (SKU: %s) - Requested %s, enforced 1',
+                            'Loyalty product quantity enforced: %s (SKU: %s) - Requested %s, enforced 1',
                             $quoteItem->getName(),
                             $quoteItem->getSku(),
                             $requestedQty
@@ -131,11 +113,6 @@ class CartUpdatePlugin
         if ($updatesEnforced > 0) {
             // Update the request with the enforced quantities
             $this->request->setParam('cart', $cartData);
-            
-            $this->logger->info(sprintf(
-                '[LOYALTY-CART] Cart update plugin complete - %d loyalty product quantities enforced',
-                $updatesEnforced
-            ));
         }
     }
 

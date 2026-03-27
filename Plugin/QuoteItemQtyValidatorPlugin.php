@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Plugin;
@@ -7,7 +8,6 @@ use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
 use Magento\CatalogInventory\Model\Quote\Item\QuantityValidator;
 use Magento\Framework\Event\Observer;
-use Psr\Log\LoggerInterface;
 
 class QuoteItemQtyValidatorPlugin
 {
@@ -22,30 +22,21 @@ class QuoteItemQtyValidatorPlugin
     private $loyaltyLogger;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * QuoteItemQtyValidatorPlugin construct
      *
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoyaltyLogger $loyaltyLogger
-     * @param LoggerInterface $logger
      */
     public function __construct(
         LoyaltyHelper $loyaltyHelper,
-        LoyaltyLogger $loyaltyLogger,
-        LoggerInterface $logger
+        LoyaltyLogger $loyaltyLogger
     ) {
         $this->loyaltyHelper = $loyaltyHelper;
         $this->loyaltyLogger = $loyaltyLogger;
-        $this->logger = $logger;
     }
 
     /**
      * Enforce quantity = 1 for loyalty products (before validation)
-     * STRICT APPROACH: Always enforce qty = 1 for confirmed loyalty products
      *
      * @param QuantityValidator $subject
      * @param Observer $observer
@@ -59,31 +50,21 @@ class QuoteItemQtyValidatorPlugin
         }
 
         $quoteItem = $observer->getEvent()->getItem();
-        
-        // Early exit if no quote item
+
         if (!$quoteItem) {
             return;
         }
 
-        // ONLY process if this is a 100% confirmed loyalty product
         if (!$this->isConfirmedLoyaltyProduct($quoteItem)) {
-            return; // Leave regular products completely untouched
+            return;
         }
 
         $currentQty = $quoteItem->getQty();
-        
-        // ALWAYS enforce quantity = 1 for loyalty products
+
         if ($currentQty != 1) {
             $quoteItem->setQty(1);
 
-            // Log the enforcement action
-            $this->logger->info(sprintf(
-                '[LOYALTY-CART] Quantity enforcement: Reset qty for loyalty product %s from %s to 1',
-                $quoteItem->getSku(),
-                $currentQty
-            ));
-
-            $this->loyaltyLogger->info(
+            $this->loyaltyLogger->debug(
                 LoyaltyLogger::COMPONENT_PLUGIN,
                 LoyaltyLogger::ACTION_VALIDATION,
                 sprintf(
@@ -132,7 +113,6 @@ class QuoteItemQtyValidatorPlugin
             }
         }
 
-        // Not a confirmed loyalty product
         return false;
     }
 
