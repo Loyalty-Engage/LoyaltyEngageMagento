@@ -17,11 +17,14 @@ use Psr\Log\LoggerInterface;
 class ConfigureCronConsumers implements DataPatchInterface
 {
     /**
-     * LoyaltyShop consumers that need to be processed
+     * LoyaltyShop consumers that need to be processed via cron_consumers_runner
      */
     private const LOYALTY_CONSUMERS = [
         'loyaltyshop_free_product_purchase_event_consumer',
         'loyaltyshop_free_product_remove_event_consumer',
+        'loyaltyshop_purchase_event_consumer',
+        'loyaltyshop_return_event_consumer',
+        'loyaltyshop_review_event_consumer',
     ];
 
     /**

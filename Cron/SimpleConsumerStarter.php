@@ -11,9 +11,9 @@ use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 class SimpleConsumerStarter
 {
     /**
-     * List of consumers to process
+     * Core consumers that always run (free product functionality)
      */
-    private const CONSUMERS = [
+    private const CORE_CONSUMERS = [
         'loyaltyshop_free_product_purchase_event_consumer',
         'loyaltyshop_free_product_remove_event_consumer',
     ];
@@ -47,12 +47,36 @@ class SimpleConsumerStarter
         }
 
         try {
-            foreach (self::CONSUMERS as $consumerName) {
+            foreach ($this->getActiveConsumers() as $consumerName) {
                 $this->processConsumer($consumerName);
             }
         } catch (\Exception $e) {
             $this->logger->error("[LoyaltyShop] Queue Consumer Error: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Get list of consumers to process based on enabled export settings
+     *
+     * @return array
+     */
+    private function getActiveConsumers(): array
+    {
+        $consumers = self::CORE_CONSUMERS;
+
+        if ($this->loyaltyHelper->isPurchaseExportEnabled()) {
+            $consumers[] = 'loyaltyshop_purchase_event_consumer';
+        }
+
+        if ($this->loyaltyHelper->isReturnExportEnabled()) {
+            $consumers[] = 'loyaltyshop_return_event_consumer';
+        }
+
+        if ($this->loyaltyHelper->isReviewExportEnabled()) {
+            $consumers[] = 'loyaltyshop_review_event_consumer';
+        }
+
+        return $consumers;
     }
 
     /**

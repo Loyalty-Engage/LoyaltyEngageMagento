@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-04-01
+
+### Fixed
+- **Queue consumers not running automatically**: `SimpleConsumerStarter` cron now processes purchase, return, and review consumers based on their respective export settings in admin
+  - `loyaltyshop_purchase_event_consumer` → runs only when Purchase Export is enabled
+  - `loyaltyshop_return_event_consumer` → runs only when Return Export is enabled
+  - `loyaltyshop_review_event_consumer` → runs only when Review Export is enabled
+  - Free product consumers always run (core functionality)
+- **ConfigureCronConsumers setup patch**: All 5 consumers are now registered in `env.php` for installations using Magento's native `cron_consumers_runner`
+
 ## [2.4.1] - 2026-03-27
 
 ### Changed
