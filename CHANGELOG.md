@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-04-01
+
+### Fixed
+- **Purchase/Return payload: use `identifier` instead of `email`**: LoyaltyEngage API requires `identifier` field (not `email`) for contact identification in Purchase and Return events
+- **Purchase/Return payload: price as numeric string**: Price is now formatted as a numeric string (e.g. `"45.00"`) using `number_format()` instead of a PHP float, matching the API's `numeric string` type requirement
+- **ReviewConsumer: payload wrapped in array**: Review event payload is now sent as an array of events (`[{...}]`) matching the API's expected format
+
 ## [2.4.2] - 2026-04-01
 
 ### Fixed

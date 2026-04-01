@@ -98,9 +98,11 @@ class ReviewConsumer
 
         // Prepare API payload (email is needed for API, not logged)
         $payload = [
-            'event' => 'Review',
-            'identifier' => $reviewData['customer_email'],
-            'reviewid' => (string)$reviewData['review_id']
+            [
+                'event' => 'Review',
+                'identifier' => $reviewData['customer_email'],
+                'reviewid' => (string)$reviewData['review_id']
+            ]
         ];
 
         // Prepare API endpoint

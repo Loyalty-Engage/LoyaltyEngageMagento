@@ -54,7 +54,7 @@ class PurchaseObserver implements ObserverInterface
             foreach ($order->getAllVisibleItems() as $item) {
                 $products[] = [
                     'sku' => $item->getSku(),
-                    'price' => (float) $item->getPrice(),
+                    'price' => number_format((float) $item->getPrice(), 2, '.', ''),
                     'quantity' => (int) $item->getQtyOrdered()
                 ];
             }
@@ -62,7 +62,7 @@ class PurchaseObserver implements ObserverInterface
             $payload = [
                 [
                     'event' => 'Purchase',
-                    'email' => $email,
+                    'identifier' => $email,
                     'orderId' => $orderId,
                     'orderDate' => $orderDate,
                     'products' => $products

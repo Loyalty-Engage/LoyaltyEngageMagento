@@ -2,7 +2,7 @@
     "name": "loyaltyengage/loyaltyshop",
     "description": "Magento 2 module to add products to cart based on loyalty points",
     "type": "magento2-module",
-    "version": "2.4.2",
+    "version": "2.4.3",
     "license": "MIT",
     "homepage": "https://github.com/Loyalty-Engage/LoyaltyEngageMagento",
     "repository": {

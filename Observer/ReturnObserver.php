@@ -44,7 +44,7 @@ class ReturnObserver implements ObserverInterface
             foreach ($creditmemo->getAllItems() as $item) {
                 $products[] = [
                     'sku' => $item->getSku(),
-                    'price' => (float) $item->getPrice(),
+                    'price' => number_format((float) $item->getPrice(), 2, '.', ''),
                     'quantity' => (int) $item->getQty()
                 ];
             }
@@ -52,7 +52,7 @@ class ReturnObserver implements ObserverInterface
             $payload = [
                 [
                     'event' => 'Return',
-                    'email' => $email,
+                    'identifier' => $email,
                     'orderDate' => $returnDate,
                     'products' => $products
                 ]
