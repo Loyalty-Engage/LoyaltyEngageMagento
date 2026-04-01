@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-03-27
+
+### Changed
+- Remove debug/internal markdown documentation files (ARCHITECTURE, INSTALLATION, QUEUE_SETUP, etc.)
+- Remove unused frontend layout files (catalog_category_view, catalog_product_view, checkout_cart_index, checkout_cart_item_renderers)
+- Remove unused Luma cart template (`view/frontend/templates/cart/item/default.phtml`)
+- Remove `Cron/ConsumerStarter.php` (superseded by `SimpleConsumerStarter`)
+- Remove verbose debug logging from all Observers, Plugins, and Crons
+
+### Fixed
+- GDPR: mask customer emails in all log statements
+- Replace `ObjectManager` usage in `ReviewObserver` with proper dependency injection
+- Remove unused `LoggerInterface` dependencies from `CartUpdateObserver`, `CartUpdatePlugin`, `QuoteItemQtyValidatorPlugin`
+- Fix typo: `XML_PATH_LOGGEER` → `XML_PATH_LOGGER` in `LoyaltyengageCart`
+- Fix typo: `getTenantId()` → `getTenantID()` in `LoyaltyengageCart`
+- Fix crontab.xml comment: 'every hour' → 'daily at midnight'
+
+### Added
+- `declare(strict_types=1)` to all PHP files missing it
+- `debug_logging` and `queue_processing_frequency` defaults to `config.xml`
+- Set `logger_enable` default to `0` (off) in `config.xml`
+
 ## [2.4.0] - 2026-03-25
 
 ### Security
