@@ -409,7 +409,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                 return $code;
             }
 
-            // No existing rule found OR factories not available - create a new rule with the coupon code directly
+            // No existing rule found OR factories not available - create a new rule
             $rule = $this->ruleFactory->create();
             $rule->setName($ruleName)
                 ->setDescription('Auto-generated from LoyaltyEngage')
@@ -417,16 +417,19 @@ class LoyaltyCart implements LoyaltyCartInterface
                 ->setIsActive(1)
                 ->setSimpleAction($simpleAction)
                 ->setDiscountAmount($discountRate)
-                ->setStopRulesProcessing(0)
+                ->setStopRulesProcessing(1)
                 ->setIsAdvanced(1)
-                ->setUsesPerCustomer(1)
+                ->setUsesPerCustomer(0)
                 ->setCustomerGroupIds($customerGroupIds)
                 ->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_SPECIFIC)
-                ->setCouponCode($code) // Set coupon code directly on the rule
+                ->setUseAutoGeneration(1)
                 ->setUsesPerCoupon(1)
                 ->setWebsiteIds([$websiteId]);
 
             $rule->save();
+
+            // Add the first coupon as a managed coupon so it appears in Manage Coupon Codes
+            $this->addCouponToRule($rule, $code);
 
             $this->loyaltyLogger->info(
                 LoyaltyLogger::COMPONENT_API,
@@ -504,21 +507,6 @@ class LoyaltyCart implements LoyaltyCartInterface
         if ($ruleCollection->getSize() > 0) {
             $rule = $ruleCollection->getFirstItem();
             
-            // Ensure the rule supports multiple coupons (coupon_type = 3 = auto-generation)
-            // If it's still type 2 (specific), we need to update it
-            if ((int)$rule->getCouponType() !== \Magento\SalesRule\Model\Rule::COUPON_TYPE_AUTO) {
-                $this->loyaltyLogger->debug(
-                    LoyaltyLogger::COMPONENT_API,
-                    LoyaltyLogger::ACTION_LOYALTY,
-                    sprintf('Updating rule %s coupon_type from %d to AUTO (3)', $rule->getName(), $rule->getCouponType()),
-                    ['rule_id' => $rule->getId(), 'old_coupon_type' => $rule->getCouponType()]
-                );
-                
-                $rule->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_AUTO);
-                $rule->setUseAutoGeneration(1);
-                $rule->save();
-            }
-            
             $this->loyaltyLogger->debug(
                 LoyaltyLogger::COMPONENT_API,
                 LoyaltyLogger::ACTION_SUCCESS,
@@ -539,7 +527,7 @@ class LoyaltyCart implements LoyaltyCartInterface
     }
 
     /**
-     * Add a coupon code to an existing rule
+     * Add a coupon code to an existing rule's Manage Coupon Codes section
      *
      * @param \Magento\SalesRule\Model\Rule $rule
      * @param string $code
@@ -557,7 +545,7 @@ class LoyaltyCart implements LoyaltyCartInterface
             ->setCode($code)
             ->setUsageLimit(1) // Each coupon can only be used once
             ->setUsagePerCustomer(1)
-            ->setIsPrimary(false)
+            ->setIsPrimary(false) // Keep coupon_code field on rule empty
             ->setType(\Magento\SalesRule\Model\Coupon::TYPE_GENERATED);
         
         $coupon->save();

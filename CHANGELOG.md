@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.4] - 2026-04-13
+
+### Fixed
+- **Cart price rule coupon type stays Specific**: Removed logic that incorrectly upgraded existing rules from `COUPON_TYPE_SPECIFIC` to `COUPON_TYPE_AUTO` when a second discount code was created for the same rule
+- **Coupon code field stays empty on rule**: All discount codes are now created exclusively in the "Manage Coupon Codes" section (`is_primary = false`), keeping the rule's "Coupon Code" field empty
+- **New rules use auto generation**: New cart price rules now set `use_auto_generation = 1` so multiple coupon codes can be added without manually enabling the checkbox in admin
+
+### Changed
+- **Cart price rule settings**: New rules are now created with `uses_per_customer = 0` (unlimited) and `stop_rules_processing = 1` (Discard subsequent rules = Yes)
+
 ## [2.4.3] - 2026-04-01
 
 ### Fixed
