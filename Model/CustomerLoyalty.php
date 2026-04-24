@@ -12,7 +12,7 @@ use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CustomerLoyalty implements CustomerLoyaltyInterface
 {
@@ -32,26 +32,26 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
     private $responseFactory;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
+    * @var LoyaltyHelper
+    */
+    private $loyaltyHelper;
 
     /**
      * @param CustomerRepositoryInterface $customerRepository
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      * @param CustomerLoyaltyUpdateResponseInterfaceFactory $responseFactory
-     * @param LoggerInterface $logger
+     * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
         CustomerRepositoryInterface $customerRepository,
         SearchCriteriaBuilder $searchCriteriaBuilder,
         CustomerLoyaltyUpdateResponseInterfaceFactory $responseFactory,
-        LoggerInterface $logger
+        LoyaltyHelper $loyaltyHelper
     ) {
         $this->customerRepository = $customerRepository;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
         $this->responseFactory = $responseFactory;
-        $this->logger = $logger;
+        $this->loyaltyHelper = $loyaltyHelper;
     }
 
     /**
@@ -116,11 +116,17 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
                 $response->setCustomerId((int) $customer->getId());
                 $response->setUpdatedFields($updatedFields);
                 
-                $this->logger->info('Customer loyalty data updated', [
-                    'customer_id' => $customer->getId(),
-                    'email' => $email,
-                    'updated_fields' => $updatedFields
-                ]);
+                $this->loyaltyHelper->log(
+                    'info',
+                    'CustomerLoyalty',
+                    'updateCustomerLoyaltyData',
+                    'Customer loyalty data updated',
+                    [
+                        'customer_id' => $customer->getId(),
+                        'email' => $email,
+                        'updated_fields' => $updatedFields
+                    ]
+                );
             } else {
                 $response->setSuccess(true);
                 $response->setMessage('No fields provided for update');
@@ -129,20 +135,32 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             }
 
         } catch (LocalizedException $e) {
-            $this->logger->error('Error updating customer loyalty data: ' . $e->getMessage(), [
-                'email' => $email,
-                'exception' => $e
-            ]);
+            $this->loyaltyHelper->log(
+                'error',
+                'CustomerLoyalty',
+                'updateCustomerLoyaltyData',
+                'Error updating customer loyalty data: ' . $e->getMessage(),
+                [
+                    'email' => $email,
+                    'exception' => $e
+                ]
+            );
             
             $response->setSuccess(false);
             $response->setMessage('Error updating customer loyalty data: ' . $e->getMessage());
             $response->setCustomerId(null);
             $response->setUpdatedFields([]);
         } catch (\Exception $e) {
-            $this->logger->error('Unexpected error updating customer loyalty data: ' . $e->getMessage(), [
-                'email' => $email,
-                'exception' => $e
-            ]);
+            $this->loyaltyHelper->log(
+                'error',
+                'CustomerLoyalty',
+                'updateCustomerLoyaltyData',
+                'Unexpected error updating customer loyalty data: ' . $e->getMessage(),
+                [
+                    'email' => $email,
+                    'exception' => $e
+                ]
+            );
             
             $response->setSuccess(false);
             $response->setMessage('Unexpected error occurred while updating customer loyalty data');
@@ -176,10 +194,16 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             
             return null;
         } catch (LocalizedException $e) {
-            $this->logger->error('Error searching for customer by email: ' . $e->getMessage(), [
-                'email' => $email,
-                'exception' => $e
-            ]);
+            $this->loyaltyHelper->log(
+                'error',
+                'CustomerLoyalty',
+                'getCustomerByEmail',
+                'Error searching for customer by email: ' . $e->getMessage(),
+                [
+                    'email' => $email,
+                    'exception' => $e
+                ]
+            );
             throw $e;
         }
     }

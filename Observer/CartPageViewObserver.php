@@ -6,52 +6,43 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
-use LoyaltyEngage\LoyaltyShop\Helper\Logger;
-use Magento\Customer\Model\Session;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Checkout\Model\Session as CheckoutSession;
-use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
 
 class CartPageViewObserver implements ObserverInterface
 {
     /**
-     * @var Logger
+     * @var LoyaltyHelper
      */
-    private $loyaltyLogger;
-
-    /**
-     * @var Session
-     */
-    private $customerSession;
+    private LoyaltyHelper $loyaltyHelper;
 
     /**
      * @var StoreManagerInterface
      */
-    private $storeManager;
+    private StoreManagerInterface $storeManager;
 
     /**
      * @var CheckoutSession
      */
-    private $checkoutSession;
+    private CheckoutSession $checkoutSession;
 
     /**
-     * @param Logger $loyaltyLogger
-     * @param Session $customerSession
+     * Constructor
+     *
      * @param StoreManagerInterface $storeManager
      * @param CheckoutSession $checkoutSession
      * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
-        Logger $loyaltyLogger,
-        Session $customerSession,
         StoreManagerInterface $storeManager,
         CheckoutSession $checkoutSession,
-        protected LoyaltyHelper $loyaltyHelper
+        LoyaltyHelper $loyaltyHelper
     ) {
-        $this->loyaltyLogger = $loyaltyLogger;
-        $this->customerSession = $customerSession;
         $this->storeManager = $storeManager;
         $this->checkoutSession = $checkoutSession;
+        $this->loyaltyHelper = $loyaltyHelper;
     }
 
     /**
@@ -61,7 +52,7 @@ class CartPageViewObserver implements ObserverInterface
      * @param Observer $observer
      * @return void
      */
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             return;
@@ -76,7 +67,6 @@ class CartPageViewObserver implements ObserverInterface
 
             // Get the quote from checkout session
             $quote = $this->checkoutSession->getQuote();
-
             if (!$quote || !$quote->getId()) {
                 return;
             }
@@ -88,15 +78,16 @@ class CartPageViewObserver implements ObserverInterface
             }
 
             // Only log if debug is enabled - significantly reduces log volume
-            if ($this->loyaltyLogger->isDebugEnabled()) {
+            if ($this->loyaltyHelper->isDebugEnabled()) {
                 $this->logCartSummary($quote, $items);
             }
-
         } catch (\Exception $e) {
-            $this->loyaltyLogger->error(
-                Logger::COMPONENT_CART,
-                Logger::ACTION_ERROR,
-                'Exception in CartPageViewObserver: ' . $e->getMessage()
+            $this->loyaltyHelper->log(
+                'error',
+                LoyaltyLogger::COMPONENT_OBSERVER,
+                LoyaltyLogger::ACTION_ERROR,
+                'Exception in CartPageViewObserver: ' . $e->getMessage(),
+                ['exception' => $e]
             );
         }
     }
@@ -113,113 +104,45 @@ class CartPageViewObserver implements ObserverInterface
         $totalItems = count($items);
 
         foreach ($items as $item) {
-            if ($this->isLoyaltyProduct($item)) {
+            if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
                 $loyaltyCount++;
             }
         }
 
-        // Only log if there are loyalty items (reduces noise)
         if ($loyaltyCount > 0) {
-            $this->loyaltyLogger->debug(
-                Logger::COMPONENT_CART,
-                Logger::ACTION_REGULAR,
+            $maskedEmail = $this->loyaltyHelper->getMaskedCustomerEmail();
+
+            $this->loyaltyHelper->log(
+                'debug',
+                LoyaltyLogger::COMPONENT_CART,
+                LoyaltyLogger::ACTION_REGULAR,
                 sprintf(
                     'Cart viewed - %d items (%d loyalty) for %s',
                     $totalItems,
                     $loyaltyCount,
-                    $this->getMaskedCustomerEmail()
+                    $maskedEmail
                 ),
                 [
                     'quote_id' => $quote->getId(),
                     'loyalty_items' => $loyaltyCount
                 ]
             );
-        }
-    }
 
-    /**
-     * Get masked customer email for privacy
-     *
-     * @return string
-     */
-    private function getMaskedCustomerEmail(): string
-    {
-        if ($this->customerSession->isLoggedIn()) {
-            return $this->loyaltyLogger->maskEmail(
-                $this->customerSession->getCustomer()->getEmail()
+            $this->loyaltyHelper->log(
+                'info',
+                LoyaltyLogger::COMPONENT_CART,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf(
+                    'Cart processed successfully - %d loyalty items detected for %s',
+                    $loyaltyCount,
+                    $maskedEmail
+                ),
+                [
+                    'quote_id' => $quote->getId(),
+                    'total_items' => $totalItems,
+                    'loyalty_items' => $loyaltyCount
+                ]
             );
-        }
-        return 'guest';
-    }
-
-    /**
-     * Check if quote item is a loyalty product
-     *
-     * @param \Magento\Quote\Model\Quote\Item $item
-     * @return bool
-     */
-    private function isLoyaltyProduct($item): bool
-    {
-        // Method 1: Check for loyalty_locked_qty option
-        $loyaltyOption = $item->getOptionByCode('loyalty_locked_qty');
-        if ($loyaltyOption && $loyaltyOption->getValue() == '1') {
-            return true;
-        }
-
-        // Method 2: Check item data directly
-        $loyaltyData = $item->getData('loyalty_locked_qty');
-        if ($loyaltyData === '1' || $loyaltyData === 1) {
-            return true;
-        }
-
-        // Method 3: Check additional_options
-        $additionalOptions = $item->getOptionByCode('additional_options');
-        if ($additionalOptions) {
-            $value = $this->safeUnserialize($additionalOptions->getValue());
-            if (is_array($value)) {
-                foreach ($value as $option) {
-                    if (
-                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
-                        isset($option['value']) && $option['value'] === '1'
-                    ) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // Method 4: Check product data (universal fallback)
-        $product = $item->getProduct();
-        if ($product && $product->getData('loyalty_locked_qty')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Safely unserialize data with JSON fallback
-     * Prevents PHP object injection vulnerabilities
-     *
-     * @param string|null $data
-     * @return array|null
-     */
-    private function safeUnserialize(?string $data): ?array
-    {
-        if (empty($data)) {
-            return null;
-        }
-
-        $jsonResult = json_decode($data, true);
-        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonResult)) {
-            return $jsonResult;
-        }
-
-        try {
-            $result = @unserialize($data, ['allowed_classes' => false]);
-            return is_array($result) ? $result : null;
-        } catch (\Exception $e) {
-            return null;
         }
     }
 }

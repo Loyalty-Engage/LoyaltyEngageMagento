@@ -6,7 +6,7 @@ namespace LoyaltyEngage\LoyaltyShop\Plugin;
 
 use Magento\Checkout\Block\Cart\Item\Renderer as CartItemRenderer;
 use Magento\Quote\Model\Quote\Item as QuoteItem;
-use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CheckoutCartItemRendererPlugin
@@ -47,13 +47,14 @@ class CheckoutCartItemRendererPlugin
             return $result;
         }
 
-        $isLocked = $this->isLoyaltyProduct($item);
+        $isLocked = $this->loyaltyHelper->isLoyaltyProduct($item, true);
 
         if ($isLocked) {
-            $this->loyaltyLogger->debug(
+            $this->loyaltyHelper->log(
+                "debug",
                 LoyaltyLogger::COMPONENT_PLUGIN,
                 LoyaltyLogger::ACTION_LOYALTY,
-                sprintf('Loyalty product qty locked: %s (SKU: %s)', $item->getName(), $item->getSku())
+                'Loyalty product qty locked: %s (SKU: %s)', $item->getName(), $item->getSku()
             );
 
             // Add JavaScript to mark the cart item as loyalty-locked
@@ -69,73 +70,15 @@ class CheckoutCartItemRendererPlugin
             return '<span>Qty: ' . (float) $item->getQty() . '</span>' .
                 '<input type="hidden" name="cart[' . $item->getId() . '][qty]" value="' . (float) $item->getQty() . '" />' .
                 $script;
+        } else {
+            $this->loyaltyHelper->log(
+                "debug",
+                LoyaltyLogger::COMPONENT_PLUGIN,
+                LoyaltyLogger::ACTION_LOYALTY,
+                'FINAL RESULT: REGULAR PRODUCT - Normal display for: ' . $item->getName()
+            );
         }
 
         return $result;
-    }
-
-    /**
-     * Check if a quote item is a loyalty product
-     *
-     * @param QuoteItem $item
-     * @return bool
-     */
-    private function isLoyaltyProduct(QuoteItem $item): bool
-    {
-        // Method 1: Check for explicit loyalty_locked_qty option (most reliable)
-        $loyaltyOption = $item->getOptionByCode('loyalty_locked_qty');
-        if ($loyaltyOption && $loyaltyOption->getValue() === '1') {
-            return true;
-        }
-
-        // Method 2: Check item data directly
-        $loyaltyData = $item->getData('loyalty_locked_qty');
-        if ($loyaltyData === '1' || $loyaltyData === 1) {
-            return true;
-        }
-
-        // Method 3: Check additional_options for loyalty flag
-        $additionalOptions = $item->getOptionByCode('additional_options');
-        if ($additionalOptions) {
-            $value = $this->safeUnserialize($additionalOptions->getValue());
-            if (is_array($value)) {
-                foreach ($value as $option) {
-                    if (
-                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
-                        isset($option['value']) && $option['value'] === '1'
-                    ) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Safely unserialize data with JSON fallback
-     * Prevents PHP object injection vulnerabilities
-     *
-     * @param string|null $data
-     * @return array|null
-     */
-    private function safeUnserialize(?string $data): ?array
-    {
-        if (empty($data)) {
-            return null;
-        }
-
-        $jsonResult = json_decode($data, true);
-        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonResult)) {
-            return $jsonResult;
-        }
-
-        try {
-            $result = @unserialize($data, ['allowed_classes' => false]);
-            return is_array($result) ? $result : null;
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

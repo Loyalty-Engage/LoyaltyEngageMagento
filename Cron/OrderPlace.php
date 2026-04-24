@@ -37,47 +37,146 @@ class OrderPlace
      */
     public function execute(): void
     {
-        if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            $LoyaltyOrderRetrieveLimit = $this->loyaltyengageCart->getLoyaltyOrderRetrieveLimit();
+        $this->loyaltyHelper->log(
+            'info',
+            'OrderPlace',
+            'execute',
+            'OrderPlace cron started'
+        );
 
-            // Add filter for created_at between now-15min and now
-            $now = (new \DateTime())->format('Y-m-d H:i:s');
-            $minus15 = (new \DateTime('-15 minutes'))->format('Y-m-d H:i:s');
+        try {
+            if ($this->loyaltyHelper->isLoyaltyEngageEnabled()) {
 
-            $this->searchCriteriaBuilder->addFilter('loyalty_order_place', self::LOYALTY_ORDER_PLACE, 'eq');
-            $this->searchCriteriaBuilder->addFilter('loyalty_order_place_retrieve', $LoyaltyOrderRetrieveLimit, 'lt');
-            $this->searchCriteriaBuilder->addFilter('created_at', $minus15, 'gteq');
-            $this->searchCriteriaBuilder->addFilter('created_at', $now, 'lteq');
+                $OrderRetrieveLimit = $this->loyaltyHelper->getLoyaltyOrderRetrieveLimit();
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'OrderPlace',
+                    'execute',
+                    'Order retrieve limit: ' . $OrderRetrieveLimit
+                );
 
-            $searchCriteria = $this->searchCriteriaBuilder->create();
-            // Get list of orders
-            $orders = $this->orderRepository->getList($searchCriteria)->getItems();
+                // Add filter for created_at between now-15min and now
+                $now = (new \DateTime())->format('Y-m-d H:i:s');
+                $minus15 = (new \DateTime('-15 minutes'))->format('Y-m-d H:i:s');
 
-            // Process each order
-            foreach ($orders as $order) {
-                $email = $order->getCustomerEmail();
-                $orderId = $order->getIncrementId();
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'OrderPlace',
+                    'execute',
+                    'Processing orders from: ' . $minus15 . ' to: ' . $now
+                );
 
-                // Prepare order data
-                $products = [];
-                foreach ($order->getAllItems() as $item) {
-                    $products[] = [
-                        'sku' => $item->getSku(),
-                        'quantity' => (int) $item->getQtyOrdered()
-                    ];
+                $this->searchCriteriaBuilder->addFilter('loyalty_order_place', self::LOYALTY_ORDER_PLACE, 'eq');
+                $this->searchCriteriaBuilder->addFilter('loyalty_order_place_retrieve', $OrderRetrieveLimit, 'lt');
+                $this->searchCriteriaBuilder->addFilter('created_at', $minus15, 'gteq');
+                $this->searchCriteriaBuilder->addFilter('created_at', $now, 'lteq');
+
+                $searchCriteria = $this->searchCriteriaBuilder->create();
+                // Get list of orders
+                $orders = $this->orderRepository->getList($searchCriteria)->getItems();
+
+                $orderCount = count($orders);
+
+                // Process each order
+                foreach ($orders as $order) {
+                    try {
+                        $this->processOrder($order);
+                    } catch (\Exception $e) {
+                        $this->loyaltyHelper->log(
+                            'error',
+                            'OrderPlace',
+                            'execute',
+                            'Error processing order ID: ' . $order->getIncrementId(),
+                            ['error' => $e->getMessage()]
+                        );
+                        continue;
+                    }
                 }
 
-                // Place order
-                $response = $this->loyaltyengageCart->placeOrder($email, $orderId, $products);
-
-                if ($response && $response == self::HTTP_OK) {
-                    $order->setData('loyalty_order_place', 1);
-                } else {
-                    $currentValue = (int) $order->getData('loyalty_order_place_retrieve');
-                    $order->setData('loyalty_order_place_retrieve', $currentValue + 1);
-                }
-                $this->orderRepository->save($order);
+                $this->loyaltyHelper->log(
+                    'info',
+                    'OrderPlace',
+                    'execute',
+                    'OrderPlace cron completed successfully'
+                );
+            } else {
+                $this->loyaltyHelper->log(
+                    'info',
+                    'OrderPlace',
+                    'execute',
+                    'LoyaltyEngage module is disabled, skipping'
+                );
             }
+        } catch (\Exception $e) {
+            $this->loyaltyHelper->log(
+                'error',
+                'OrderPlace',
+                'execute',
+                'OrderPlace cron failed: ' . $e->getMessage(),
+                ['exception' => $e->getTraceAsString()]
+            );
         }
+    }
+
+    /**
+     * Process individual order
+     *
+     * @param \Magento\Sales\Api\Data\OrderInterface $order
+     * @return void
+     */
+    private function processOrder(\Magento\Sales\Api\Data\OrderInterface $order): void
+    {
+        $email = $order->getCustomerEmail();
+        $orderId = $order->getIncrementId();
+
+        $maskedEmail = $this->loyaltyHelper->logMaskedEmail($email);
+        $this->loyaltyHelper->log(
+            'debug',
+            'OrderPlace',
+            'processOrder',
+            'Processing order ID: ' . $orderId . ' for customer: ' . $maskedEmail
+        );
+
+        // Prepare order data
+        $products = [];
+        foreach ($order->getAllItems() as $item) {
+            $products[] = [
+                'sku' => $item->getSku(),
+                'quantity' => (int) $item->getQtyOrdered()
+            ];
+        }
+
+        $this->loyaltyHelper->log(
+            'debug',
+            'OrderPlace',
+            'processOrder',
+            'Prepared ' . count($products) . ' products for order ID: ' . $orderId,
+            ['products' => $products]
+        );
+
+        // Place order
+        $response = $this->loyaltyengageCart->placeOrder($email, $orderId, $products);
+
+        if ($response && $response == self::HTTP_OK) {
+            $order->setData('loyalty_order_place', 1);
+            $this->loyaltyHelper->log(
+                'debug',
+                'OrderPlace',
+                'processOrder',
+                'Successfully placed loyalty order ID: ' . $orderId
+            );
+        } else {
+            $currentValue = (int) $order->getData('loyalty_order_place_retrieve');
+            $order->setData('loyalty_order_place_retrieve', $currentValue + 1);
+            $this->loyaltyHelper->log(
+                'error',
+                'OrderPlace',
+                'processOrder',
+                'Failed to place loyalty order ID: ' . $orderId . ', response: ' . $response,
+                ['attempt' => $currentValue + 1]
+            );
+        }
+
+        $this->orderRepository->save($order);
     }
 }

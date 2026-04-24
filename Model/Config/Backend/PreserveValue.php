@@ -6,6 +6,11 @@ use Magento\Framework\App\Config\Value;
 
 class PreserveValue extends Value
 {
+    /**
+     * Preserve original value if masked value is submitted
+     *
+     * @return \Magento\Framework\App\Config\Value
+     */
     public function beforeSave()
     {
         // Prevent saving asterisks (masked value)
@@ -16,4 +21,3 @@ class PreserveValue extends Value
         return parent::beforeSave();
     }
 }
-?>

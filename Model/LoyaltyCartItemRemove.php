@@ -58,7 +58,7 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
 
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             // Return a successful response, as no error occurred, but no action was taken.
-            return $this->setSuccessResponse($responseItem, 'LoyaltyEngage module is disabled. No action taken.');
+            return $this->loyaltyHelper->successResponse($responseItem, 'LoyaltyEngage module is disabled. No action taken.');
         }
 
         try {
@@ -70,7 +70,7 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
             $response = $this->loyaltyengageCart->removeItem($customer->getEmail(), $sku, $quantity);
 
             if ($response !== self::HTTP_OK) {
-                return $this->setErrorResponse(
+                return $this->loyaltyHelper->errorResponse(
                     $responseItem,
                     'Product could not be removed. User is not eligible.',
                     self::HTTP_BAD_REQUEST
@@ -92,40 +92,9 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
                 }
             }
 
-            return $this->setSuccessResponse($responseItem, 'Product removed successfully.');
+            return $this->loyaltyHelper->successResponse($responseItem, 'Product removed successfully.');
         } catch (\Exception $e) {
-            return $this->setErrorResponse($responseItem, $e->getMessage(), self::HTTP_BAD_REQUEST);
+            return $this->loyaltyHelper->errorResponse($responseItem, $e->getMessage(), self::HTTP_BAD_REQUEST);
         }
-    }
-
-    /**
-     * SuccessResponse function
-     *
-     * @param LoyaltyCartResponseInterface $response
-     * @param string $message
-     * @return LoyaltyCartResponseInterface
-     */
-    private function setSuccessResponse(
-        LoyaltyCartResponseInterface $response,
-        string $message
-    ): LoyaltyCartResponseInterface {
-        return $response->setSuccess(true)->setMessage($message);
-    }
-
-    /**
-     * ErrorResponse function
-     *
-     * @param LoyaltyCartResponseInterface $response
-     * @param string $message
-     * @param int $httpCode
-     * @return LoyaltyCartResponseInterface
-     */
-    private function setErrorResponse(
-        LoyaltyCartResponseInterface $response,
-        string $message,
-        int $httpCode = self::HTTP_BAD_REQUEST
-    ): LoyaltyCartResponseInterface {
-        $this->response->setHttpResponseCode($httpCode);
-        return $response->setSuccess(false)->setMessage($message);
     }
 }

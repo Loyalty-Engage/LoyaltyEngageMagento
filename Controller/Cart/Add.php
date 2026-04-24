@@ -11,7 +11,6 @@ use Magento\Framework\Controller\ResultInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use Psr\Log\LoggerInterface;
 
 class Add implements HttpPostActionInterface
 {
@@ -20,22 +19,19 @@ class Add implements HttpPostActionInterface
     private $customerSession;
     private $loyaltyCart;
     private $loyaltyHelper;
-    private $logger;
 
     public function __construct(
         RequestInterface $request,
         JsonFactory $jsonFactory,
         CustomerSession $customerSession,
         LoyaltyCartInterface $loyaltyCart,
-        LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoyaltyHelper $loyaltyHelper
     ) {
         $this->request = $request;
         $this->jsonFactory = $jsonFactory;
         $this->customerSession = $customerSession;
         $this->loyaltyCart = $loyaltyCart;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
     }
 
     public function execute(): ResultInterface
@@ -91,7 +87,7 @@ class Add implements HttpPostActionInterface
             return $result->setData($responseData);
 
         } catch (\Exception $e) {
-            $this->logger->error('LoyaltyShop Cart Add Error: ' . $e->getMessage(), [
+            $this->loyaltyHelper->log('error', 'CART-ADD', 'ERROR', 'Cart add error: ' . $e->getMessage(), [
                 'exception' => $e,
                 'customer_id' => $this->customerSession->getCustomerId(),
                 'request_data' => $this->request->getContent()

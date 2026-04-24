@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Api;
 
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
+use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartItemInterface;
 
 interface LoyaltyCartInterface
 {
@@ -34,4 +35,19 @@ interface LoyaltyCartInterface
      * @return LoyaltyCartResponseInterface
      */
     public function addMultipleProducts(int $customerId, array $skus): LoyaltyCartResponseInterface;
+
+    /**
+     * Claim discount after adding products to loyalty cart by placing an order.
+     *
+     * @param int $customerId
+     * @param string $orderId
+     * @param LoyaltyCartItemInterface[] $products
+     *        Array of products with 'sku' and 'quantity' keys
+     * @return LoyaltyCartResponseInterface
+     */
+    public function claimDiscountAfterAddToLoyaltyCart(
+        int $customerId,
+        string $orderId,
+        array $products
+    ): LoyaltyCartResponseInterface;
 }

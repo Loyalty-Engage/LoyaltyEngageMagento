@@ -10,6 +10,7 @@ use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Http\Context as HttpContext;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
 {
@@ -29,10 +30,16 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     private $httpContext;
 
     /**
+     * @var LoyaltyHelper
+     */
+    private $loyaltyHelper;
+
+    /**
      * @param Context $context
      * @param CustomerRepositoryInterface $customerRepository
      * @param CustomerSession $customerSession
      * @param HttpContext $httpContext
+     * @param LoyaltyHelper $loyaltyHelper
      * @param array $data
      */
     public function __construct(
@@ -40,12 +47,14 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         CustomerRepositoryInterface $customerRepository,
         CustomerSession $customerSession,
         HttpContext $httpContext,
+        LoyaltyHelper $loyaltyHelper,
         array $data = []
     ) {
         parent::__construct($context, $data);
         $this->customerRepository = $customerRepository;
         $this->customerSession = $customerSession;
         $this->httpContext = $httpContext;
+        $this->loyaltyHelper = $loyaltyHelper;
     }
 
     /**
@@ -141,15 +150,43 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     public function validate(AbstractModel $model)
     {
         $customer = null;
+
+        $this->loyaltyHelper->log(
+            'debug',
+            'LoyaltyTier',
+            'validate_start',
+            'Starting validation for loyalty tier condition',
+            ['attribute' => $this->getAttribute()]
+        );
         
         // Try to get customer from the model first
         if ($model instanceof Customer) {
             $customer = $model;
+            $this->loyaltyHelper->log(
+                'debug',
+                'LoyaltyTier',
+                'customer_from_model',
+                'Customer loaded directly from model',
+                ['customer_id' => $customer->getId()]
+            );
         } elseif ($model->getCustomerId()) {
             try {
                 $customer = $this->customerRepository->getById($model->getCustomerId());
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'LoyaltyTier',
+                    'customer_from_repository',
+                    'Customer loaded via repository using model customer ID',
+                    ['customer_id' => $model->getCustomerId()]
+                );
             } catch (\Exception $e) {
-                // Customer not found in model, try session
+                $this->loyaltyHelper->log(
+                    'error',
+                    'LoyaltyTier',
+                    'customer_load_failed',
+                    'Failed to load customer from repository',
+                    ['exception' => $e->getMessage()]
+                );
             }
         }
         
@@ -157,24 +194,69 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         if (!$customer && $this->customerSession->isLoggedIn()) {
             try {
                 $customer = $this->customerRepository->getById($this->customerSession->getCustomerId());
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'LoyaltyTier',
+                    'customer_from_session',
+                    'Customer loaded from session',
+                    ['customer_id' => $this->customerSession->getCustomerId()]
+                );
             } catch (\Exception $e) {
+                $this->loyaltyHelper->log(
+                    'error',
+                    'LoyaltyTier',
+                    'session_customer_load_failed',
+                    'Failed to load customer from session',
+                    ['exception' => $e->getMessage()]
+                );
                 return false;
             }
         }
         
         // If still no customer, return false
         if (!$customer) {
+            $this->loyaltyHelper->log(
+                'info',
+                'LoyaltyTier',
+                'no_customer',
+                'No customer found for validation'
+            );
             return false;
         }
-
-        $attributeValue = $customer->getData($this->getAttribute());
+        $attributeCode = $this->getAttribute();
+        $attributeValue = $customer->getData($attributeCode);
         
         // Handle null values
         if ($attributeValue === null) {
             $attributeValue = '';
         }
+        $this->loyaltyHelper->log(
+            'debug',
+            'LoyaltyTier',
+            'attribute_value',
+            'Fetched customer attribute value',
+            [
+                'customer_id' => $customer->getId(),
+                'attribute' => $attributeCode,
+                'value' => $attributeValue
+            ]
+        );
 
-        return $this->validateAttribute($attributeValue);
+        $result = $this->validateAttribute($attributeValue);
+
+        $this->loyaltyHelper->log(
+            'debug',
+            'LoyaltyTier',
+            'validation_result',
+            'Validation result computed',
+            [
+                'attribute' => $attributeCode,
+                'value' => $attributeValue,
+                'result' => $result
+            ]
+        );
+
+        return $result;
     }
 
     /**

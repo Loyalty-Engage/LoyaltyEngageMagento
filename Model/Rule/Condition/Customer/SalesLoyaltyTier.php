@@ -10,6 +10,7 @@ use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Http\Context as HttpContext;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
 {
@@ -29,10 +30,16 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     private $httpContext;
 
     /**
+     * @var LoyaltyHelper
+     */
+    private $loyaltyHelper;
+
+    /**
      * @param Context $context
      * @param CustomerRepositoryInterface $customerRepository
      * @param CustomerSession $customerSession
      * @param HttpContext $httpContext
+     * @param LoyaltyHelper $loyaltyHelper
      * @param array $data
      */
     public function __construct(
@@ -40,12 +47,14 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         CustomerRepositoryInterface $customerRepository,
         CustomerSession $customerSession,
         HttpContext $httpContext,
+        LoyaltyHelper $loyaltyHelper,
         array $data = []
     ) {
         parent::__construct($context, $data);
         $this->customerRepository = $customerRepository;
         $this->customerSession = $customerSession;
         $this->httpContext = $httpContext;
+        $this->loyaltyHelper = $loyaltyHelper;
     }
 
     /**
@@ -141,58 +150,92 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     public function validate(AbstractModel $model)
     {
         $customer = null;
-        
-        // For sales rules, try to get customer from quote/address
+
+        // From quote (sales rules)
         if ($model->hasData('quote')) {
             $quote = $model->getQuote();
+
             if ($quote && $quote->getCustomerId()) {
                 try {
                     $customer = $this->customerRepository->getById($quote->getCustomerId());
+
                 } catch (\Exception $e) {
-                    // Customer not found
+                    $this->loyaltyHelper->log(
+                        'error',
+                        'SalesLoyaltyTier',
+                        'quote_customer_error',
+                        'Failed to load customer from quote',
+                        ['exception' => $e->getMessage()]
+                    );
                 }
             }
         } elseif ($model->getCustomerId()) {
             try {
                 $customer = $this->customerRepository->getById($model->getCustomerId());
+
             } catch (\Exception $e) {
-                // Customer not found
+                $this->loyaltyHelper->log(
+                    'error',
+                    'SalesLoyaltyTier',
+                    'model_customer_error',
+                    'Failed to load customer from model',
+                    ['exception' => $e->getMessage()]
+                );
             }
         }
-        
-        // If no customer from model, try to get from session
+
+        // From session fallback
         if (!$customer && $this->customerSession->isLoggedIn()) {
             try {
-                $customer = $this->customerRepository->getById($this->customerSession->getCustomerId());
+                $customer = $this->customerRepository->getById(
+                    $this->customerSession->getCustomerId()
+                );
+
             } catch (\Exception $e) {
+                $this->loyaltyHelper->log(
+                    'error',
+                    'SalesLoyaltyTier',
+                    'session_customer_error',
+                    'Failed to load customer from session',
+                    ['exception' => $e->getMessage()]
+                );
                 return false;
             }
         }
-        
-        // If still no customer, return false
+
+        // No customer
         if (!$customer) {
+            $this->loyaltyHelper->log(
+                'info',
+                'SalesLoyaltyTier',
+                'no_customer',
+                'No customer found during validation'
+            );
             return false;
         }
 
-        // Get attribute value - handle both model and data objects
+        $attributeCode = $this->getAttribute();
         $attributeValue = null;
+
+        // Handle both types
         if ($customer instanceof \Magento\Customer\Model\Customer) {
-            // Customer model object
-            $attributeValue = $customer->getData($this->getAttribute());
+            $attributeValue = $customer->getData($attributeCode);
+
         } elseif ($customer instanceof \Magento\Customer\Api\Data\CustomerInterface) {
-            // Customer data object from repository
-            $attributeValue = $customer->getCustomAttribute($this->getAttribute());
-            if ($attributeValue) {
-                $attributeValue = $attributeValue->getValue();
+            $attribute = $customer->getCustomAttribute($attributeCode);
+
+            if ($attribute) {
+                $attributeValue = $attribute->getValue();
             }
         }
-        
-        // Handle null values
+
         if ($attributeValue === null) {
             $attributeValue = '';
         }
 
-        return $this->validateAttribute($attributeValue);
+        $result = $this->validateAttribute($attributeValue);
+
+        return $result;
     }
 
     /**

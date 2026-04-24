@@ -8,7 +8,6 @@ use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Exception\AuthorizationException;
 use Magento\Framework\Webapi\Rest\Request as RestRequest;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use Psr\Log\LoggerInterface;
 
 /**
  * Plugin to authenticate LoyaltyEngage API requests using Basic Auth
@@ -29,23 +28,16 @@ class AuthenticationPlugin
     private $loyaltyHelper;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * @param RestRequest $request
      * @param LoyaltyHelper $loyaltyHelper
      * @param LoggerInterface $logger
      */
     public function __construct(
         RestRequest $request,
-        LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoyaltyHelper $loyaltyHelper
     ) {
         $this->request = $request;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
     }
 
     /**
@@ -72,10 +64,16 @@ class AuthenticationPlugin
 
         // Validate Basic Auth credentials
         if (!$this->validateBasicAuth()) {
-            $this->logger->warning('[LoyaltyEngage] Unauthorized API request attempt', [
-                'path' => $pathInfo,
-                'ip' => $request->getClientIp()
-            ]);
+            $this->loyaltyHelper->log(
+                'error',
+                'AuthenticationPlugin',
+                'beforeDispatch',
+                'Unauthorized API request attempt',
+                [
+                    'path' => $pathInfo,
+                    'ip' => $request->getClientIp()
+                ]
+            );
             throw new AuthorizationException(__('Invalid or missing authentication credentials.'));
         }
 
@@ -150,7 +148,12 @@ class AuthenticationPlugin
 
         // Validate credentials using timing-safe comparison
         if (empty($configuredTenantId) || empty($configuredToken)) {
-            $this->logger->error('[LoyaltyEngage] API credentials not configured');
+            $this->loyaltyHelper->log(
+                'critical',
+                'AuthenticationPlugin',
+                'validateBasicAuth',
+                'API credentials not configured'
+            );
             return false;
         }
 

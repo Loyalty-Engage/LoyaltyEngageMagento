@@ -5,409 +5,307 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Model;
 
 use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\Encryption\EncryptorInterface;
-use Magento\Framework\HTTP\Client\Curl;
-use Magento\Framework\Webapi\Rest\Request as RestRequest;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger;
 
-
+/**
+ * Class LoyaltyengageCart
+ *
+ * Handles all Loyalty Cart related operations:
+ * - Add to cart
+ * - Remove item
+ * - Remove all items
+ * - Place order
+ * - Buy discount code
+ *
+ * This class acts as a business layer and delegates API communication
+ * to ApiClient service.
+ */
 class LoyaltyengageCart
 {
-    protected const XML_PATH_API_URL = 'loyalty/general/loyalty_api_url';
-
-    protected const XML_PATH_TENANT_ID = 'loyalty/general/tenant_id';
-
-    protected const XML_PATH_BEARER_TOKEN = 'loyalty/general/bearer_token';
-
-    protected const XML_PATH_CART_EXPIRY_TIME = 'loyalty/general/cart_expiry_time';
-
-    protected const XML_PATH_LOGGER = 'loyalty/general/logger_enable';
-
-    protected const XML_PATH_LOYALTY_ORDER_PLACE_RETRIEVE = 'loyalty/general/loyalty_order_place_retrieve';
+    /**
+     * @var ApiClient
+     */
+    protected ApiClient $apiClient;
+    
+    /**
+     * @var LoyaltyHelper
+     */
+    protected LoyaltyHelper $helper;
 
     /**
      * Constructor
      *
-     * @param Curl $curl
-     * @param RestRequest $request
-     * @param ScopeConfigInterface $scopeConfig
-     * @param LoggerInterface $logger
-     * @param EncryptorInterface $encryptor
+     * @param ApiClient $apiClient API client service for external calls
+     * @param LoyaltyHelper $helper Helper for config and utilities
      */
     public function __construct(
-        protected Curl $curl,
-        protected RestRequest $request,
-        protected ScopeConfigInterface $scopeConfig,
-        protected LoggerInterface $logger,
-        protected EncryptorInterface $encryptor,
+        ApiClient $apiClient,
+        LoyaltyHelper $helper
     ) {
+        $this->apiClient   = $apiClient;
+        $this->helper      = $helper;
     }
 
     /**
-     * Get  config value  api url
+     * Add product to loyalty cart
      *
-     * @return null|string
-     */
-    public function getapiUrl(): ?string
-    {
-        $apiUrl = $this->scopeConfig->getValue(
-            self::XML_PATH_API_URL,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        return $apiUrl;
-    }
-
-    /**
-     * Get Tenant ID from config (decrypted)
-     *
-     * @return null|string
-     */
-    public function getTenantID(): ?string
-    {
-        $value = $this->scopeConfig->getValue(
-            self::XML_PATH_TENANT_ID,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        
-        if (empty($value)) {
-            return null;
-        }
-        
-        // Decrypt the value - stored encrypted in database
-        return $this->encryptor->decrypt($value);
-    }
-
-    /**
-     * Get Bearer Token from config (decrypted)
-     *
-     * @return string
-     */
-    public function getBearerToken(): string
-    {
-        $value = $this->scopeConfig->getValue(
-            self::XML_PATH_BEARER_TOKEN,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        
-        if (empty($value)) {
-            return '';
-        }
-        
-        // Decrypt the value - stored encrypted in database
-        return $this->encryptor->decrypt($value) ?? '';
-    }
-
-    /**
-     * Get  config value  for Logger
-     *
-     * @return null|string
-     */
-    public function getLoggerStatus(): ?string
-    {
-        $bearerToken = $this->scopeConfig->getValue(
-            self::XML_PATH_LOGGER,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        return $bearerToken;
-    }
-
-    /**
-     * BasicAuth function
-     *
-     * @return string
-     */
-    private function basicAuth(): string
-    {
-        $tenantId = $this->getTenantID();
-        $bearerToken = $this->getBearerToken();
-
-        $authString = base64_encode($tenantId . ':' . $bearerToken);
-        return $authString;
-    }
-
-    /**
-     * Validate and sanitize email address
-     *
-     * @param string $email
-     * @return string
-     * @throws \InvalidArgumentException
-     */
-    private function validateEmail(string $email): string
-    {
-        $email = trim($email);
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new \InvalidArgumentException('Invalid email address provided');
-        }
-        return $email;
-    }
-
-    /**
-     * Validate and sanitize SKU
-     *
-     * @param string $sku
-     * @return string
-     * @throws \InvalidArgumentException
-     */
-    private function validateSku(string $sku): string
-    {
-        $sku = trim($sku);
-        if (empty($sku) || strlen($sku) > 64) {
-            throw new \InvalidArgumentException('Invalid SKU provided');
-        }
-        // Only allow alphanumeric, dash, underscore
-        if (!preg_match('/^[a-zA-Z0-9\-_]+$/', $sku)) {
-            throw new \InvalidArgumentException('SKU contains invalid characters');
-        }
-        return $sku;
-    }
-
-    /**
-     * Add a product to the loyalty cart
-     *
-     * @param string $email
-     * @param string $sku
-     * @return int
+     * @param string $email Customer email
+     * @param string $sku Product SKU
+     * @return int HTTP status code
      */
     public function addToCart(string $email, string $sku): int
     {
-        // Validate and sanitize inputs
-        $email = $this->validateEmail($email);
-        $sku = $this->validateSku($sku);
-        
-        $apiUrl = $this->getapiUrl();
-        // URL encode the email to prevent injection
-        $url = $apiUrl . '/api/v1/loyalty/shop/' . rawurlencode($email) . '/cart/add';
-        $payload = [
-            'sku' => $sku,
-            'quantity' => 1
-        ];
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/add';
 
-        $this->curl->addHeader('Content-Type', 'application/json');
-        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
-        $this->curl->post($url, json_encode($payload));
-
-        // Get response body and status code
-        $responseCode = $this->curl->getStatus();
-        $responseBody = $this->curl->getBody();
-
-        // Log if logging is enabled in config (mask email for privacy)
-        if ($this->getLoggerStatus()) {
-            $this->logger->info('LoyaltyEngage Add to Cart Response:', [
-                'email' => $this->maskEmail($email),
-                'sku' => $sku,
-                'quantity' => 1,
-                'response_code' => $responseCode,
-                'response_body' => $responseBody
+        try {
+            $this->apiClient->post($url, [
+                'sku'      => $sku,
+                'quantity' => 1
             ]);
-        }
 
-        return $responseCode;
+            $this->logSuccess('AddToCart Success', [
+                'email' => $email,
+                'sku'   => $sku
+            ]);
+
+            return LoyaltyHelper::HTTP_OK;
+        } catch (\Exception $e) {
+            $this->logError('AddToCart Error', [
+                'email' => $email,
+                'sku'   => $sku,
+                'error' => $e->getMessage()
+            ]);
+            return LoyaltyHelper::HTTP_BAD_REQUEST;
+        }
     }
 
     /**
-     * Mask email for logging (privacy)
+     * Remove item from loyalty cart
      *
-     * @param string $email
-     * @return string
-     */
-    private function maskEmail(string $email): string
-    {
-        $parts = explode('@', $email);
-        if (count($parts) !== 2) {
-            return '***';
-        }
-        $name = $parts[0];
-        $domain = $parts[1];
-        $maskedName = strlen($name) > 2 
-            ? substr($name, 0, 1) . '***' . substr($name, -1) 
-            : '***';
-        return $maskedName . '@' . $domain;
-    }
-
-    /**
-     * Remove a product from the loyalty cart
-     *
-     * @param string $email
-     * @param string $sku
-     * @param integer $quantity
-     * @return int|null
+     * @param string $email Customer email
+     * @param string $sku Product SKU
+     * @param int $quantity Quantity to remove
+     * @return int|null HTTP status code
      */
     public function removeItem(string $email, string $sku, int $quantity): ?int
     {
-        // Validate inputs
-        $email = $this->validateEmail($email);
-        $sku = $this->validateSku($sku);
-        $quantity = max(1, min($quantity, 100)); // Limit quantity between 1-100
-        
-        $apiUrl = $this->getapiUrl();
-        $url = $apiUrl . '/api/v1/loyalty/shop/' . rawurlencode($email) . '/cart/remove';
-        $data = [
-            'sku' => $sku,
-            'quantity' => $quantity
-        ];
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/remove';
 
-        $this->curl->addHeader('Content-Type', 'application/json');
-        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
-        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
-        $this->curl->post($url, json_encode($data));
+        try {
+            $this->apiClient->delete($url, [
+                'sku'      => $sku,
+                'quantity' => $quantity
+            ]);
 
-        $responseCode = $this->curl->getStatus();
-        return $responseCode;
+            $this->logSuccess('RemoveItem Success', [
+                'email' => $email,
+                'sku'   => $sku,
+                'quantity' => $quantity
+            ]);
+
+            return LoyaltyHelper::HTTP_OK;
+        } catch (\Exception $e) {
+            $this->logError('RemoveItem Error', [
+                'email' => $email,
+                'sku'   => $sku,
+                'error' => $e->getMessage()
+            ]);
+            return LoyaltyHelper::HTTP_BAD_REQUEST;
+        }
     }
 
     /**
-     * Remove all products from the loyalty cart
+     * Remove all items from loyalty cart
      *
-     * @param string $email
-     * @return int|null
+     * @param string $email Customer email
+     * @return int|null HTTP status code
      */
     public function removeAllItem(string $email): ?int
     {
-        // Validate email
-        $email = $this->validateEmail($email);
-        
-        $apiUrl = $this->getapiUrl();
-        $url = $apiUrl . '/api/v1/loyalty/shop/' . rawurlencode($email) . '/cart';
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart';
 
-        $this->curl->addHeader('Content-Type', 'application/json');
-        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
-        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
-        $this->curl->post($url, null);
+        try {
+            $this->apiClient->delete($url);
+            
+            $this->logSuccess('RemoveAllItem Success', [
+                'email' => $email
+            ]);
 
-        $responseCode = $this->curl->getStatus();
-        return $responseCode;
-    }
-
-    /**
-     * Get Cart Expiry Time
-     *
-     * @return string
-     */
-    public function getexpiryTime(): string
-    {
-        $expiryTime = $this->scopeConfig->getValue(
-            self::XML_PATH_CART_EXPIRY_TIME,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        
-        // Ensure we always return a valid string
-        if ($expiryTime === null || $expiryTime === '') {
-            return '24'; // Default to 24 hours if not set
+            return LoyaltyHelper::HTTP_OK;
+        } catch (\Exception $e) {
+            $this->logError('RemoveAllItem Error', [
+                'email' => $email,
+                'error' => $e->getMessage()
+            ]);
+            return LoyaltyHelper::HTTP_BAD_REQUEST;
         }
-        
-        // Force conversion to string to prevent type errors
-        return (string)$expiryTime;
     }
 
     /**
-     * Get Loyalty Order Retrieve Limit from config
+     * Place order using loyalty cart
      *
-     * @return int
-     */
-    public function getLoyaltyOrderRetrieveLimit(): int
-    {
-        $retrieveLimit = $this->scopeConfig->getValue(
-            self::XML_PATH_LOYALTY_ORDER_PLACE_RETRIEVE,
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
-        );
-        return (int) $retrieveLimit;
-    }
-
-    /**
-     * Validate order ID
-     *
-     * @param string $orderId
-     * @return string
-     * @throws \InvalidArgumentException
-     */
-    private function validateOrderId(string $orderId): string
-    {
-        $orderId = trim($orderId);
-        if (empty($orderId) || strlen($orderId) > 50) {
-            throw new \InvalidArgumentException('Invalid order ID provided');
-        }
-        // Only allow alphanumeric and common order ID characters
-        if (!preg_match('/^[a-zA-Z0-9\-_#]+$/', $orderId)) {
-            throw new \InvalidArgumentException('Order ID contains invalid characters');
-        }
-        return $orderId;
-    }
-
-    /**
-     * PlaceOrder function
-     *
-     * @param string $email
-     * @param string $orderId
-     * @param array $products
-     * @return integer|null
+     * @param string $email Customer email
+     * @param string $orderId Magento Order ID
+     * @param array $products Product list
+     * @return int|null HTTP status code
      */
     public function placeOrder(string $email, string $orderId, array $products): ?int
     {
-        // Validate inputs
-        $email = $this->validateEmail($email);
-        $orderId = $this->validateOrderId($orderId);
-        
-        // Validate products array
-        if (empty($products) || !is_array($products)) {
-            throw new \InvalidArgumentException('Products array is required');
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/purchase';
+        try {
+            $this->apiClient->post($url, [
+                'orderId' => $orderId,
+                'products' => $products
+            ]);
+
+            $this->logSuccess('PlaceOrder Success', [
+                'email'   => $email,
+                'orderId' => $orderId,
+                'products'=> $products
+            ]);
+
+            return LoyaltyHelper::HTTP_OK;
+
+        } catch (\Exception $e) {
+            $this->logError('PlaceOrder Error', [
+                'email'   => $email,
+                'orderId' => $orderId,
+                'error'   => $e->getMessage()
+            ]);
+
+            return LoyaltyHelper::HTTP_BAD_REQUEST;
         }
-        
-        $apiUrl = $this->getapiUrl();
-        $url = $apiUrl . '/api/v1/loyalty/shop/' . rawurlencode($email) . '/cart/purchase';
-        $data = [
-            'orderId' => $orderId,
-            'products' => $products
-        ];
-
-        $this->curl->addHeader('Content-Type', 'application/json');
-        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
-        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'POST');
-        $this->curl->post($url, json_encode($data));
-
-        $responseCode = $this->curl->getStatus();
-        return $responseCode;
     }
 
     /**
-     * Buy a discount code product using loyalty coins
+     * Buy discount code using loyalty points
      *
      * @param string $email Customer email
-     * @param string $sku SKU of the discount code product
-     * @return array|null Response array with discountCode, discountPercentage, etc. or null on failure
+     * @param string $sku Discount SKU
+     * @return array|null API response or null on failure
      */
     public function buyDiscountCode(string $email, string $sku): ?array
     {
-        // Validate inputs
-        $email = $this->validateEmail($email);
-        $sku = $this->validateSku($sku);
-        
-        $apiUrl = $this->getapiUrl();
-        $url = $apiUrl . '/api/v1/loyalty/shop/' . rawurlencode($email) . '/cart/buy_discount_code';
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/buy_discount_code';
 
-        $payload = ['sku' => $sku];
-
-        $this->curl->addHeader('Content-Type', 'application/json');
-        $this->curl->addHeader('Authorization', 'Basic ' . $this->basicAuth());
-        $this->curl->post($url, json_encode($payload));
-
-        $status = $this->curl->getStatus();
-        $body = $this->curl->getBody();
-
-        // Log with masked email for privacy
-        if ($this->getLoggerStatus()) {
-            $this->logger->info('LoyaltyEngage Buy Discount Code Response:', [
-                'email' => $this->maskEmail($email),
-                'sku' => $sku,
-                'response_code' => $status,
-                'response_body' => $body
+        try {
+            $response = $this->apiClient->post($url, [
+                'sku' => $sku
             ]);
-        }
 
-        if ($status !== 200) {
+            $this->logSuccess('BuyDiscountCode Success', [
+                'email' => $email,
+                'sku'   => $sku,
+                'response' => $response
+            ]);
+
+            return $response;
+        } catch (\Exception $e) {
+            $this->logError('BuyDiscountCode Error', [
+                'email' => $email,
+                'sku'   => $sku,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
-
-        return json_decode($body, true);
     }
 
+    /**
+     * Claim a discount code using loyalty points
+     *
+     * @param string $identifier Discount identifier (e.g. the discount code)
+     * @param float|int $discountAmount Discount amount applied
+     * @param string $discountCurrency Currency code
+     * @return array|null API response or null on failure
+     */
+    public function claimDiscount(string $email, float $amount, string $currency = 'EUR'): ?array
+    {
+        $url = $this->helper->getApiUrl() . '/api/v1/discount/'.$email.'/claim';
+
+        $this->helper->log(
+            'info',
+            'API',
+            'CLAIM_DISCOUNT_REQUEST',
+            'Calling Claim Discount API',
+            [
+                'url'        => $url,
+                'identifier' => $email,
+                'amount'     => $amount,
+                'currency'   => $currency
+            ]
+        );
+
+        try {
+            $response = $this->apiClient->post($url, [
+                'discountAmount'   => $amount,
+                'discountCurrency' => $currency
+            ]);
+
+            $this->helper->log(
+                'debug',
+                'API',
+                'CLAIM_DISCOUNT_SUCCESS',
+                'Claim Discount API Success',
+                [
+                    'identifier' => $email,
+                    'response'   => $response
+                ]
+            );
+
+            return $response;
+
+        } catch (\Exception $e) {
+
+            $this->helper->log(
+                'error',
+                'API',
+                'CLAIM_DISCOUNT_ERROR',
+                'Claim Discount API Failed',
+                [
+                    'identifier' => $email,
+                    'error'      => $e->getMessage()
+                ]
+            );
+
+            return null;
+        }
+    }
+
+    /**
+     * Log error messages if logging is enabled
+     *
+     * @param string $message Log message
+     * @param array $context Additional data
+     * @return void
+     */
+    private function logError(string $message, array $context = []): void
+    {
+        $this->helper->log(
+            'error',
+            Logger::COMPONENT_API,
+            Logger::ACTION_ERROR,
+            $message,
+            $context
+        );
+    }
+
+    /**
+     * Log success messages
+     *
+     * @param string $message
+     * @param array $context
+     * @return void
+     */
+    private function logSuccess(string $message, array $context = []): void
+    {
+        $this->helper->log(
+            'debug',
+            Logger::COMPONENT_API,
+            Logger::ACTION_SUCCESS,
+            $message,
+            $context
+        );
+    }
 }

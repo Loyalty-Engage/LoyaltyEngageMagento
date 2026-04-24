@@ -6,7 +6,7 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
-use LoyaltyEngage\LoyaltyShop\Helper\Logger;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger;
 use Magento\Customer\Model\Session;
 use Magento\Store\Model\StoreManagerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;

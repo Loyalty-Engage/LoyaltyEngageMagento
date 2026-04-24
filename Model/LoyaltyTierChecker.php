@@ -1,45 +1,22 @@
 <?php
 namespace LoyaltyEngage\LoyaltyShop\Model;
 
-use Magento\Framework\HTTP\Client\Curl;
-use Magento\Framework\App\CacheInterface;
-use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use LoyaltyEngage\LoyaltyShop\Helper\Logger as LoyaltyLogger;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
+use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 
 class LoyaltyTierChecker
 {
     /**
-     * @var Curl
+     * @var ApiClient
      */
-    private $curl;
-
-    /**
-     * @var CacheInterface
-     */
-    private $cache;
-
-    /**
-     * @var CustomerSession
-     */
-    private $customerSession;
+    private $apiClient;
 
     /**
      * @var LoyaltyHelper
      */
     private $loyaltyHelper;
-
-    /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
-     * @var LoyaltyLogger
-     */
-    private $loyaltyLogger;
 
     /**
      * @var CustomerRepositoryInterface
@@ -52,30 +29,18 @@ class LoyaltyTierChecker
     private $memoryCache = [];
 
     /**
-     * @param Curl $curl
-     * @param CacheInterface $cache
-     * @param CustomerSession $customerSession
+     * @param ApiClient $apiClient
      * @param CustomerRepositoryInterface $customerRepository
      * @param LoyaltyHelper $loyaltyHelper
-     * @param LoggerInterface $logger
-     * @param LoyaltyLogger $loyaltyLogger
      */
     public function __construct(
-        Curl $curl,
-        CacheInterface $cache,
-        CustomerSession $customerSession,
+        ApiClient $apiClient,
         CustomerRepositoryInterface $customerRepository,
-        LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger,
-        LoyaltyLogger $loyaltyLogger
+        LoyaltyHelper $loyaltyHelper
     ) {
-        $this->curl = $curl;
-        $this->cache = $cache;
-        $this->customerSession = $customerSession;
+        $this->apiClient = $apiClient;
         $this->customerRepository = $customerRepository;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
-        $this->loyaltyLogger = $loyaltyLogger;
     }
 
     /**
@@ -83,7 +48,6 @@ class LoyaltyTierChecker
      * Ultra-lightweight with multi-level caching and admin control
      *
      * @param string|null $customerEmail
-     * @return bool
      */
     public function qualifiesForFreeShipping(?string $customerEmail = null): bool
     {
@@ -99,11 +63,12 @@ class LoyaltyTierChecker
 
         // Get customer email
         if (!$customerEmail) {
-            $customerEmail = $this->getCustomerEmail();
-        }
-
-        if (!$customerEmail) {
-            return false;
+            $customerSessionData = $this->loyaltyHelper->getCustomerSession();
+            if ($customerSessionData) {
+                $customerEmail = $customerSessionData->getEmail();
+            } else {
+                return false;
+            }
         }
 
         // Get customer's current tier (this may make API call)
@@ -117,18 +82,17 @@ class LoyaltyTierChecker
         $qualifies = in_array($currentTier, $qualifyingTiers, true);
 
         // Only log if debug is enabled (uses masked email for privacy)
-        if ($this->loyaltyLogger->isDebugEnabled()) {
-            $this->loyaltyLogger->debug(
-                LoyaltyLogger::COMPONENT_PLUGIN,
-                'FREE-SHIPPING',
-                sprintf(
-                    'Free shipping check for %s: tier=%s, qualifies=%s',
-                    $this->loyaltyLogger->maskEmail($customerEmail),
-                    $currentTier,
-                    $qualifies ? 'YES' : 'NO'
-                )
-            );
-        }
+        $this->loyaltyHelper->log(
+            'debug',
+            LoyaltyLogger::COMPONENT_PLUGIN,
+            'FREE-SHIPPING',
+            sprintf(
+                'Free shipping check for %s: tier=%s, qualifies=%s',
+                $this->loyaltyHelper->logMaskedEmail($customerEmail),
+                $currentTier,
+                $qualifies ? 'YES' : 'NO'
+            )
+        );
 
         return $qualifies;
     }
@@ -163,30 +127,27 @@ class LoyaltyTierChecker
      */
     private function fetchTierFromCustomerAttributes(string $customerEmail): ?string
     {
+        $customerSession = $this->loyaltyHelper->getCustomerSession();
         try {
             // First try to get from current session if it's the same customer
-            if ($this->customerSession->isLoggedIn() && 
-                $this->customerSession->getCustomer()->getEmail() === $customerEmail) {
-                
-                $customer = $this->customerSession->getCustomer();
-                $tier = $customer->getData('le_current_tier');
-                
+            if ($customerSession && $customerSession->getEmail() === $customerEmail) {
+                $tier = $customerSession->getData('le_current_tier');
                 if ($tier) {
                     return $tier;
                 }
             }
-
+            $customerId = $customerSession ? $customerSession->getId() : null;
             // Get customer by email from repository
-            $customer = $this->customerRepository->get($customerEmail);
+            $customer = $this->loyaltyHelper->getCustomerDataById($customerId);
             
             // Get attribute value - handle both model and data objects
             $tier = null;
-            if ($customer instanceof \Magento\Customer\Model\Customer) {
+            if (isset($customer['customer']) && $customer['customer'] instanceof \Magento\Customer\Model\Customer) {
                 // Customer model object
-                $tier = $customer->getData('le_current_tier');
-            } elseif ($customer instanceof \Magento\Customer\Api\Data\CustomerInterface) {
+                $tier = $customer['customer']->getData('le_current_tier');
+            } elseif (isset($customer['customer']) && $customer['customer'] instanceof \Magento\Customer\Api\Data\CustomerInterface) {
                 // Customer data object from repository
-                $attribute = $customer->getCustomAttribute('le_current_tier');
+                $attribute = $customer['customer']->getCustomAttribute('le_current_tier');
                 if ($attribute) {
                     $tier = $attribute->getValue();
                 }
@@ -196,12 +157,13 @@ class LoyaltyTierChecker
 
         } catch (\Exception $e) {
             // Only log errors (not routine operations)
-            $this->loyaltyLogger->error(
+            $this->loyaltyHelper->log(
+                'error',
                 LoyaltyLogger::COMPONENT_PLUGIN,
                 LoyaltyLogger::ACTION_ERROR,
                 sprintf(
                     'Exception fetching tier from attributes for %s: %s',
-                    $this->loyaltyLogger->maskEmail($customerEmail),
+                    $this->loyaltyHelper->logMaskedEmail($customerEmail),
                     $e->getMessage()
                 )
             );
@@ -220,106 +182,67 @@ class LoyaltyTierChecker
     private function fetchTierFromAPI(string $customerEmail): ?string
     {
         $apiUrl = $this->loyaltyHelper->getApiUrl();
+        $hashedEmail = $this->loyaltyHelper->hashEmail($customerEmail);
         if (!$apiUrl) {
             return null;
         }
 
         try {
             // Prepare API endpoint
-            $endpoint = rtrim($apiUrl, '/') . '/api/v1/contact/' . urlencode($customerEmail) . '/loyalty_status';
+            $endpoint = rtrim($apiUrl, '/') . '/api/v1/contact/' . $hashedEmail . '/loyalty_status';
 
-            // Set headers with Basic Authentication (same as working cart code)
-            $tenantId = $this->loyaltyHelper->getClientId(); // Actually tenant_id
-            $bearerToken = $this->loyaltyHelper->getClientSecret(); // Actually bearer_token
+            // Use ApiClient service for consistent API calls
+            $response = $this->apiClient->get($endpoint);
             
-            $headers = [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json'
-            ];
-            
-            if ($tenantId && $bearerToken) {
-                $authString = base64_encode($tenantId . ':' . $bearerToken);
-                $headers['Authorization'] = 'Basic ' . $authString;
-            }
+            if (isset($response['currentTier'])) {
 
-            $this->curl->setHeaders($headers);
-            $this->curl->setTimeout(5); // Short timeout for performance
-            
-            // Make API call
-            $this->curl->get($endpoint);
-            
-            $httpCode = $this->curl->getStatus();
-            $response = $this->curl->getBody();
+                $this->loyaltyHelper->log(
+                    'debug',
+                    LoyaltyLogger::COMPONENT_API,
+                    LoyaltyLogger::ACTION_SUCCESS,
+                    sprintf(
+                        'Tier fetched successfully for %s',
+                        $this->loyaltyHelper->logMaskedEmail($customerEmail)
+                    ),
+                    [
+                        'tier' => $response['currentTier'],
+                        'response' => $response
+                    ]
+                );
 
-            if ($httpCode >= 200 && $httpCode < 300) {
-                $data = json_decode($response, true);
-                
-                if (isset($data['currentTier'])) {
-                    return $data['currentTier'];
-                }
+                return $response['currentTier'];
+
             } else {
                 // Only log API errors (not successful requests)
-                $this->loyaltyLogger->error(
+                $this->loyaltyHelper->log(
+                    'error',
                     LoyaltyLogger::COMPONENT_API,
                     LoyaltyLogger::ACTION_ERROR,
                     sprintf(
-                        'API error for %s - HTTP %d',
-                        $this->loyaltyLogger->maskEmail($customerEmail),
-                        $httpCode
-                    )
+                        'API error for %s - Invalid response format',
+                        $this->loyaltyHelper->logMaskedEmail($customerEmail)
+                    ),
+                    ['response' => $response]
                 );
             }
-
         } catch (\Exception $e) {
-            $this->loyaltyLogger->error(
+            $this->loyaltyHelper->log(
+                'error',
                 LoyaltyLogger::COMPONENT_API,
                 LoyaltyLogger::ACTION_ERROR,
                 sprintf(
                     'Exception fetching tier for %s: %s',
-                    $this->loyaltyLogger->maskEmail($customerEmail),
+                    $this->loyaltyHelper->logMaskedEmail($customerEmail),
                     $e->getMessage()
-                )
+                ),
+                [
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
             );
         }
 
         return null;
-    }
-
-    /**
-     * Get current customer email (lightweight method)
-     *
-     * @return string|null
-     */
-    private function getCustomerEmail(): ?string
-    {
-        if (!$this->customerSession->isLoggedIn()) {
-            return null;
-        }
-
-        return $this->customerSession->getCustomer()->getEmail();
-    }
-
-    /**
-     * Clear tier cache for specific customer
-     *
-     * @param string $customerEmail
-     * @return void
-     */
-    public function clearTierCache(string $customerEmail): void
-    {
-        $cacheKey = 'loyalty_tier_' . md5($customerEmail);
-        $this->cache->remove($cacheKey);
-        unset($this->memoryCache[$customerEmail]);
-    }
-
-    /**
-     * Clear all tier caches
-     *
-     * @return void
-     */
-    public function clearAllTierCaches(): void
-    {
-        $this->cache->clean(['loyalty_tier']);
-        $this->memoryCache = [];
     }
 }

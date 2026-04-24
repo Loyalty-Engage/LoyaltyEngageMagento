@@ -8,7 +8,6 @@ use Magento\Quote\Model\Quote\Address\RateResult\Method as ShippingMethod;
 use Magento\Shipping\Model\Rate\CarrierResult;
 use LoyaltyEngage\LoyaltyShop\Model\LoyaltyTierChecker;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use Psr\Log\LoggerInterface;
 
 class ShippingMethodPlugin
 {
@@ -23,23 +22,15 @@ class ShippingMethodPlugin
     private $loyaltyHelper;
 
     /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
      * @param LoyaltyTierChecker $loyaltyTierChecker
      * @param LoyaltyHelper $loyaltyHelper
-     * @param LoggerInterface $logger
      */
     public function __construct(
         LoyaltyTierChecker $loyaltyTierChecker,
-        LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoyaltyHelper $loyaltyHelper
     ) {
         $this->loyaltyTierChecker = $loyaltyTierChecker;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
     }
 
     /**
@@ -60,14 +51,35 @@ class ShippingMethodPlugin
 
             // Check if customer qualifies for free shipping
             if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'LoyaltyShop',
+                    'FreeShippingNotQualified',
+                    'Customer does not qualify for free shipping.'
+                );
                 return $result;
             }
 
             // Apply free shipping to all methods
             $this->applyFreeShippingToRates($result);
 
+            $this->loyaltyHelper->log(
+                'info',
+                'LoyaltyShop',
+                'FreeShippingApplied',
+                'Free shipping applied to all available shipping methods.'
+            );
+
         } catch (\Exception $e) {
-            $this->logger->error('[LoyaltyShop] Error applying free shipping: ' . $e->getMessage());
+            $this->loyaltyHelper->log(
+                'error',
+                'LoyaltyShop',
+                'FreeShippingError',
+                'Error applying free shipping.',
+                [
+                    'error_message' => $e->getMessage()
+                ]
+            );
         }
 
         return $result;
@@ -81,11 +93,31 @@ class ShippingMethodPlugin
      */
     private function applyFreeShippingToRates(CarrierResult $result): void
     {
+        $modifiedRates = [];
+
         foreach ($result->getAllRates() as $rate) {
             if ($rate instanceof ShippingMethod) {
                 $rate->setPrice(0);
                 $rate->setCost(0);
+
+                $modifiedRates[] = [
+                    'carrier' => $rate->getCarrier(),
+                    'method' => $rate->getMethod()
+                ];
             }
+        }
+
+        if (!empty($modifiedRates)) {
+            $this->loyaltyHelper->log(
+                'debug',
+                'LoyaltyShop',
+                'FreeShippingRatesModified',
+                'Shipping rates updated to free.',
+                [
+                    'rates' => $modifiedRates,
+                    'count' => count($modifiedRates)
+                ]
+            );
         }
     }
 }

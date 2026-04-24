@@ -4,48 +4,89 @@ declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Model\Queue;
 
+use LoyaltyEngage\LoyaltyShop\Service\AbstractConsumer;
+use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use Magento\Framework\HTTP\Client\Curl;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
 
-class ReturnConsumer
+/**
+ * Consumer class to process Return events
+ */
+class ReturnConsumer extends AbstractConsumer
 {
-    protected $helper;
-    protected $curl;
-    protected $logger;
+    /**
+     * API client for external requests
+     *
+     * @var ApiClient
+     */
+    protected ApiClient $apiClient;
 
+    /**
+     * Constructor
+     *
+     * @param Data $helper
+     * @param ApiClient $apiClient
+     */
     public function __construct(
         Data $helper,
-        Curl $curl,
-        LoggerInterface $logger
+        ApiClient $apiClient,
     ) {
-        $this->helper = $helper;
-        $this->curl = $curl;
-        $this->logger = $logger;
+        parent::__construct($helper);
+        $this->apiClient = $apiClient;
     }
 
-    public function process(string $payloadJson): void
+    /**
+     * Process return event payload
+     *
+     * @param array $payload
+     * @return void
+     */
+    protected function execute(array $payload): void
     {
-        if ($this->helper->isLoyaltyEngageEnabled()) {
-            $payload = json_decode($payloadJson, true);
+        if (!$this->helper->isReturnExportEnabled()) {
+            return;
+        }
 
-            try {
-                $apiUrl = $this->helper->getApiUrl();
-                $clientId = $this->helper->getClientId();
-                $clientSecret = $this->helper->getClientSecret();
-                $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
+        // Validation
+        if (empty($payload)) {
+            $this->helper->log(
+                'error',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_VALIDATION,
+                'Empty return payload'
+            );
+            return;
+        }
 
-                $this->curl->addHeader("Content-Type", "application/json");
-                $this->curl->addHeader("Authorization", $authHeader);
-                $this->curl->post(rtrim($apiUrl, '/') . '/api/v1/events', json_encode($payload));
+        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $endpoint = "{$apiUrl}/api/v1/events";
 
-                $response = $this->curl->getBody();
-                $status = $this->curl->getStatus();
+        try {
+            $this->apiClient->post($endpoint, $payload);
 
-                $this->logger->info("[LoyaltyShop] Return API Response (HTTP $status): $response");
-            } catch (\Exception $e) {
-                $this->logger->error('[LoyaltyShop] Return API Error: ' . $e->getMessage());
-            }
+            $this->helper->log(
+                'debug',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_SUCCESS,
+                'Return Success',
+                [
+                    'event_type' => $payload['event'] ?? 'return',
+                    'email' => isset($payload['email'])
+                        ? $this->helper->logMaskedEmail($payload['email'])
+                        : null,
+                    'payload_keys' => array_keys($payload)
+                ]
+            );
+
+        } catch (\Exception $e) {
+            $this->helper->log(
+                'error',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_ERROR,
+                'Return Failed',
+                ['error' => $e->getMessage()]
+            );
+            throw $e;
         }
     }
 }

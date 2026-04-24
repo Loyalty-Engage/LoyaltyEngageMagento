@@ -5,15 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.4] - 2026-04-13
+## [2.4.5] - 2026-04-24
 
-### Fixed
-- **Cart price rule coupon type stays Specific**: Removed logic that incorrectly upgraded existing rules from `COUPON_TYPE_SPECIFIC` to `COUPON_TYPE_AUTO` when a second discount code was created for the same rule
-- **Coupon code field stays empty on rule**: All discount codes are now created exclusively in the "Manage Coupon Codes" section (`is_primary = false`), keeping the rule's "Coupon Code" field empty
-- **New rules use auto generation**: New cart price rules now set `use_auto_generation = 1` so multiple coupon codes can be added without manually enabling the checkbox in admin
+### Added
+- Implemented new API interface file where missing and mapped existing integrations accordingly.
+- Introduced centralized `ApiClient` service to handle all external API (cURL) requests.
 
 ### Changed
-- **Cart price rule settings**: New rules are now created with `uses_per_customer = 0` (unlimited) and `stop_rules_processing = 1` (Discard subsequent rules = Yes)
+- Refactored all direct cURL calls across multiple files to use the centralized `ApiClient`.
+- Replaced hardcoded URLs with configurable values for better environment management.
+- Improved API response handling with standardized status checks across modules.
+- Updated API access from anonymous to authenticated by modifying `webapi.xml`.
+
+### Fixed
+- Resolved potential security risks related to use of `unserialize()` by reviewing and securing usage.
+- Replaced `shell_exec()` usage in cron/consumer scripts with Magento-native alternatives where available.
+- Addressed PII exposure by replacing email usage with IDs or hashed values where applicable.
+
+### Removed
+- Eliminated duplicated code by introducing reusable utility functions and shared logic.
+- Removed redundant and scattered cURL implementations.
+
+### Security
+- Strengthened API authentication and authorization mechanisms.
+- Mitigated risks of PHP object injection.
+- Reduced exposure of sensitive user data (PII).
+
+### Notes
+- High-risk change: cURL refactor may impact existing API flows.
+- Extensive testing recommended for all API scenarios.
+
 
 ## [2.4.3] - 2026-04-01
 

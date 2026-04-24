@@ -1,87 +1,99 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Model\Queue;
 
+use LoyaltyEngage\LoyaltyShop\Service\AbstractConsumer;
+use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use Magento\Framework\HTTP\Client\Curl;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
 
-class FreeProductRemoveConsumer
+/**
+ * Consumer class to process Free Product Remove events
+ */
+class FreeProductRemoveConsumer extends AbstractConsumer
 {
-    protected $helper;
-    protected $curl;
-    protected $logger;
+    /**
+     * API client for external requests
+     *
+     * @var ApiClient
+     */
+    protected ApiClient $apiClient;
 
+    /**
+     * Constructor
+     *
+     * @param Data $helper
+     * @param ApiClient $apiClient
+     * @param LoggerInterface $logger
+     */
     public function __construct(
         Data $helper,
-        Curl $curl,
-        LoggerInterface $logger
+        ApiClient $apiClient
     ) {
-        $this->helper = $helper;
-        $this->curl = $curl;
-        $this->logger = $logger;
-    }
-
-    public function process(string $payloadJson): void
-    {
-        if ($this->helper->isLoyaltyEngageEnabled()) {
-            $payload = json_decode($payloadJson, true);
-
-            try {
-                $clientId = $this->helper->getClientId();
-                $clientSecret = $this->helper->getClientSecret();
-                $apiUrl = rtrim($this->helper->getApiUrl(), '/');
-                $authHeader = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
-
-                $email = $payload['email'];
-                // Mask email in URL for logging
-                $maskedEmail = $this->maskEmail($email);
-                $endpoint = "{$apiUrl}/api/v1/loyalty/shop/" . rawurlencode($email) . "/cart/remove";
-
-                $this->logger->info("[LoyaltyShop] Sending free product remove request", [
-                    'email' => $maskedEmail,
-                    'sku' => $payload['sku'] ?? 'unknown',
-                    'quantity' => $payload['quantity'] ?? 0
-                ]);
-
-                // Using Curl class for DELETE request
-                $this->curl->addHeader("Content-Type", "application/json");
-                $this->curl->addHeader("Authorization", $authHeader);
-
-                // Magento's Curl class doesn't have a direct delete method, so we use setOption
-                $this->curl->setOption(CURLOPT_CUSTOMREQUEST, "DELETE");
-                $this->curl->post($endpoint, json_encode([
-                    'sku' => $payload['sku'],
-                    'quantity' => $payload['quantity']
-                ]));
-
-                $response = $this->curl->getBody();
-                $status = $this->curl->getStatus();
-
-                $this->logger->info("[LoyaltyShop] Remove API Response (HTTP $status): $response");
-            } catch (\Exception $e) {
-                $this->logger->error("[LoyaltyShop] Free product remove error: " . $e->getMessage());
-            }
-        }
+        parent::__construct($helper);
+        $this->apiClient = $apiClient;
     }
 
     /**
-     * Mask email address for privacy in logs
+     * Process free product remove payload
      *
-     * @param string $email
-     * @return string
+     * @param array $payload
+     * @return void
      */
-    private function maskEmail(string $email): string
+    protected function execute(array $payload): void
     {
-        $parts = explode('@', $email);
-        if (count($parts) !== 2) {
-            return '***';
+        // Basic validation
+        if (empty($payload['email']) || empty($payload['sku'])) {
+
+            $this->helper->log(
+                'error',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_VALIDATION,
+                'Invalid free product remove payload',
+                $payload
+            );
+            return;
         }
-        $name = $parts[0];
-        $domain = $parts[1];
-        $maskedName = strlen($name) > 2
-            ? substr($name, 0, 1) . '***' . substr($name, -1)
-            : '***';
-        return $maskedName . '@' . $domain;
+
+        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $email = (string)$payload['email'];
+        $hashEmail = $this->helper->hashEmail($email);
+
+        $endpoint = "{$apiUrl}/api/v1/loyalty/shop/{$hashEmail}/cart/remove";
+
+        $requestPayload = [
+            'sku'      => $payload['sku'],
+            'quantity' => $payload['quantity'] ?? 0
+        ];
+
+        try {
+            $this->apiClient->delete($endpoint, $requestPayload);
+
+            $this->helper->log(
+                'debug',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_SUCCESS,
+                sprintf('FreeProductRemove Success (SKU: %s)', $payload['sku']),
+                [
+                    'email' => $this->helper->logMaskedEmail($email),
+                    'sku' => $payload['sku'],
+                    'quantity' => $requestPayload['quantity']
+                ]
+            );
+
+        } catch (\Exception $e) {
+            $this->helper->log(
+                'error',
+                LoyaltyLogger::COMPONENT_QUEUE,
+                LoyaltyLogger::ACTION_ERROR,
+                sprintf('FreeProductRemove Failed (SKU: %s)', $payload['sku']),
+                [
+                    'error' => $e->getMessage()
+                ]
+            );
+            throw $e;
+        }
     }
 }

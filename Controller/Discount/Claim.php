@@ -71,7 +71,14 @@ class Claim implements HttpPostActionInterface
             }
 
             $customerId = (int) $this->customerSession->getCustomerId();
-            $sku = $data['sku'];
+            // $sku = $data['sku'];
+            $sku = (string) $data['sku'];
+
+            // Debug logging to check customer session
+            $this->logger->debug('LoyaltyShop Buy Discount Code Debug', [
+                'customer_id' => $customerId,
+                'sku' => $sku
+            ]);
 
             // Use the new buyDiscountCodeProduct method
             $response = $this->loyaltyCart->buyDiscountCodeProduct($customerId, $sku);
@@ -82,8 +89,8 @@ class Claim implements HttpPostActionInterface
             ]);
 
         } catch (\Exception $e) {
-            $this->logger->error('LoyaltyShop Discount Claim Error: ' . $e->getMessage(), [
-                'exception' => $e,
+            $this->logger->error('LoyaltyShop Discount Claim Error', [
+                'exception' => $e->getMessage(),
                 'customer_id' => $this->customerSession->getCustomerId(),
                 'request_data' => $this->request->getContent()
             ]);

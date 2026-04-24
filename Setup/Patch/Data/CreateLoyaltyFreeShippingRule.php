@@ -11,7 +11,7 @@ use Magento\SalesRule\Model\Rule;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Customer\Model\ResourceModel\Group\CollectionFactory as CustomerGroupCollectionFactory;
 use Magento\Framework\App\State;
-use Psr\Log\LoggerInterface;
+use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CreateLoyaltyFreeShippingRule implements DataPatchInterface
 {
@@ -41,9 +41,9 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
     private $appState;
 
     /**
-     * @var LoggerInterface
+     * @var LoyaltyHelper
      */
-    private $logger;
+    private $helper;
 
     /**
      * @param RuleFactory $ruleFactory
@@ -51,7 +51,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
      * @param StoreManagerInterface $storeManager
      * @param CustomerGroupCollectionFactory $customerGroupCollectionFactory
      * @param State $appState
-     * @param LoggerInterface $logger
+     * @param LoyaltyHelper $helper
      */
     public function __construct(
         RuleFactory $ruleFactory,
@@ -59,14 +59,14 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
         StoreManagerInterface $storeManager,
         CustomerGroupCollectionFactory $customerGroupCollectionFactory,
         State $appState,
-        LoggerInterface $logger
+        LoyaltyHelper $helper
     ) {
         $this->ruleFactory = $ruleFactory;
         $this->ruleResource = $ruleResource;
         $this->storeManager = $storeManager;
         $this->customerGroupCollectionFactory = $customerGroupCollectionFactory;
         $this->appState = $appState;
-        $this->logger = $logger;
+        $this->helper = $helper;
     }
 
     /**
@@ -74,31 +74,32 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
      */
     public function apply()
     {
-        // Set area code to avoid "Area code is not set" error
         try {
             $this->appState->setAreaCode(\Magento\Framework\App\Area::AREA_ADMINHTML);
         } catch (\Exception $e) {
-            // Area code already set, continue
+            // Area already set
         }
 
         // Check if rule already exists
         $existingRule = $this->ruleFactory->create();
         $this->ruleResource->load($existingRule, 'loyalty_free_shipping_brons', 'name');
-        
+
         if ($existingRule->getId()) {
-            // Rule already exists, skip creation
+            $this->helper->log(
+                'info',
+                'LoyaltyShop',
+                'FreeShippingRuleExists',
+                'Loyalty free shipping rule already exists, skipping creation.'
+            );
             return $this;
         }
 
-        // Get all customer groups
         $customerGroups = $this->customerGroupCollectionFactory->create()->getAllIds();
-        
-        // Get all websites
         $websiteIds = array_keys($this->storeManager->getWebsites());
 
         /** @var Rule $rule */
         $rule = $this->ruleFactory->create();
-        
+
         $rule->setData([
             'name' => 'Loyalty Free Shipping - Brons Tier',
             'description' => 'Free shipping for customers with Brons loyalty tier',
@@ -120,7 +121,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
             'stop_rules_processing' => 0,
         ]);
 
-        // Set conditions - customer loyalty tier equals "Brons"
+        // Conditions
         $conditions = [
             'type' => \Magento\SalesRule\Model\Rule\Condition\Combine::class,
             'attribute' => null,
@@ -141,7 +142,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
 
         $rule->getConditions()->setConditions([])->loadArray($conditions);
 
-        // Set actions (no product conditions needed for free shipping)
+        // Actions
         $actions = [
             'type' => \Magento\SalesRule\Model\Rule\Condition\Product\Combine::class,
             'attribute' => null,
@@ -156,9 +157,29 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
 
         try {
             $this->ruleResource->save($rule);
+
+            $this->helper->log(
+                'info',
+                'LoyaltyShop',
+                'FreeShippingRuleCreated',
+                'Loyalty free shipping rule created successfully.',
+                [
+                    'rule_name' => $rule->getName(),
+                    'website_ids' => $websiteIds,
+                    'customer_group_ids' => $customerGroups
+                ]
+            );
+
         } catch (\Exception $e) {
-            // Rule creation failed, but don't break the installation
-            $this->logger->error('Failed to create loyalty free shipping rule: ' . $e->getMessage());
+            $this->helper->log(
+                'error',
+                'LoyaltyShop',
+                'FreeShippingRuleError',
+                'Failed to create loyalty free shipping rule.',
+                [
+                    'error_message' => $e->getMessage()
+                ]
+            );
         }
 
         return $this;
