@@ -559,15 +559,13 @@ class LoyaltyCart implements LoyaltyCartInterface
             $subtotal = 0.0;
 
             foreach ($quote->getAllVisibleItems() as $item) {
-                $customPrice = $item->getCustomPrice();
-                $loyaltyLockedQty = $item->getOptionByCode('loyalty_locked_qty');
-                
-                $isLoyaltyProduct = ($customPrice !== null && (float)$customPrice === 0.0) || 
-                                    ($loyaltyLockedQty && $loyaltyLockedQty->getValue());
-                
-                if (!$isLoyaltyProduct) {
-                    $subtotal += (float)$item->getRowTotal();
+                // Skip loyalty products
+                if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
+                    continue;
                 }
+
+                // Use row total including tax for the threshold check
+                $subtotal += (float) ($item->getRowTotalInclTax() ?? $item->getRowTotal());
             }
 
             return $subtotal;

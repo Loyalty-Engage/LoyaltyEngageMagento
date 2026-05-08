@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.6] - 2026-05-08
+
+### Added
+- **RemoveFromCart event**: New `CartItemRemoveObserver` listens on `sales_quote_remove_item`. When a loyalty product is removed from the Magento cart, a remove event is immediately sent to the LoyaltyEngage API (`/cart/remove`).
+
+### Changed
+- **Minimum order value threshold includes tax**: `LoyaltyCart::getCartSubtotalExcludingLoyaltyProducts()` now uses `getRowTotalInclTax()` instead of `getRowTotal()`, so the minimum order value threshold is calculated including VAT/tax.
+- **Loyalty product detection in subtotal**: Replaced manual loyalty product detection with the shared `isLoyaltyProduct()` helper method for consistency.
+
+### Fixed
+- **Auto-remove loyalty products when cart drops below minimum**: When a regular product is removed and the cart subtotal (incl. tax, excl. loyalty products) drops below the configured minimum order value, all loyalty products are automatically removed from the cart. The LoyaltyEngage API is notified for each removed loyalty product, and a warning message is shown to the customer.
+
 ## [2.4.5] - 2026-04-24
 
 ### Added
