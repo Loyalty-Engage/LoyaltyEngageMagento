@@ -2,5 +2,6 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
     <event name="sales_quote_remove_item">
         <observer name="loyaltyshop_freeproduct_remove" instance="LoyaltyEngage\LoyaltyShop\Observer\FreeProductRemoveObserver" />
+        <observer name="loyaltyshop_cart_item_remove" instance="LoyaltyEngage\LoyaltyShop\Observer\CartItemRemoveObserver" />
     </event>
 </config>
