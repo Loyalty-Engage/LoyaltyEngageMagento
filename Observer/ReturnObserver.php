@@ -11,18 +11,13 @@ use Magento\Framework\MessageQueue\PublisherInterface;
 
 class ReturnObserver implements ObserverInterface
 {
-    protected $helper;
-    protected $publisher;
-
     public function __construct(
-        Data $helper,
-        PublisherInterface $publisher
+        private Data $helper,
+        private PublisherInterface $publisher
     ) {
-        $this->helper = $helper;
-        $this->publisher = $publisher;
     }
 
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         if (!$this->helper->isLoyaltyEngageEnabled()) {
             return;
@@ -54,18 +49,18 @@ class ReturnObserver implements ObserverInterface
         $products = [];
         foreach ($creditmemo->getAllItems() as $item) {
             $products[] = [
-                'sku' => $item->getSku(),
-                'price' => number_format((float) $item->getPrice(), 2, '.', ''),
+                'sku'      => $item->getSku(),
+                'price'    => number_format((float) $item->getPrice(), 2, '.', ''),
                 'quantity' => (int) $item->getQty()
             ];
         }
 
         $payload = [
             [
-                'event' => 'Return',
+                'event'      => 'Return',
                 'identifier' => $email,
-                'orderDate' => $returnDate,
-                'products' => $products
+                'orderDate'  => $returnDate,
+                'products'   => $products
             ]
         ];
 
@@ -81,11 +76,11 @@ class ReturnObserver implements ObserverInterface
                 'ReturnEventPublished',
                 'Return payload published to queue.',
                 [
-                    'email' => $email,
-                    'return_date' => $returnDate,
+                    'email'          => $email,
+                    'return_date'    => $returnDate,
                     'products_count' => count($products),
-                    'products' => $products,
-                    'payload' => $payload[0]
+                    'products'       => $products,
+                    'payload'        => $payload[0]
                 ]
             );
 
@@ -97,8 +92,8 @@ class ReturnObserver implements ObserverInterface
                 'Failed to queue Return event.',
                 [
                     'error_message' => $e->getMessage(),
-                    'email' => $email,
-                    'return_date' => $returnDate
+                    'email'         => $email,
+                    'return_date'   => $returnDate
                 ]
             );
         }

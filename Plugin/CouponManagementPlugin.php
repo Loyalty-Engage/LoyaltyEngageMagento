@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Plugin;
 
 use Magento\Quote\Model\CouponManagement;
@@ -36,7 +38,7 @@ class CouponManagementPlugin
             }
 
             $customerEmail = $quote->getCustomerEmail() ?? '';
-            $customerEmailhash = hash('sha256', $customerEmail);
+            $customerEmailhash = $this->helper->hashEmail($customerEmail);
 
             $subtotal = (float)$quote->getSubtotal();
             $subtotalWithDiscount = (float)$quote->getSubtotalWithDiscount();

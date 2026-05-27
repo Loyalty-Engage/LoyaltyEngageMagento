@@ -11,7 +11,6 @@ use Magento\Framework\Controller\ResultInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use Psr\Log\LoggerInterface;
 
 class Claim implements HttpPostActionInterface
 {
@@ -20,22 +19,19 @@ class Claim implements HttpPostActionInterface
     private $customerSession;
     private $loyaltyCart;
     private $loyaltyHelper;
-    private $logger;
 
     public function __construct(
         RequestInterface $request,
         JsonFactory $jsonFactory,
         CustomerSession $customerSession,
         LoyaltyCartInterface $loyaltyCart,
-        LoyaltyHelper $loyaltyHelper,
-        LoggerInterface $logger
+        LoyaltyHelper $loyaltyHelper
     ) {
         $this->request = $request;
         $this->jsonFactory = $jsonFactory;
         $this->customerSession = $customerSession;
         $this->loyaltyCart = $loyaltyCart;
         $this->loyaltyHelper = $loyaltyHelper;
-        $this->logger = $logger;
     }
 
     public function execute(): ResultInterface
@@ -71,16 +67,13 @@ class Claim implements HttpPostActionInterface
             }
 
             $customerId = (int) $this->customerSession->getCustomerId();
-            // $sku = $data['sku'];
             $sku = (string) $data['sku'];
 
-            // Debug logging to check customer session
-            $this->logger->debug('LoyaltyShop Buy Discount Code Debug', [
+            $this->loyaltyHelper->log('debug', 'DISCOUNT-CLAIM', 'REQUEST', 'Buy discount code request', [
                 'customer_id' => $customerId,
                 'sku' => $sku
             ]);
 
-            // Use the new buyDiscountCodeProduct method
             $response = $this->loyaltyCart->buyDiscountCodeProduct($customerId, $sku);
 
             return $result->setData([
@@ -89,8 +82,7 @@ class Claim implements HttpPostActionInterface
             ]);
 
         } catch (\Exception $e) {
-            $this->logger->error('LoyaltyShop Discount Claim Error', [
-                'exception' => $e->getMessage(),
+            $this->loyaltyHelper->log('error', 'DISCOUNT-CLAIM', 'ERROR', 'Discount claim error: ' . $e->getMessage(), [
                 'customer_id' => $this->customerSession->getCustomerId(),
                 'request_data' => $this->request->getContent()
             ]);

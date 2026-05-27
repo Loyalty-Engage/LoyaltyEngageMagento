@@ -16,4 +16,7 @@
     <topic name="loyaltyshop.review_event" request="string">
         <handler name="loyaltyshop_review_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\ReviewConsumer" method="process" />
     </topic>
+    <topic name="loyaltyshop.redeem_discount_event" request="string">
+        <handler name="loyaltyshop_redeem_discount_handler" type="LoyaltyEngage\LoyaltyShop\Model\Queue\RedeemDiscountConsumer" method="process" />
+    </topic>
 </config>

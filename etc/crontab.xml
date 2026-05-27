@@ -12,10 +12,5 @@
             method="execute">
             <schedule>*/5 * * * *</schedule>
         </job>
-
-        <!-- Simple Consumer Starter - Processes queue messages with configurable frequency -->
-        <job name="loyaltyshop_simple_consumer_starter" instance="LoyaltyEngage\LoyaltyShop\Cron\SimpleConsumerStarter" method="execute">
-            <schedule>*/5 * * * *</schedule> <!-- Default: Every 5 minutes (configurable in admin) -->
-        </job>
     </group>
 </config>

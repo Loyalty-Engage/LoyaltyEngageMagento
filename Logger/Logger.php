@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Logger;
 
 use Monolog\Logger as MonoLogger;
@@ -92,7 +95,7 @@ class Logger extends MonoLogger
     {
         if ($this->isDebugEnabled()) {
             $formattedMessage = $this->formatMessage($component, $action, $message);
-            parent::info($formattedMessage, $context);
+            parent::debug($formattedMessage, $context);
         }
     }
 

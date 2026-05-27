@@ -16,4 +16,7 @@
     <publisher topic="loyaltyshop.review_event">
         <connection name="db" exchange="magento" />
     </publisher>
+    <publisher topic="loyaltyshop.redeem_discount_event">
+        <connection name="db" exchange="magento" />
+    </publisher>
 </config>

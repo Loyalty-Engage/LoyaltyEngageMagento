@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Service;
 
 use Magento\Framework\HTTP\Client\Curl;
@@ -105,7 +107,9 @@ class ApiClient
     {
         $this->prepare();
 
-        $this->curl->put($url, $this->json->serialize($body));
+        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'PUT');
+        $this->curl->setOption(CURLOPT_POSTFIELDS, $this->json->serialize($body));
+        $this->curl->get($url);
 
         return $this->handleResponse();
     }

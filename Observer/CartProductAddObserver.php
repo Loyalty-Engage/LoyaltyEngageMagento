@@ -38,7 +38,7 @@ class CartProductAddObserver implements ObserverInterface
         Logger $loyaltyLogger,
         Session $customerSession,
         StoreManagerInterface $storeManager,
-        protected LoyaltyHelper $loyaltyHelper
+        private LoyaltyHelper $loyaltyHelper
     ) {
         $this->loyaltyLogger = $loyaltyLogger;
         $this->customerSession = $customerSession;
@@ -52,7 +52,7 @@ class CartProductAddObserver implements ObserverInterface
      * @param Observer $observer
      * @return void
      */
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             return;
@@ -71,28 +71,31 @@ class CartProductAddObserver implements ObserverInterface
                 return;
             }
 
-            // Check if this is a loyalty product - only log loyalty products
-            $isLoyaltyProduct = $this->isLoyaltyProduct($quoteItem);
-            
             // Only log loyalty product additions (reduces noise significantly)
-            if ($isLoyaltyProduct) {
+            if ($this->loyaltyHelper->isLoyaltyProduct($quoteItem)) {
                 $customerEmail = $this->getMaskedCustomerEmail();
-                $source = $this->determineAdditionSource($quoteItem);
 
-                $this->loyaltyLogger->logCartAddition(
+                $this->loyaltyHelper->log(
+                    'info',
+                    Logger::COMPONENT_CART_ADD,
                     Logger::ACTION_LOYALTY,
-                    $product->getSku(),
-                    $customerEmail,
-                    $source,
+                    sprintf(
+                        'Loyalty product added to cart: %s for %s',
+                        $product->getSku(),
+                        $customerEmail
+                    ),
                     [
                         'product_name' => $product->getName(),
-                        'qty' => $quoteItem->getQty()
+                        'sku'          => $product->getSku(),
+                        'qty'          => $quoteItem->getQty(),
+                        'source'       => 'loyalty-api'
                     ]
                 );
             }
 
         } catch (\Exception $e) {
-            $this->loyaltyLogger->error(
+            $this->loyaltyHelper->log(
+                'error',
                 Logger::COMPONENT_OBSERVER,
                 Logger::ACTION_ERROR,
                 'Exception in CartProductAddObserver: ' . $e->getMessage()
@@ -113,94 +116,5 @@ class CartProductAddObserver implements ObserverInterface
             );
         }
         return 'guest';
-    }
-
-    /**
-     * Check if quote item is a loyalty product
-     *
-     * @param \Magento\Quote\Model\Quote\Item $quoteItem
-     * @return bool
-     */
-    private function isLoyaltyProduct($quoteItem): bool
-    {
-        // Method 1: Check for loyalty_locked_qty option
-        $loyaltyOption = $quoteItem->getOptionByCode('loyalty_locked_qty');
-        if ($loyaltyOption && $loyaltyOption->getValue() == '1') {
-            return true;
-        }
-
-        // Method 2: Check item data directly
-        $loyaltyData = $quoteItem->getData('loyalty_locked_qty');
-        if ($loyaltyData === '1' || $loyaltyData === 1) {
-            return true;
-        }
-
-        // Method 3: Check additional_options
-        $additionalOptions = $quoteItem->getOptionByCode('additional_options');
-        if ($additionalOptions) {
-            $value = $this->safeUnserialize($additionalOptions->getValue());
-            if (is_array($value)) {
-                foreach ($value as $option) {
-                    if (
-                        isset($option['label']) && $option['label'] === 'loyalty_locked_qty' &&
-                        isset($option['value']) && $option['value'] === '1'
-                    ) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // Method 4: Check product data (universal fallback)
-        $product = $quoteItem->getProduct();
-        if ($product && $product->getData('loyalty_locked_qty')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine the source of product addition
-     *
-     * @param \Magento\Quote\Model\Quote\Item $quoteItem
-     * @return string
-     */
-    private function determineAdditionSource($quoteItem): string
-    {
-        // Check if added via loyalty API
-        if ($this->isLoyaltyProduct($quoteItem)) {
-            return 'loyalty-api';
-        }
-
-        return 'regular-cart';
-    }
-
-    /**
-     * Safely unserialize data with JSON fallback
-     * Prevents PHP object injection vulnerabilities
-     *
-     * @param string|null $data
-     * @return array|null
-     */
-    private function safeUnserialize(?string $data): ?array
-    {
-        if (empty($data)) {
-            return null;
-        }
-
-        // First try JSON decode (preferred, safer)
-        $jsonResult = json_decode($data, true);
-        if (json_last_error() === JSON_ERROR_NONE && is_array($jsonResult)) {
-            return $jsonResult;
-        }
-
-        // Fallback to unserialize with allowed_classes = false for security
-        try {
-            $result = @unserialize($data, ['allowed_classes' => false]);
-            return is_array($result) ? $result : null;
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

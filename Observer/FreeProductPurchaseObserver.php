@@ -12,18 +12,13 @@ use Magento\Sales\Model\Order;
 
 class FreeProductPurchaseObserver implements ObserverInterface
 {
-    protected $helper;
-    protected $publisher;
-
     public function __construct(
-        Data $helper,
-        PublisherInterface $publisher
+        private Data $helper,
+        private PublisherInterface $publisher
     ) {
-        $this->helper = $helper;
-        $this->publisher = $publisher;
     }
 
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         if (!$this->helper->isLoyaltyEngageEnabled()) {
             return;
@@ -35,10 +30,10 @@ class FreeProductPurchaseObserver implements ObserverInterface
         }
 
         $originalStatus = $order->getOrigData('status');
-        $currentStatus = $order->getStatus();
+        $currentStatus  = $order->getStatus();
 
         $triggerStatuses = ['complete', 'accepted'];
-        if ($originalStatus === $currentStatus || !in_array($currentStatus, $triggerStatuses)) {
+        if ($originalStatus === $currentStatus || !in_array($currentStatus, $triggerStatuses, true)) {
             return;
         }
 
@@ -46,7 +41,7 @@ class FreeProductPurchaseObserver implements ObserverInterface
         foreach ($order->getAllVisibleItems() as $item) {
             if ((float) $item->getPrice() === 0.0) {
                 $freeProducts[] = [
-                    'sku' => $item->getSku(),
+                    'sku'      => $item->getSku(),
                     'quantity' => (int) $item->getQtyOrdered()
                 ];
             }
@@ -57,20 +52,18 @@ class FreeProductPurchaseObserver implements ObserverInterface
                 'info',
                 'LoyaltyShop',
                 'FreeProductPurchase',
-                "No free products found in order {$order->getIncrementId()} - skipping flow.",
-                [
-                    'order_id' => $order->getIncrementId()
-                ]
+                sprintf('No free products found in order %s - skipping flow.', $order->getIncrementId()),
+                ['order_id' => $order->getIncrementId()]
             );
             return;
         }
 
-        $email = $order->getCustomerEmail();
+        $email   = $order->getCustomerEmail();
         $orderId = $order->getIncrementId();
 
         $payload = [
-            'email' => $email,
-            'orderId' => $orderId,
+            'email'    => $email,
+            'orderId'  => $orderId,
             'products' => $freeProducts
         ];
 
@@ -84,16 +77,16 @@ class FreeProductPurchaseObserver implements ObserverInterface
                 'info',
                 'LoyaltyShop',
                 'FreeProductPurchaseTriggered',
-                "Free product purchase flow triggered",
+                'Free product purchase flow triggered',
                 [
-                    'trigger_reason' => "Order status changed to {$currentStatus}",
-                    'email' => $email,
-                    'order_id' => $orderId,
-                    'previous_status' => $originalStatus,
-                    'current_status' => $currentStatus,
+                    'trigger_reason'      => sprintf('Order status changed to %s', $currentStatus),
+                    'email'               => $email,
+                    'order_id'            => $orderId,
+                    'previous_status'     => $originalStatus,
+                    'current_status'      => $currentStatus,
                     'free_products_count' => count($freeProducts),
-                    'free_products' => $freeProducts,
-                    'payload' => $payload
+                    'free_products'       => $freeProducts,
+                    'payload'             => $payload
                 ]
             );
 
@@ -102,11 +95,11 @@ class FreeProductPurchaseObserver implements ObserverInterface
                 'error',
                 'LoyaltyShop',
                 'FreeProductPurchaseError',
-                "Queue publish failed",
+                'Queue publish failed',
                 [
                     'error_message' => $e->getMessage(),
-                    'email' => $email,
-                    'order_id' => $orderId,
+                    'email'         => $email,
+                    'order_id'      => $orderId,
                     'free_products' => $freeProducts
                 ]
             );

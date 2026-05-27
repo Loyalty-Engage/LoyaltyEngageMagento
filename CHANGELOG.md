@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-05-27
+
+### Added
+- **Configureerbaar "loyalty product verwijderd" bericht**: Nieuw admin veld `loyalty/general/loyalty_product_removed_message` waarmee de tekst die getoond wordt bij automatisch verwijderen van loyalty producten (wanneer de cart waarde onder het minimum zakt) volledig configureerbaar is via de backend. Ondersteunt `{{minimum}}` en `{{current}}` als placeholders voor de minimale en huidige cart waarde.
+  - Nieuw veld "Loyalty Product Removed Message" (textarea) toegevoegd aan *Loyalty Cart Configuration* in `etc/adminhtml/system.xml`.
+  - Standaard waarde ingesteld in `etc/config.xml`.
+  - Nieuwe methoden `getLoyaltyProductRemovedMessage()` en `getFormattedLoyaltyProductRemovedMessage()` toegevoegd aan `Helper/Data.php`.
+  - `Observer/CartItemRemoveObserver.php` gebruikt nu de configureerbare tekst i.p.v. een hardcoded melding.
+
+## [2.4.9] - 2026-05-18
+
+### Removed
+- **`Cron/SimpleConsumerStarter.php` verwijderd**: De `loyaltyshop_simple_consumer_starter` cron job veroorzaakte forever-running PHP processen en was redundant. Magento's eigen `consumers_runner` cron (geconfigureerd via `Setup/Patch/Data/ConfigureCronConsumers.php`) beheert de queue consumers automatisch.
+- **`loyaltyshop_simple_consumer_starter` cron job verwijderd** uit `etc/crontab.xml`.
+- **`Model/Config/Source/QueueFrequency.php` verwijderd**: Source model voor de verwijderde "Queue Processing Frequency" admin instelling.
+- **`queue_processing_frequency` admin instelling verwijderd** uit `etc/adminhtml/system.xml` en `etc/config.xml`.
+- **`consumers_runner` sectie verwijderd** uit `etc/config.xml`: Deze configuratie hoort thuis in `app/etc/env.php` (beheerd door `ConfigureCronConsumers`), niet in `config.xml`.
+
+## [2.4.8] - 2026-05-14
+
+### Fixed
+- **Purchase en Return consumers ontbraken in SimpleConsumerStarter**: De `loyaltyshop_purchase_event_consumer` en `loyaltyshop_return_event_consumer` stonden niet in de `CONSUMERS` array van `SimpleConsumerStarter`, waardoor purchase en return events nooit verwerkt werden via de cron. Beide consumers en hun queue-namen zijn nu toegevoegd.
+- **Handler ontbrak in queue_consumer.xml**: De `loyaltyshop_purchase_event_consumer` en `loyaltyshop_return_event_consumer` hadden geen `handler` attribuut in `queue_consumer.xml`, waardoor Magento niet wist welke klasse de berichten moest verwerken.
+- **SimpleConsumerStarter herschreven**: De cron verwerkt nu berichten **direct** via de consumer handler (i.p.v. republishen). Leest pending berichten (status 2=new, 5=retry) uit de DB queue, roept de handler aan en zet de status op 4 (complete) of 6 (error). Dit elimineert de afhankelijkheid van een langlopend `queue:consumers:start` process.
+- **"Area code is not set" fout opgelost**: `AppState` toegevoegd aan `SimpleConsumerStarter` om de Magento area code in te stellen voor queue verwerking.
+- **Double-encoded JSON body**: Berichten in de DB queue zijn dubbel-encoded. De `SimpleConsumerStarter` decodeert nu correct voordat het bericht aan de consumer handler wordt doorgegeven.
+- **PurchaseConsumer en ReturnConsumer stuurden verkeerd payload formaat**: De `/api/v1/events` endpoint van LoyaltyEngage verwacht een **array van events** (`[{...}]`). Beide consumers stuurden een enkel object (`{...}`), waardoor LoyaltyEngage het event wel accepteerde (HTTP 200) maar niet verwerkte (`acceptedEventCount: 0`). Fix: `$this->apiClient->post($endpoint, [$payload])` i.p.v. `$this->apiClient->post($endpoint, $payload)`. API response wordt nu ook gelogd.
+
+## [2.4.7] - 2026-05-14
+
+### Added
+- **Max loyalty products in cart (configurable)**: New admin setting `loyalty/general/max_loyalty_products` allows merchants to configure the maximum number of different loyalty products a customer can add to the cart. Set to `0` for unlimited (default). The check is enforced in `LoyaltyCart::addProduct()` before the API call is made.
+- **Configurable order status for purchase sync**: New admin setting `loyalty/export/purchase_order_status` allows merchants to configure which order status triggers the purchase sync to LoyaltyEngage. Default is `complete`. Previously this was hardcoded in `PurchaseObserver`.
+- **Voucher redeem via LoyaltyEngage API**: When a customer applies a coupon code at checkout, the voucher is now also marked as redeemed in LoyaltyEngage via `PUT /api/v1/discount/:discountCode/redeem`. This is handled in both `CouponPostPlugin` (frontend cart) and `CouponManagementPlugin` (REST API/headless). New method `redeemDiscount()` added to `LoyaltyengageCart`.
+
+### Changed
+- **`PurchaseObserver`**: Replaced hardcoded `'complete'` status check with `$this->helper->getPurchaseOrderStatus()` to use the configurable admin setting.
+- **`CouponPostPlugin`**: Now calls `redeemDiscount()` after `claimDiscount()` when a coupon is applied.
+- **`CouponManagementPlugin`**: Now calls `redeemDiscount()` after `claimDiscount()` when a coupon is applied via API.
+
 ## [2.4.6] - 2026-05-08
 
 ### Added

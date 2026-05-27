@@ -35,17 +35,17 @@ class Data extends AbstractHelper
     /**
      * @var CustomerSession
      */
-    public $customerSession;
+    private $customerSession;
 
     /**
      * @var LoyaltyLogger
      */
-    public $loyaltyLogger;
+    private $loyaltyLogger;
 
     /**
      * @var CustomerRepositoryInterface
      */
-    public $customerRepository;
+    private $customerRepository;
 
     /**
      * @var EncryptorInterface
@@ -242,21 +242,6 @@ class Data extends AbstractHelper
     }
 
     /**
-     * Get Queue Processing Frequency (cron schedule)
-     *
-     * @return string
-     */
-    public function getQueueProcessingFrequency(): string
-    {
-        $frequency = $this->scopeConfig->getValue(
-            self::XML_PATH_GENERAL . 'queue_processing_frequency',
-            ScopeInterface::SCOPE_STORE
-        );
-        
-        return $frequency ?: '*/5 * * * *'; // Default: Every 5 minutes
-    }
-
-    /**
      * Get Minimum Order Value for Loyalty Products
      *
      * @return float
@@ -279,6 +264,37 @@ class Data extends AbstractHelper
     public function isMinimumOrderValueEnabled(): bool
     {
         return $this->getMinimumOrderValueForLoyalty() > 0;
+    }
+
+    /**
+     * Get the maximum number of loyalty products allowed in the cart
+     * Returns 0 for unlimited
+     *
+     * @return int
+     */
+    public function getMaxLoyaltyProducts(): int
+    {
+        $value = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'max_loyalty_products',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $value !== null ? (int)$value : 0;
+    }
+
+    /**
+     * Get the order status that triggers the purchase sync to LoyaltyEngage
+     *
+     * @return string
+     */
+    public function getPurchaseOrderStatus(): string
+    {
+        $status = $this->scopeConfig->getValue(
+            self::XML_PATH_EXPORT . 'purchase_order_status',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $status ?: 'complete';
     }
 
     /**
@@ -307,6 +323,39 @@ class Data extends AbstractHelper
     {
         $message = $this->getMinimumOrderValueMessage();
         
+        return str_replace(
+            ['{{minimum}}', '{{current}}'],
+            [number_format($minimumValue, 2), number_format($currentValue, 2)],
+            $message
+        );
+    }
+
+    /**
+     * Get Loyalty Product Removed Message (with placeholders)
+     *
+     * @return string
+     */
+    public function getLoyaltyProductRemovedMessage(): string
+    {
+        $message = $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'loyalty_product_removed_message',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $message ?: 'Your loyalty product(s) have been removed because your cart total dropped below the minimum of €{{minimum}}. Current total: €{{current}}';
+    }
+
+    /**
+     * Get formatted Loyalty Product Removed Message with actual values
+     *
+     * @param float $minimumValue
+     * @param float $currentValue
+     * @return string
+     */
+    public function getFormattedLoyaltyProductRemovedMessage(float $minimumValue, float $currentValue): string
+    {
+        $message = $this->getLoyaltyProductRemovedMessage();
+
         return str_replace(
             ['{{minimum}}', '{{current}}'],
             [number_format($minimumValue, 2), number_format($currentValue, 2)],
@@ -563,7 +612,7 @@ class Data extends AbstractHelper
                 }
             } catch (\Exception $e) {
                 // Handle unserialize errors - not a loyalty product
-                $this->loyaltyLogger->error('Error unserializing additional_options: ' . $e->getMessage());
+                $this->loyaltyLogger->customError('Helper', 'isLoyaltyProduct', 'Error unserializing additional_options: ' . $e->getMessage());
             }
         }
 

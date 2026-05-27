@@ -9,17 +9,12 @@ use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Webapi\Rest\Request;
 use Magento\Framework\Webapi\Rest\Response;
-use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
-use Magento\Quote\Model\QuoteRepository;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
 {
-    private const HTTP_BAD_REQUEST = 400;
-    private const HTTP_OK = 200;
-
     /**
      * LoyaltyCartItemRemove Construct
      *
@@ -29,7 +24,6 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
      * @param LoyaltyengageCart $loyaltyengageCart
      * @param LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory
      * @param CartRepositoryInterface $cartRepository
-     * @param QuoteRepository $quoteRepository
      * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
@@ -39,7 +33,6 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
         protected LoyaltyengageCart $loyaltyengageCart,
         protected LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory,
         protected CartRepositoryInterface $cartRepository,
-        protected QuoteRepository $quoteRepository,
         protected LoyaltyHelper $loyaltyHelper
     ) {
     }
@@ -49,7 +42,7 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
      *
      * @param string $sku
      * @param int $customerId
-     * @param integer $quantity
+     * @param int $quantity
      * @return LoyaltyCartResponseInterface
      */
     public function removeProduct(string $sku, int $customerId, int $quantity): LoyaltyCartResponseInterface
@@ -57,44 +50,52 @@ class LoyaltyCartItemRemove implements LoyaltyCartItemRemoveApiInterface
         $responseItem = $this->loyaltyCartResponseFactory->create();
 
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            // Return a successful response, as no error occurred, but no action was taken.
             return $this->loyaltyHelper->successResponse($responseItem, 'LoyaltyEngage module is disabled. No action taken.');
         }
 
         try {
+            $customer        = $this->customerRepository->getById($customerId);
+            $email           = $customer->getEmail();
+            $hashedEmail     = $this->loyaltyHelper->hashEmail($email);
+            $quote           = $this->cartRepository->getActiveForCustomer($customer->getId());
+            $quoteFullObject = $this->cartRepository->get($quote->getId());
+            $items           = $quoteFullObject->getAllItems();
 
-            $customer = $this->customerRepository->getById($customerId);
-            $quote = $this->cartRepository->getActiveForCustomer($customer->getId());
-            $quoteFullObject = $this->quoteRepository->get($quote->getId());
-            $items = $quoteFullObject->getAllItems();
-            $response = $this->loyaltyengageCart->removeItem($customer->getEmail(), $sku, $quantity);
+            $response = $this->loyaltyengageCart->removeItem($hashedEmail, $sku, $quantity);
 
-            if ($response !== self::HTTP_OK) {
+            if ($response !== LoyaltyHelper::HTTP_OK) {
                 return $this->loyaltyHelper->errorResponse(
                     $responseItem,
                     'Product could not be removed. User is not eligible.',
-                    self::HTTP_BAD_REQUEST
+                    'api_error',
+                    LoyaltyHelper::HTTP_BAD_REQUEST
                 );
             }
+
             foreach ($items as $item) {
                 if ($item->getSku() === $sku) {
                     $currentQty = $item->getQty();
                     if ($currentQty > $quantity) {
-                        // Reduce the quantity of the item
                         $item->setQty($currentQty - $quantity);
                     } else {
                         $quoteFullObject->removeItem($item->getId());
                     }
 
                     $quoteFullObject->collectTotals();
-                    $quoteFullObject->save();
+                    $this->cartRepository->save($quoteFullObject);
                     break;
                 }
             }
 
             return $this->loyaltyHelper->successResponse($responseItem, 'Product removed successfully.');
+
         } catch (\Exception $e) {
-            return $this->loyaltyHelper->errorResponse($responseItem, $e->getMessage(), self::HTTP_BAD_REQUEST);
+            return $this->loyaltyHelper->errorResponse(
+                $responseItem,
+                $e->getMessage(),
+                'system_error',
+                LoyaltyHelper::HTTP_BAD_REQUEST
+            );
         }
     }
 }

@@ -94,11 +94,11 @@
                     </depends>
                 </field>
 
-                <field id="queue_processing_frequency" translate="label" type="select" sortOrder="80"
+                <field id="max_loyalty_products" translate="label comment" type="text" sortOrder="85"
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
-                    <label>Queue Processing Frequency</label>
-                    <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\QueueFrequency</source_model>
-                    <comment>How often to process loyalty queue messages (reduces API calls). Default: Every 5 minutes.</comment>
+                    <label>Max Loyalty Products in Cart</label>
+                    <validate>validate-digits validate-zero-or-greater</validate>
+                    <comment><![CDATA[Maximum number of different loyalty products a customer can add to the cart. Set to 0 for unlimited.]]></comment>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
                     </depends>
@@ -142,6 +142,15 @@
                         <field id="loyalty/general/module_enable">1</field>
                     </depends>
                 </field>
+
+                <field id="loyalty_product_removed_message" translate="label comment" type="textarea" sortOrder="94"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Loyalty Product Removed Message</label>
+                    <comment><![CDATA[Message shown when loyalty products are automatically removed because the cart total drops below the minimum. Use {{minimum}} for the minimum value and {{current}} for the current cart subtotal. Example: "Your loyalty product(s) have been removed because your cart total dropped below €{{minimum}}. Current total: €{{current}}"]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
             </group>
             <group id="export" translate="label" type="text" sortOrder="15"
                 showInDefault="1" showInWebsite="1" showInStore="1">
@@ -164,6 +173,16 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                 <field id="purchase_order_status" translate="label comment" type="text" sortOrder="25"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Purchase Sync Order Status</label>
+                    <comment><![CDATA[The order status that triggers the purchase sync to LoyaltyEngage. Default: complete. Use the Magento status code (e.g., complete, processing, closed).]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/export/purchase_event">1</field>
                     </depends>
                 </field>
 

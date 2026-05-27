@@ -153,7 +153,8 @@ class LoyaltyengageCart
      */
     public function placeOrder(string $email, string $orderId, array $products): ?int
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/purchase';
+        $identifier = $this->helper->hashEmail($email);
+        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$identifier.'/cart/purchase';
         try {
             $this->apiClient->post($url, [
                 'orderId' => $orderId,
@@ -208,6 +209,66 @@ class LoyaltyengageCart
                 'sku'   => $sku,
                 'error' => $e->getMessage()
             ]);
+            return null;
+        }
+    }
+
+    /**
+     * Redeem a discount/voucher code in LoyaltyEngage
+     * Called when a customer applies a coupon code at checkout.
+     *
+     * @param string $discountCode The coupon/voucher code being redeemed
+     * @param string $identifier Hashed customer email
+     * @return array|null API response or null on failure
+     */
+    public function redeemDiscount(string $discountCode, string $identifier): ?array
+    {
+        $url = $this->helper->getApiUrl() . '/api/v1/discount/' . urlencode($discountCode) . '/redeem';
+
+        $this->helper->log(
+            'info',
+            'API',
+            'REDEEM_DISCOUNT_REQUEST',
+            'Calling Redeem Discount API',
+            [
+                'url'        => $url,
+                'discount_code' => $discountCode,
+                'identifier' => $identifier
+            ]
+        );
+
+        try {
+            $response = $this->apiClient->put($url, [
+                'identifier' => $identifier
+            ]);
+
+            $this->helper->log(
+                'debug',
+                'API',
+                'REDEEM_DISCOUNT_SUCCESS',
+                'Redeem Discount API Success',
+                [
+                    'discount_code' => $discountCode,
+                    'identifier'    => $identifier,
+                    'response'      => $response
+                ]
+            );
+
+            return $response;
+
+        } catch (\Exception $e) {
+            $this->helper->log(
+                'error',
+                'API',
+                'REDEEM_DISCOUNT_ERROR',
+                'Redeem Discount API Failed',
+                [
+                    'discount_code' => $discountCode,
+                    'identifier'    => $identifier,
+                    'error'         => $e->getMessage()
+                ]
+            );
+
             return null;
         }
     }

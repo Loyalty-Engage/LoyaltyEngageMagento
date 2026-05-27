@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LoyaltyEngage\LoyaltyShop\Plugin;
 
 use Magento\Checkout\Controller\Cart\CouponPost;
@@ -38,7 +40,7 @@ class CouponPostPlugin
 
             $couponCode = $quote->getCouponCode();
             $customerEmail = $quote->getCustomerEmail() ?? '';
-            $customerEmailhash = hash('sha256', $customerEmail);
+            $customerEmailhash = $this->helper->hashEmail($customerEmail);
 
             // 🔹 Log request hit
             $this->helper->log(

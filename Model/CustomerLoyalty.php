@@ -63,7 +63,9 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         ?int $lePoints = null,
         ?int $leAvailableCoins = null,
         ?string $leNextTier = null,
-        ?int $lePointsToNextTier = null
+        ?int $lePointsToNextTier = null,
+        ?int $leReservedCoins = null,
+        ?int $leExpiringPoints30d = null
     ): CustomerLoyaltyUpdateResponseInterface {
         $response = $this->responseFactory->create();
 
@@ -105,6 +107,16 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             if ($lePointsToNextTier !== null) {
                 $customer->setCustomAttribute('le_points_to_next_tier', $lePointsToNextTier);
                 $updatedFields[] = 'le_points_to_next_tier';
+            }
+
+            if ($leReservedCoins !== null) {
+                $customer->setCustomAttribute('le_reserved_coins', $leReservedCoins);
+                $updatedFields[] = 'le_reserved_coins';
+            }
+
+            if ($leExpiringPoints30d !== null) {
+                $customer->setCustomAttribute('le_expiring_points_30d', $leExpiringPoints30d);
+                $updatedFields[] = 'le_expiring_points_30d';
             }
 
             // Save customer if any fields were updated

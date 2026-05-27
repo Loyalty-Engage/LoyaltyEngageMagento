@@ -36,10 +36,10 @@ class CartItemHelper implements ArgumentInterface
 
         if ($isLocked) {
             $this->loyaltyHelper->log(
-                "debug",
+                'debug',
                 LoyaltyLogger::COMPONENT_VIEWMODEL,
                 LoyaltyLogger::ACTION_LOYALTY,
-                'Loyalty product detected in cart: %s (SKU: %s)', $item->getName(), $item->getSku()
+                sprintf('Loyalty product detected in cart: %s (SKU: %s)', $item->getName(), $item->getSku())
             );
         }
 

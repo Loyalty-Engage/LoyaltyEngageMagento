@@ -71,6 +71,12 @@ class LoyaltyCart implements LoyaltyCartInterface
             return $minOrderValueError;
         }
 
+        // Check max loyalty products in cart
+        $maxProductsError = $this->checkMaxLoyaltyProducts($customerId, $response);
+        if ($maxProductsError) {
+            return $maxProductsError;
+        }
+
         try {
             $customerData = $this->loyaltyHelper->getCustomerDataById($customerId);
             if (!$customerData) {
@@ -575,9 +581,52 @@ class LoyaltyCart implements LoyaltyCartInterface
         }
     }
 
+    private function checkMaxLoyaltyProducts(int $customerId, LoyaltyCartResponseInterface $response): ?LoyaltyCartResponseInterface
+    {
+        $maxProducts = $this->loyaltyHelper->getMaxLoyaltyProducts();
+
+        // 0 means unlimited
+        if ($maxProducts <= 0) {
+            return null;
+        }
+
+        try {
+            $quote = $this->quoteRepository->getActiveForCustomer($customerId);
+            $loyaltyProductCount = 0;
+
+            foreach ($quote->getAllVisibleItems() as $item) {
+                if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
+                    $loyaltyProductCount++;
+                }
+            }
+
+            if ($loyaltyProductCount < $maxProducts) {
+                return null;
+            }
+
+            $this->loyaltyHelper->log(
+                'info',
+                LoyaltyLogger::COMPONENT_API,
+                LoyaltyLogger::ACTION_VALIDATION,
+                sprintf('Max loyalty products reached - Max: %d, Current: %d', $maxProducts, $loyaltyProductCount),
+                ['customer_id' => $customerId, 'max' => $maxProducts, 'current' => $loyaltyProductCount]
+            );
+
+            return $this->loyaltyHelper->errorResponse(
+                $response,
+                sprintf('You can only add a maximum of %d loyalty product(s) to your cart.', $maxProducts),
+                'max_loyalty_products'
+            );
+
+        } catch (NoSuchEntityException $e) {
+            // No active cart yet, so no loyalty products either
+            return null;
+        }
+    }
+
     private function checkMinimumOrderValue(int $customerId, LoyaltyCartResponseInterface $response): ?LoyaltyCartResponseInterface
     {
-        if (!($this->loyaltyHelper->getMinimumOrderValueForLoyalty() > 0)) {
+        if (!$this->loyaltyHelper->isMinimumOrderValueEnabled()) {
             return null;
         }
 

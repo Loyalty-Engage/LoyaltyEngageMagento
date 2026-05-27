@@ -61,18 +61,19 @@ class PurchaseConsumer extends AbstractConsumer
         $endpoint = "{$apiUrl}/api/v1/events";
 
         try {
-            $this->apiClient->post($endpoint, $payload);
+            // LoyaltyEngage /api/v1/events expects an array of events
+            $response = $this->apiClient->post($endpoint, [$payload]);
 
             $this->helper->log(
-                'debug',
+                'info',
                 LoyaltyLogger::COMPONENT_QUEUE,
                 LoyaltyLogger::ACTION_SUCCESS,
                 'Purchase Success',
                 [
                     'event_type' => $payload['event'] ?? 'purchase',
-                    'email' => isset($payload['email'])
-                        ? $this->helper->logMaskedEmail($payload['email'])
-                        : null,
+                    'identifier' => $payload['identifier'] ?? null,
+                    'orderId' => $payload['orderId'] ?? null,
+                    'api_response' => $response,
                     'payload_keys' => array_keys($payload)
                 ]
             );

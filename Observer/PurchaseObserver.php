@@ -9,18 +9,15 @@ use Magento\Framework\Event\Observer;
 use Magento\Sales\Model\Order;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
 use Magento\Framework\MessageQueue\PublisherInterface;
+use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 
 class PurchaseObserver implements ObserverInterface
 {
-    protected $helper;
-    protected $publisher;
-
     public function __construct(
-        Data $helper,
-        PublisherInterface $publisher
+        private Data $helper,
+        private PublisherInterface $publisher,
+        private LoyaltyengageCart $loyaltyCart
     ) {
-        $this->helper = $helper;
-        $this->publisher = $publisher;
     }
 
     public function execute(Observer $observer)
@@ -40,8 +37,9 @@ class PurchaseObserver implements ObserverInterface
 
         $originalStatus = $order->getOrigData('status');
         $currentStatus = $order->getStatus();
+        $triggerStatus = $this->helper->getPurchaseOrderStatus();
 
-        if ($originalStatus === $currentStatus || $currentStatus !== 'complete') {
+        if ($originalStatus === $currentStatus || $currentStatus !== $triggerStatus) {
             return;
         }
 
@@ -101,6 +99,48 @@ class PurchaseObserver implements ObserverInterface
                     'order_id' => $orderId
                 ]
             );
+        }
+
+        // Redeem voucher in LoyaltyEngage when order reaches trigger status — via queue (async)
+        $couponCode = $order->getCouponCode();
+        if (!empty($couponCode)) {
+            try {
+                $emailHash = $this->helper->hashEmail($email);
+
+                $redeemPayload = [
+                    'discount_code' => $couponCode,
+                    'identifier'    => $emailHash,
+                    'order_id'      => $orderId
+                ];
+
+                $this->publisher->publish(
+                    'loyaltyshop.redeem_discount_event',
+                    json_encode($redeemPayload)
+                );
+
+                $this->helper->log(
+                    'info',
+                    'LoyaltyShop',
+                    'VoucherRedeemQueued',
+                    'Voucher redeem event published to queue.',
+                    [
+                        'order_id'    => $orderId,
+                        'coupon_code' => $couponCode
+                    ]
+                );
+            } catch (\Exception $e) {
+                $this->helper->log(
+                    'error',
+                    'LoyaltyShop',
+                    'VoucherRedeemQueueError',
+                    'Failed to publish voucher redeem event to queue.',
+                    [
+                        'error_message' => $e->getMessage(),
+                        'order_id'      => $orderId,
+                        'coupon_code'   => $couponCode
+                    ]
+                );
+            }
         }
     }
 }

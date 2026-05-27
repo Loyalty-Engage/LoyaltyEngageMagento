@@ -8,18 +8,13 @@ use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartItemsRemoveApiInterface;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Webapi\Rest\Request;
 use Magento\Framework\Webapi\Rest\Response;
-use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
 use Magento\Quote\Api\CartRepositoryInterface;
-use Magento\Quote\Model\QuoteRepository;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
 {
-    private const HTTP_BAD_REQUEST = 400;
-    private const HTTP_OK = 200;
-
     /**
      * LoyaltyCartItemsRemoveAll Construct
      *
@@ -29,7 +24,6 @@ class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
      * @param LoyaltyengageCart $loyaltyengageCart
      * @param LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory
      * @param CartRepositoryInterface $cartRepository
-     * @param QuoteRepository $quoteRepository
      * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
@@ -39,7 +33,6 @@ class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
         protected LoyaltyengageCart $loyaltyengageCart,
         protected LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory,
         protected CartRepositoryInterface $cartRepository,
-        protected QuoteRepository $quoteRepository,
         protected LoyaltyHelper $loyaltyHelper
     ) {
     }
@@ -55,23 +48,25 @@ class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
         $responseItem = $this->loyaltyCartResponseFactory->create();
 
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            // Return a successful response, as no error occurred, but no action was taken.
             return $this->loyaltyHelper->successResponse($responseItem, 'LoyaltyEngage module is disabled. No action taken.');
         }
 
         try {
-            $customer = $this->customerRepository->getById($customerId);
-            $quote = $this->cartRepository->getActiveForCustomer($customerId);
-            $quoteFullObject = $this->quoteRepository->get($quote->getId());
-            $items = $quoteFullObject->getAllItems();
+            $customer        = $this->customerRepository->getById($customerId);
+            $email           = $customer->getEmail();
+            $hashedEmail     = $this->loyaltyHelper->hashEmail($email);
+            $quote           = $this->cartRepository->getActiveForCustomer($customerId);
+            $quoteFullObject = $this->cartRepository->get($quote->getId());
+            $items           = $quoteFullObject->getAllItems();
 
-            $response = $this->loyaltyengageCart->removeAllItem($customer->getEmail());
+            $response = $this->loyaltyengageCart->removeAllItem($hashedEmail);
 
-            if ($response !== self::HTTP_OK) {
+            if ($response !== LoyaltyHelper::HTTP_OK) {
                 return $this->loyaltyHelper->errorResponse(
                     $responseItem,
                     'Product could not be removed. User is not eligible.',
-                    self::HTTP_BAD_REQUEST
+                    'api_error',
+                    LoyaltyHelper::HTTP_BAD_REQUEST
                 );
             }
 
@@ -80,11 +75,17 @@ class LoyaltyCartItemsRemoveAll implements LoyaltyCartItemsRemoveApiInterface
             }
 
             $quoteFullObject->collectTotals();
-            $quoteFullObject->save();
+            $this->cartRepository->save($quoteFullObject);
 
             return $this->loyaltyHelper->successResponse($responseItem, 'Product removal notification sent successfully.');
+
         } catch (\Exception $e) {
-            return $this->loyaltyHelper->errorResponse($responseItem, $e->getMessage(), self::HTTP_BAD_REQUEST);
+            return $this->loyaltyHelper->errorResponse(
+                $responseItem,
+                $e->getMessage(),
+                'system_error',
+                LoyaltyHelper::HTTP_BAD_REQUEST
+            );
         }
     }
 }

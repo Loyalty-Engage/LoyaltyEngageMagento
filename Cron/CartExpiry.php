@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Cron;
 
 use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
-use Magento\Quote\Model\QuoteRepository;
+use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\FilterBuilder;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CartExpiry
 {
-    private const HTTP_OK = 200;
     private const LOYALTY_EXPIRY_HOURS = 24;
 
     /**
@@ -21,14 +20,14 @@ class CartExpiry
      *
      * CartExpiry Construct
      *
-     * @param QuoteRepository $quoteRepository
+     * @param CartRepositoryInterface $quoteRepository
      * @param LoyaltyengageCart $loyaltyengageCart
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      * @param FilterBuilder $filterBuilder
      * @param LoyaltyHelper $loyaltyHelper
      */
     public function __construct(
-        protected QuoteRepository $quoteRepository,
+        protected CartRepositoryInterface $quoteRepository,
         protected LoyaltyengageCart $loyaltyengageCart,
         protected SearchCriteriaBuilder $searchCriteriaBuilder,
         protected FilterBuilder $filterBuilder,
@@ -117,9 +116,10 @@ class CartExpiry
                         continue;
                     }
 
-                    $response = $this->loyaltyengageCart->removeAllItem($email);
+                    $hashedEmail = $this->loyaltyHelper->hashEmail($email);
+                    $response = $this->loyaltyengageCart->removeAllItem($hashedEmail);
 
-                    if ($response !== self::HTTP_OK) {
+                    if ($response !== LoyaltyHelper::HTTP_OK) {
                         $this->loyaltyHelper->log(
                             'warning',
                             'CartExpiry',

@@ -7,8 +7,8 @@ namespace LoyaltyEngage\LoyaltyShop\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Message\ManagerInterface as MessageManager;
+use Magento\Framework\MessageQueue\PublisherInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
-use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Quote\Model\Quote\Item as QuoteItem;
 
@@ -18,18 +18,18 @@ use Magento\Quote\Model\Quote\Item as QuoteItem;
  * Handles two scenarios when a cart item is removed:
  *
  * 1. If the removed item IS a loyalty product:
- *    → Send a remove event to the LoyaltyEngage API immediately.
+ *    → Publish a remove event to the queue (async via FreeProductRemoveConsumer).
  *
  * 2. If the removed item is a REGULAR product:
  *    → Recalculate the cart subtotal (incl. tax, excl. loyalty products).
  *    → If the subtotal drops below the configured minimum order value,
- *      remove all loyalty products from the cart and notify the API.
+ *      remove all loyalty products from the cart and publish remove events to the queue.
  */
 class CartItemRemoveObserver implements ObserverInterface
 {
     public function __construct(
         private LoyaltyHelper $loyaltyHelper,
-        private LoyaltyengageCart $loyaltyengageCart,
+        private PublisherInterface $publisher,
         private CustomerSession $customerSession,
         private MessageManager $messageManager
     ) {
@@ -59,11 +59,9 @@ class CartItemRemoveObserver implements ObserverInterface
             return;
         }
 
-        $hashedEmail = $this->loyaltyHelper->hashEmail($email);
-
-        // Scenario 1: The removed item is a loyalty product → notify API
+        // Scenario 1: The removed item is a loyalty product → publish remove event to queue
         if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
-            $this->sendRemoveEventToApi($hashedEmail, $item);
+            $this->publishRemoveEvent($email, $item);
             return;
         }
 
@@ -77,30 +75,39 @@ class CartItemRemoveObserver implements ObserverInterface
         $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty();
 
         if ($subtotalAfterRemoval < $minimumOrderValue) {
-            $this->removeLoyaltyProductsFromCart($quote, $hashedEmail, $minimumOrderValue, $subtotalAfterRemoval);
+            $this->removeLoyaltyProductsFromCart($quote, $email, $minimumOrderValue, $subtotalAfterRemoval);
         }
     }
 
     /**
-     * Send remove event to LoyaltyEngage API for a loyalty product
+     * Publish a remove event to the queue for a loyalty product
      */
-    private function sendRemoveEventToApi(string $hashedEmail, QuoteItem $item): void
+    private function publishRemoveEvent(string $email, QuoteItem $item): void
     {
         $sku = $item->getSku();
         $qty = (int) $item->getQty();
 
+        $payload = [
+            'email'    => $email,
+            'sku'      => $sku,
+            'quantity' => $qty
+        ];
+
         try {
-            $this->loyaltyengageCart->removeItem($hashedEmail, $sku, $qty);
+            $this->publisher->publish(
+                'loyaltyshop.free_product_remove_event',
+                json_encode($payload)
+            );
 
             $this->loyaltyHelper->log(
                 'info',
                 'CartItemRemoveObserver',
                 'RemoveFromCart',
-                'Loyalty product remove event sent to API.',
+                'Loyalty product remove event published to queue.',
                 [
-                    'hashed_email' => substr($hashedEmail, 0, 8) . '...',
-                    'sku'          => $sku,
-                    'quantity'     => $qty
+                    'email'    => $email,
+                    'sku'      => $sku,
+                    'quantity' => $qty
                 ]
             );
         } catch (\Exception $e) {
@@ -108,7 +115,7 @@ class CartItemRemoveObserver implements ObserverInterface
                 'error',
                 'CartItemRemoveObserver',
                 'RemoveFromCartError',
-                'Failed to send loyalty product remove event to API.',
+                'Failed to publish loyalty product remove event to queue.',
                 [
                     'sku'   => $sku,
                     'error' => $e->getMessage()
@@ -143,10 +150,10 @@ class CartItemRemoveObserver implements ObserverInterface
     }
 
     /**
-     * Remove all loyalty products from the cart and notify the LoyaltyEngage API.
+     * Remove all loyalty products from the cart and publish remove events to the queue.
      * Also shows a message to the customer.
      */
-    private function removeLoyaltyProductsFromCart($quote, string $hashedEmail, float $minimum, float $current): void
+    private function removeLoyaltyProductsFromCart($quote, string $email, float $minimum, float $current): void
     {
         $loyaltyItemsRemoved = 0;
 
@@ -161,16 +168,26 @@ class CartItemRemoveObserver implements ObserverInterface
             // Remove from Magento quote
             $quote->removeItem($item->getId());
 
-            // Notify LoyaltyEngage API
+            // Publish remove event to queue
+            $payload = [
+                'email'    => $email,
+                'sku'      => $sku,
+                'quantity' => $qty
+            ];
+
             try {
-                $this->loyaltyengageCart->removeItem($hashedEmail, $sku, $qty);
+                $this->publisher->publish(
+                    'loyaltyshop.free_product_remove_event',
+                    json_encode($payload)
+                );
 
                 $this->loyaltyHelper->log(
                     'info',
                     'CartItemRemoveObserver',
                     'AutoRemovedLoyaltyProduct',
-                    'Loyalty product auto-removed because cart dropped below minimum order value.',
+                    'Loyalty product auto-removed and remove event published to queue.',
                     [
+                        'email'   => $email,
                         'sku'     => $sku,
                         'minimum' => $minimum,
                         'current' => $current
@@ -180,8 +197,8 @@ class CartItemRemoveObserver implements ObserverInterface
                 $this->loyaltyHelper->log(
                     'error',
                     'CartItemRemoveObserver',
-                    'AutoRemoveApiError',
-                    'Failed to notify API of auto-removed loyalty product.',
+                    'AutoRemoveQueueError',
+                    'Failed to publish auto-removed loyalty product remove event to queue.',
                     [
                         'sku'   => $sku,
                         'error' => $e->getMessage()
@@ -195,10 +212,8 @@ class CartItemRemoveObserver implements ObserverInterface
         if ($loyaltyItemsRemoved > 0) {
             $quote->collectTotals()->save();
 
-            $message = $this->loyaltyHelper->getFormattedMinimumOrderValueMessage($minimum, $current);
-            $this->messageManager->addWarningMessage(
-                __('Your loyalty product(s) have been removed because your cart total dropped below the minimum required amount. %1', $message)
-            );
+            $message = $this->loyaltyHelper->getFormattedLoyaltyProductRemovedMessage($minimum, $current);
+            $this->messageManager->addWarningMessage($message);
 
             $this->loyaltyHelper->log(
                 'info',

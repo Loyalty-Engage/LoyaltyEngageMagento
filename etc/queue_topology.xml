@@ -7,5 +7,6 @@
         <binding id="loyaltyshop_free_product_purchase_binding" topic="loyaltyshop.free_product_purchase_event" destination="loyaltyshop.free_product_purchase_event"/>
         <binding id="loyaltyshop_free_product_remove_binding" topic="loyaltyshop.free_product_remove_event" destination="loyaltyshop.free_product_remove_event"/>
         <binding id="loyaltyshop_review_binding" topic="loyaltyshop.review_event" destination="loyaltyshop.review_event"/>
+        <binding id="loyaltyshop_redeem_discount_binding" topic="loyaltyshop.redeem_discount_event" destination="loyaltyshop.redeem_discount_event"/>
     </exchange>
 </config>

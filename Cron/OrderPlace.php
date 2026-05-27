@@ -11,7 +11,6 @@ use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class OrderPlace
 {
-    private const HTTP_OK = 200;
     private const LOYALTY_ORDER_PLACE = 0;
 
     /**
@@ -55,7 +54,8 @@ class OrderPlace
                     'Order retrieve limit: ' . $OrderRetrieveLimit
                 );
 
-                // Add filter for created_at between now-15min and now
+                // Filter on updated_at between now-15min and now, so orders that
+                // transition to the trigger status within the last 15 minutes are picked up.
                 $now = (new \DateTime())->format('Y-m-d H:i:s');
                 $minus15 = (new \DateTime('-15 minutes'))->format('Y-m-d H:i:s');
 
@@ -63,19 +63,27 @@ class OrderPlace
                     'debug',
                     'OrderPlace',
                     'execute',
-                    'Processing orders from: ' . $minus15 . ' to: ' . $now
+                    'Processing orders updated from: ' . $minus15 . ' to: ' . $now
+                );
+
+                $triggerStatus = $this->loyaltyHelper->getPurchaseOrderStatus();
+
+                $this->loyaltyHelper->log(
+                    'debug',
+                    'OrderPlace',
+                    'execute',
+                    'Filtering orders with status: ' . $triggerStatus
                 );
 
                 $this->searchCriteriaBuilder->addFilter('loyalty_order_place', self::LOYALTY_ORDER_PLACE, 'eq');
                 $this->searchCriteriaBuilder->addFilter('loyalty_order_place_retrieve', $OrderRetrieveLimit, 'lt');
-                $this->searchCriteriaBuilder->addFilter('created_at', $minus15, 'gteq');
-                $this->searchCriteriaBuilder->addFilter('created_at', $now, 'lteq');
+                $this->searchCriteriaBuilder->addFilter('status', $triggerStatus, 'eq');
+                $this->searchCriteriaBuilder->addFilter('updated_at', $minus15, 'gteq');
+                $this->searchCriteriaBuilder->addFilter('updated_at', $now, 'lteq');
 
                 $searchCriteria = $this->searchCriteriaBuilder->create();
                 // Get list of orders
                 $orders = $this->orderRepository->getList($searchCriteria)->getItems();
-
-                $orderCount = count($orders);
 
                 // Process each order
                 foreach ($orders as $order) {
@@ -137,11 +145,18 @@ class OrderPlace
             'Processing order ID: ' . $orderId . ' for customer: ' . $maskedEmail
         );
 
-        // Prepare order data
+        // Prepare order data — only loyalty products (price = 0.0) belong in the LoyaltyEngage cart.
+        // Skip child items (simple products under configurable/bundle) to avoid duplicates.
         $products = [];
-        foreach ($order->getAllItems() as $item) {
+        foreach ($order->getAllVisibleItems() as $item) {
+            if ($item->getParentItemId()) {
+                continue; // Skip child items (e.g. simple under configurable)
+            }
+            if ((float) $item->getPrice() !== 0.0) {
+                continue; // Skip regular (paid) products — only loyalty products go to /cart/purchase
+            }
             $products[] = [
-                'sku' => $item->getSku(),
+                'sku'      => $item->getSku(),
                 'quantity' => (int) $item->getQtyOrdered()
             ];
         }
@@ -150,14 +165,27 @@ class OrderPlace
             'debug',
             'OrderPlace',
             'processOrder',
-            'Prepared ' . count($products) . ' products for order ID: ' . $orderId,
+            'Prepared ' . count($products) . ' loyalty product(s) for order ID: ' . $orderId,
             ['products' => $products]
         );
+
+        // If no loyalty products in this order, mark as processed and skip
+        if (empty($products)) {
+            $order->setData('loyalty_order_place', 1);
+            $this->loyaltyHelper->log(
+                'debug',
+                'OrderPlace',
+                'processOrder',
+                'No loyalty products in order ID: ' . $orderId . ', marking as processed'
+            );
+            $this->orderRepository->save($order);
+            return;
+        }
 
         // Place order
         $response = $this->loyaltyengageCart->placeOrder($email, $orderId, $products);
 
-        if ($response && $response == self::HTTP_OK) {
+        if ($response && $response == LoyaltyHelper::HTTP_OK) {
             $order->setData('loyalty_order_place', 1);
             $this->loyaltyHelper->log(
                 'debug',

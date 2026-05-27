@@ -12,21 +12,14 @@ use Magento\Framework\MessageQueue\PublisherInterface;
 
 class FreeProductRemoveObserver implements ObserverInterface
 {
-    protected $helper;
-    protected $customerSession;
-    protected $publisher;
-
     public function __construct(
-        Data $helper,
-        CustomerSession $customerSession,
-        PublisherInterface $publisher
+        private Data $helper,
+        private CustomerSession $customerSession,
+        private PublisherInterface $publisher
     ) {
-        $this->helper = $helper;
-        $this->customerSession = $customerSession;
-        $this->publisher = $publisher;
     }
 
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
         if (!$this->helper->isLoyaltyEngageEnabled()) {
             return;
@@ -43,9 +36,7 @@ class FreeProductRemoveObserver implements ObserverInterface
                 'LoyaltyShop',
                 'FreeProductRemoveSkipped',
                 'Removed item is not free, skipping.',
-                [
-                    'sku' => $item->getSku()
-                ]
+                ['sku' => $item->getSku()]
             );
             return;
         }
@@ -54,7 +45,7 @@ class FreeProductRemoveObserver implements ObserverInterface
         $qty = (int) $item->getQty();
 
         $customer = $this->customerSession->getCustomer();
-        $email = $customer ? $customer->getEmail() : null;
+        $email    = $customer ? $customer->getEmail() : null;
 
         if (!$email) {
             $this->helper->log(
@@ -62,17 +53,14 @@ class FreeProductRemoveObserver implements ObserverInterface
                 'LoyaltyShop',
                 'FreeProductRemoveNoEmail',
                 'Cannot determine customer email for free product removal.',
-                [
-                    'sku' => $sku,
-                    'quantity' => $qty
-                ]
+                ['sku' => $sku, 'quantity' => $qty]
             );
             return;
         }
 
         $payload = [
-            'email' => $email,
-            'sku' => $sku,
+            'email'    => $email,
+            'sku'      => $sku,
             'quantity' => $qty
         ];
 
@@ -88,10 +76,10 @@ class FreeProductRemoveObserver implements ObserverInterface
                 'FreeProductRemovePublished',
                 'Free product remove payload published to queue.',
                 [
-                    'email' => $email,
-                    'sku' => $sku,
+                    'email'    => $email,
+                    'sku'      => $sku,
                     'quantity' => $qty,
-                    'payload' => $payload
+                    'payload'  => $payload
                 ]
             );
 
@@ -103,9 +91,9 @@ class FreeProductRemoveObserver implements ObserverInterface
                 'Failed to queue free product remove event.',
                 [
                     'error_message' => $e->getMessage(),
-                    'email' => $email,
-                    'sku' => $sku,
-                    'quantity' => $qty
+                    'email'         => $email,
+                    'sku'           => $sku,
+                    'quantity'      => $qty
                 ]
             );
         }
