@@ -1,0 +1,21 @@
+<div class="pagebuilder-content-type loyaltyengage-pagebuilder-meta-preview"
+     attr="data.main.attributes"
+     ko-style="data.main.style"
+     css="data.main.css"
+     event="{ mouseover: onMouseOver, mouseout: onMouseOut }, mouseoverBubble: false">
+    <div class="loyaltyengage-pagebuilder-meta-preview__inner">
+        <strong class="loyaltyengage-pagebuilder-meta-preview__title"
+                text="data.main.attributes()['data-title'] || 'Loyalty Overview'"></strong>
+        <p class="loyaltyengage-pagebuilder-meta-preview__copy">
+            Toont de geconfigureerde loyalty velden van de ingelogde klant.
+        </p>
+        <ul class="loyaltyengage-pagebuilder-meta-preview__list">
+            <li>Huidig Level</li>
+            <li>Punten</li>
+            <li>Munten</li>
+        </ul>
+        <p class="loyaltyengage-pagebuilder-meta-preview__empty"
+           text="data.main.attributes()['data-empty-message'] || 'Log in om je loyalty gegevens te bekijken.'"></p>
+    </div>
+    <render args="getOptions().template"></render>
+</div>

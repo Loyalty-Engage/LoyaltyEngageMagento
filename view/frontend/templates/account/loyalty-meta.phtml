@@ -1,0 +1,27 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta $block */
+$meta = $block->getLoyaltyMeta();
+$labels = $block->getLabels();
+
+if (!$block->canRender() || empty(array_filter($meta, static fn($value) => $value !== null && $value !== ''))) {
+    return;
+}
+?>
+<div class="block block-dashboard-info loyalty-meta">
+    <div class="block-title">
+        <strong><?= $block->escapeHtml($block->getBlockTitle()) ?></strong>
+    </div>
+    <div class="block-content">
+        <dl class="box box-information loyalty-meta__list">
+            <?php foreach ($meta as $code => $value): ?>
+                <?php if ($value === null || $value === ''): ?>
+                    <?php continue; ?>
+                <?php endif; ?>
+                <div class="loyalty-meta__row">
+                    <dt><?= $block->escapeHtml($labels[$code] ?? $code) ?></dt>
+                    <dd><?= $block->escapeHtml((string) $value) ?></dd>
+                </div>
+            <?php endforeach; ?>
+        </dl>
+    </div>
+</div>

@@ -24,6 +24,11 @@ class LoyaltyTierChecker
     private $customerRepository;
 
     /**
+     * @var CustomerLoyaltyDataProvider
+     */
+    private $customerLoyaltyDataProvider;
+
+    /**
      * @var array In-memory cache for current request
      */
     private $memoryCache = [];
@@ -36,11 +41,13 @@ class LoyaltyTierChecker
     public function __construct(
         ApiClient $apiClient,
         CustomerRepositoryInterface $customerRepository,
-        LoyaltyHelper $loyaltyHelper
+        LoyaltyHelper $loyaltyHelper,
+        CustomerLoyaltyDataProvider $customerLoyaltyDataProvider
     ) {
         $this->apiClient = $apiClient;
         $this->customerRepository = $customerRepository;
         $this->loyaltyHelper = $loyaltyHelper;
+        $this->customerLoyaltyDataProvider = $customerLoyaltyDataProvider;
     }
 
     /**
@@ -140,17 +147,12 @@ class LoyaltyTierChecker
             // Get customer by email from repository
             $customer = $this->loyaltyHelper->getCustomerDataById($customerId);
             
-            // Get attribute value - handle both model and data objects
             $tier = null;
-            if (isset($customer['customer']) && $customer['customer'] instanceof \Magento\Customer\Model\Customer) {
-                // Customer model object
-                $tier = $customer['customer']->getData('le_current_tier');
-            } elseif (isset($customer['customer']) && $customer['customer'] instanceof \Magento\Customer\Api\Data\CustomerInterface) {
-                // Customer data object from repository
-                $attribute = $customer['customer']->getCustomAttribute('le_current_tier');
-                if ($attribute) {
-                    $tier = $attribute->getValue();
-                }
+            if (isset($customer['customer']) && $customer['customer'] instanceof \Magento\Customer\Api\Data\CustomerInterface) {
+                $tier = $this->customerLoyaltyDataProvider->getAttributeValue(
+                    $customer['customer'],
+                    'le_current_tier'
+                );
             }
 
             return $tier ?: null;

@@ -6,6 +6,26 @@
             <export>
                 <purchase_order_status>complete</purchase_order_status>
             </export>
+            <frontend>
+                <expose_customer_meta>0</expose_customer_meta>
+                <account_block_title>Loyalty Overview</account_block_title>
+                <account_navigation_label>Loyalty</account_navigation_label>
+                <account_navigation_sort_order>155</account_navigation_sort_order>
+                <le_current_tier_enabled>1</le_current_tier_enabled>
+                <le_current_tier_label>Current Loyalty Tier</le_current_tier_label>
+                <le_points_enabled>1</le_points_enabled>
+                <le_points_label>Loyalty Points</le_points_label>
+                <le_available_coins_enabled>1</le_available_coins_enabled>
+                <le_available_coins_label>Available Loyalty Coins</le_available_coins_label>
+                <le_next_tier_enabled>1</le_next_tier_enabled>
+                <le_next_tier_label>Next Loyalty Tier</le_next_tier_label>
+                <le_points_to_next_tier_enabled>1</le_points_to_next_tier_enabled>
+                <le_points_to_next_tier_label>Points to Next Tier</le_points_to_next_tier_label>
+                <le_reserved_coins_enabled>1</le_reserved_coins_enabled>
+                <le_reserved_coins_label>Reserved Loyalty Coins</le_reserved_coins_label>
+                <le_expiring_points_30d_enabled>1</le_expiring_points_30d_enabled>
+                <le_expiring_points_30d_label>Expiring Points (30 days)</le_expiring_points_30d_label>
+            </frontend>
             <general>
                 <module_enable>1</module_enable>
                 <loyalty_api_url>https://app.loyaltyengage.tech</loyalty_api_url>

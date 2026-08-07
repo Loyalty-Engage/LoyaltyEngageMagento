@@ -27,7 +27,7 @@
         queue="loyaltyshop.free_product_remove_event"
         handler="LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductRemoveConsumer::process"
         connection="db"
-        maxMessages="0"
+        maxMessages="100"
     />
     <consumer
         name="loyaltyshop_review_event_consumer"

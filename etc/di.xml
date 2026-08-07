@@ -48,6 +48,12 @@
             sortOrder="10" />
     </type>
     
+    <type name="Magento\Quote\Model\Quote">
+        <plugin name="loyaltyshop_quote_remove_item_plugin"
+            type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteRemoveItemPlugin"
+            sortOrder="10" />
+    </type>
+    
     <type name="Magento\Shipping\Model\Rate\CarrierResult">
         <plugin name="loyaltyshop_shipping_method_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\ShippingMethodPlugin"

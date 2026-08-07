@@ -3,4 +3,11 @@
     <head>
         <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-cart.css"/>
     </head>
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta"
+                name="loyaltyshop.customer.meta.bootstrap"
+                template="LoyaltyEngage_LoyaltyShop::account/loyalty-meta-bootstrap.phtml"/>
+        </referenceContainer>
+    </body>
 </page>

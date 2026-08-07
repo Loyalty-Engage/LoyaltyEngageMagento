@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<widgets xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Widget:etc/widget.xsd">
+    <widget id="loyaltyshop_loyalty_meta"
+            class="LoyaltyEngage\LoyaltyShop\Block\Widget\LoyaltyMeta"
+            is_email_compatible="false"
+            placeholder_image="Magento_Widget::images/widget_block.png">
+        <label translate="true">Loyalty Meta</label>
+        <description translate="true">Renders the configured loyalty customer fields for the logged-in customer.</description>
+        <parameters>
+            <parameter name="title" xsi:type="text" visible="true" required="false" sort_order="10">
+                <label translate="true">Custom Title</label>
+                <description translate="true">Optional override for the configured account block title.</description>
+            </parameter>
+        </parameters>
+    </widget>
+</widgets>

@@ -19,6 +19,7 @@ interface CustomerLoyaltyInterface
      * @param int|null $lePointsToNextTier
      * @param int|null $leReservedCoins
      * @param int|null $leExpiringPoints30d
+     * @param string|null $storeCode
      * @return CustomerLoyaltyUpdateResponseInterface
      */
     public function updateCustomerLoyaltyData(
@@ -29,6 +30,7 @@ interface CustomerLoyaltyInterface
         ?string $leNextTier = null,
         ?int $lePointsToNextTier = null,
         ?int $leReservedCoins = null,
-        ?int $leExpiringPoints30d = null
+        ?int $leExpiringPoints30d = null,
+        ?string $storeCode = null
     ): CustomerLoyaltyUpdateResponseInterface;
 }

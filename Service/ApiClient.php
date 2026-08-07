@@ -108,8 +108,7 @@ class ApiClient
         $this->prepare();
 
         $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'PUT');
-        $this->curl->setOption(CURLOPT_POSTFIELDS, $this->json->serialize($body));
-        $this->curl->get($url);
+        $this->curl->post($url, $this->json->serialize($body));
 
         return $this->handleResponse();
     }
@@ -118,12 +117,11 @@ class ApiClient
     {
         $this->prepare();
 
+        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
+
         if (!empty($body)) {
-            $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
-            $this->curl->setOption(CURLOPT_POSTFIELDS, $this->json->serialize($body));
-            $this->curl->get($url);
+            $this->curl->post($url, $this->json->serialize($body));
         } else {
-            $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
             $this->curl->get($url);
         }
 

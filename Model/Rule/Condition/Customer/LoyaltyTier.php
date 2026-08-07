@@ -11,6 +11,7 @@ use Magento\Framework\Model\AbstractModel;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Http\Context as HttpContext;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Model\CustomerLoyaltyDataProvider;
 
 class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
 {
@@ -35,6 +36,11 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     private $loyaltyHelper;
 
     /**
+     * @var CustomerLoyaltyDataProvider
+     */
+    private $customerLoyaltyDataProvider;
+
+    /**
      * @param Context $context
      * @param CustomerRepositoryInterface $customerRepository
      * @param CustomerSession $customerSession
@@ -48,6 +54,7 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         CustomerSession $customerSession,
         HttpContext $httpContext,
         LoyaltyHelper $loyaltyHelper,
+        CustomerLoyaltyDataProvider $customerLoyaltyDataProvider,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -55,6 +62,7 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         $this->customerSession = $customerSession;
         $this->httpContext = $httpContext;
         $this->loyaltyHelper = $loyaltyHelper;
+        $this->customerLoyaltyDataProvider = $customerLoyaltyDataProvider;
     }
 
     /**
@@ -224,7 +232,7 @@ class LoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
             return false;
         }
         $attributeCode = $this->getAttribute();
-        $attributeValue = $customer->getData($attributeCode);
+        $attributeValue = $this->customerLoyaltyDataProvider->getAttributeValue($customer, $attributeCode);
         
         // Handle null values
         if ($attributeValue === null) {

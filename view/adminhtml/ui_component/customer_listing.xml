@@ -6,7 +6,7 @@
                 <settings>
                     <options class="Magento\Customer\Ui\Component\Listing\Column\Group\Options"/>
                     <caption translate="true">Select...</caption>
-                    <label translate="true">Current Loyalty Tier</label>
+                    <label translate="true">Current Loyalty Tier (Default Store Fallback)</label>
                     <dataScope>le_current_tier</dataScope>
                     <imports>
                         <link name="visible">componentType = column, index = ${ $.index }:visible</link>
@@ -19,35 +19,35 @@
         <column name="le_current_tier" sortOrder="200">
             <settings>
                 <filter>text</filter>
-                <label translate="true">Current Loyalty Tier</label>
+                <label translate="true">Current Loyalty Tier (Default Store Fallback)</label>
                 <visible>false</visible>
             </settings>
         </column>
         <column name="le_points" sortOrder="201">
             <settings>
                 <filter>textRange</filter>
-                <label translate="true">Loyalty Points</label>
+                <label translate="true">Loyalty Points (Default Store Fallback)</label>
                 <visible>false</visible>
             </settings>
         </column>
         <column name="le_available_coins" sortOrder="202">
             <settings>
                 <filter>textRange</filter>
-                <label translate="true">Available Loyalty Coins</label>
+                <label translate="true">Available Loyalty Coins (Default Store Fallback)</label>
                 <visible>false</visible>
             </settings>
         </column>
         <column name="le_next_tier" sortOrder="203">
             <settings>
                 <filter>text</filter>
-                <label translate="true">Next Loyalty Tier</label>
+                <label translate="true">Next Loyalty Tier (Default Store Fallback)</label>
                 <visible>false</visible>
             </settings>
         </column>
         <column name="le_points_to_next_tier" sortOrder="204">
             <settings>
                 <filter>textRange</filter>
-                <label translate="true">Points to Next Tier</label>
+                <label translate="true">Points to Next Tier (Default Store Fallback)</label>
                 <visible>false</visible>
             </settings>
         </column>

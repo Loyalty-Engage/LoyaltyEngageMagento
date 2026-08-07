@@ -9,9 +9,10 @@ use LoyaltyEngage\LoyaltyShop\Api\Data\CustomerLoyaltyUpdateResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\CustomerLoyaltyUpdateResponseInterfaceFactory;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
+use Magento\Framework\Api\Data\AttributeInterfaceFactory;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Store\Model\StoreManagerInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class CustomerLoyalty implements CustomerLoyaltyInterface
@@ -32,27 +33,42 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
     private $responseFactory;
 
     /**
-    * @var LoyaltyHelper
-    */
+     * @var LoyaltyHelper
+     */
     private $loyaltyHelper;
 
-    /**
-     * @param CustomerRepositoryInterface $customerRepository
-     * @param SearchCriteriaBuilder $searchCriteriaBuilder
-     * @param CustomerLoyaltyUpdateResponseInterfaceFactory $responseFactory
-     * @param LoyaltyHelper $loyaltyHelper
-     */
     public function __construct(
         CustomerRepositoryInterface $customerRepository,
         SearchCriteriaBuilder $searchCriteriaBuilder,
         CustomerLoyaltyUpdateResponseInterfaceFactory $responseFactory,
-        LoyaltyHelper $loyaltyHelper
+        LoyaltyHelper $loyaltyHelper,
+        CustomerLoyaltyDataProvider $customerLoyaltyDataProvider,
+        AttributeInterfaceFactory $attributeFactory,
+        StoreManagerInterface $storeManager
     ) {
         $this->customerRepository = $customerRepository;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
         $this->responseFactory = $responseFactory;
         $this->loyaltyHelper = $loyaltyHelper;
+        $this->customerLoyaltyDataProvider = $customerLoyaltyDataProvider;
+        $this->attributeFactory = $attributeFactory;
+        $this->storeManager = $storeManager;
     }
+
+    /**
+     * @var CustomerLoyaltyDataProvider
+     */
+    private $customerLoyaltyDataProvider;
+
+    /**
+     * @var AttributeInterfaceFactory
+     */
+    private $attributeFactory;
+
+    /**
+     * @var StoreManagerInterface
+     */
+    private $storeManager;
 
     /**
      * @inheritdoc
@@ -65,13 +81,14 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         ?string $leNextTier = null,
         ?int $lePointsToNextTier = null,
         ?int $leReservedCoins = null,
-        ?int $leExpiringPoints30d = null
+        ?int $leExpiringPoints30d = null,
+        ?string $storeCode = null
     ): CustomerLoyaltyUpdateResponseInterface {
         $response = $this->responseFactory->create();
 
         try {
             // Find customer by email
-            $customer = $this->getCustomerByEmail($email);
+            $customer = $this->getCustomerByEmail($email, $storeCode);
             
             if (!$customer) {
                 $response->setSuccess(true);
@@ -82,46 +99,59 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             }
 
             $updatedFields = [];
+            $storeId = $this->customerLoyaltyDataProvider->resolveStoreId($storeCode);
+            $storeScopedData = [];
 
             // Update loyalty attributes if provided
             if ($leCurrentTier !== null) {
-                $customer->setCustomAttribute('le_current_tier', $leCurrentTier);
+                $storeScopedData['le_current_tier'] = $leCurrentTier;
                 $updatedFields[] = 'le_current_tier';
             }
 
             if ($lePoints !== null) {
-                $customer->setCustomAttribute('le_points', $lePoints);
+                $storeScopedData['le_points'] = $lePoints;
                 $updatedFields[] = 'le_points';
             }
 
             if ($leAvailableCoins !== null) {
-                $customer->setCustomAttribute('le_available_coins', $leAvailableCoins);
+                $storeScopedData['le_available_coins'] = $leAvailableCoins;
                 $updatedFields[] = 'le_available_coins';
             }
 
             if ($leNextTier !== null) {
-                $customer->setCustomAttribute('le_next_tier', $leNextTier);
+                $storeScopedData['le_next_tier'] = $leNextTier;
                 $updatedFields[] = 'le_next_tier';
             }
 
             if ($lePointsToNextTier !== null) {
-                $customer->setCustomAttribute('le_points_to_next_tier', $lePointsToNextTier);
+                $storeScopedData['le_points_to_next_tier'] = $lePointsToNextTier;
                 $updatedFields[] = 'le_points_to_next_tier';
             }
 
             if ($leReservedCoins !== null) {
-                $customer->setCustomAttribute('le_reserved_coins', $leReservedCoins);
+                $storeScopedData['le_reserved_coins'] = $leReservedCoins;
                 $updatedFields[] = 'le_reserved_coins';
             }
 
             if ($leExpiringPoints30d !== null) {
-                $customer->setCustomAttribute('le_expiring_points_30d', $leExpiringPoints30d);
+                $storeScopedData['le_expiring_points_30d'] = $leExpiringPoints30d;
                 $updatedFields[] = 'le_expiring_points_30d';
             }
 
             // Save customer if any fields were updated
             if (!empty($updatedFields)) {
-                $this->customerRepository->save($customer);
+                $this->customerLoyaltyDataProvider->saveCustomerStoreData(
+                    (int) $customer->getId(),
+                    $storeId,
+                    $storeScopedData
+                );
+
+                if ($this->shouldSyncGlobalFallback($storeId)) {
+                    foreach ($storeScopedData as $attributeCode => $value) {
+                        $customer->setCustomAttribute($attributeCode, $value);
+                    }
+                    $this->customerRepository->save($customer);
+                }
                 
                 $response->setSuccess(true);
                 $response->setMessage('Customer loyalty data updated successfully');
@@ -136,6 +166,8 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
                     [
                         'customer_id' => $customer->getId(),
                         'email' => $email,
+                        'store_id' => $storeId,
+                        'store_code' => $storeCode,
                         'updated_fields' => $updatedFields
                     ]
                 );
@@ -187,14 +219,22 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
      * Get customer by email address
      *
      * @param string $email
+     * @param string|null $storeCode
      * @return CustomerInterface|null
      * @throws LocalizedException
      */
-    private function getCustomerByEmail(string $email): ?CustomerInterface
+    private function getCustomerByEmail(string $email, ?string $storeCode = null): ?CustomerInterface
     {
         try {
+            $customer = $this->customerLoyaltyDataProvider->getCustomerByEmail($email, $storeCode);
+            if ($customer) {
+                return $customer;
+            }
+
             $searchCriteria = $this->searchCriteriaBuilder
                 ->addFilter('email', $email)
+                ->addFilter('website_id', $this->customerLoyaltyDataProvider->resolveWebsiteId($storeCode))
+                ->setPageSize(1)
                 ->create();
 
             $customers = $this->customerRepository->getList($searchCriteria);
@@ -218,5 +258,13 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             );
             throw $e;
         }
+    }
+
+    private function shouldSyncGlobalFallback(int $storeId): bool
+    {
+        $store = $this->storeManager->getStore($storeId);
+        $website = $store->getWebsite();
+
+        return (int) $website->getDefaultStore()->getId() === $storeId;
     }
 }

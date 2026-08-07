@@ -1,0 +1,35 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta $block */
+$meta = $block->getLoyaltyMeta();
+$labels = $block->getLabels();
+if (!$block->canBootstrap()) {
+    return;
+}
+$hasMeta = !empty(array_filter($meta, static fn($value) => $value !== null && $value !== ''));
+?>
+<div class="block block-dashboard-info loyalty-meta loyalty-meta--page"
+     data-role="loyalty-meta-account-page"
+     data-empty-message="<?= $block->escapeHtmlAttr((string) __('No loyalty data is currently available.')) ?>">
+    <div class="block-title">
+        <strong><?= $block->escapeHtml($block->getBlockTitle()) ?></strong>
+    </div>
+    <div class="block-content">
+        <?php if ($hasMeta): ?>
+        <div class="loyalty-meta__list" data-role="loyalty-meta-page-list">
+            <?php foreach ($meta as $code => $value): ?>
+                <?php if ($value === null || $value === ''): ?>
+                    <?php continue; ?>
+                <?php endif; ?>
+                <div class="loyalty-meta__row">
+                    <dt><?= $block->escapeHtml($labels[$code] ?? $code) ?></dt>
+                    <dd><?= $block->escapeHtml((string) $value) ?></dd>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php else: ?>
+        <div class="message info empty" data-role="loyalty-meta-page-empty">
+            <span><?= $block->escapeHtml(__('No loyalty data is currently available.')) ?></span>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>

@@ -11,6 +11,7 @@ use Magento\Framework\Model\AbstractModel;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Framework\App\Http\Context as HttpContext;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use LoyaltyEngage\LoyaltyShop\Model\CustomerLoyaltyDataProvider;
 
 class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
 {
@@ -35,6 +36,11 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
     private $loyaltyHelper;
 
     /**
+     * @var CustomerLoyaltyDataProvider
+     */
+    private $customerLoyaltyDataProvider;
+
+    /**
      * @param Context $context
      * @param CustomerRepositoryInterface $customerRepository
      * @param CustomerSession $customerSession
@@ -48,6 +54,7 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         CustomerSession $customerSession,
         HttpContext $httpContext,
         LoyaltyHelper $loyaltyHelper,
+        CustomerLoyaltyDataProvider $customerLoyaltyDataProvider,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -55,6 +62,7 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         $this->customerSession = $customerSession;
         $this->httpContext = $httpContext;
         $this->loyaltyHelper = $loyaltyHelper;
+        $this->customerLoyaltyDataProvider = $customerLoyaltyDataProvider;
     }
 
     /**
@@ -215,19 +223,7 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
         }
 
         $attributeCode = $this->getAttribute();
-        $attributeValue = null;
-
-        // Handle both types
-        if ($customer instanceof \Magento\Customer\Model\Customer) {
-            $attributeValue = $customer->getData($attributeCode);
-
-        } elseif ($customer instanceof \Magento\Customer\Api\Data\CustomerInterface) {
-            $attribute = $customer->getCustomAttribute($attributeCode);
-
-            if ($attribute) {
-                $attributeValue = $attribute->getValue();
-            }
-        }
+        $attributeValue = $this->customerLoyaltyDataProvider->getAttributeValue($customer, $attributeCode);
 
         if ($attributeValue === null) {
             $attributeValue = '';

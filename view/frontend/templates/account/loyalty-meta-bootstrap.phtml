@@ -1,0 +1,144 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta $block */
+if (!$block->canBootstrap()) {
+    return;
+}
+$metaJson = $block->getLoyaltyMetaJson();
+$labelsJson = $block->getLabelsJson();
+?>
+<script>
+    (function () {
+        var initialMeta = <?= /* @noEscape */ $metaJson ?>;
+        var labels = <?= /* @noEscape */ $labelsJson ?>;
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderPageBuilderBlocks() {
+            var blocks = document.querySelectorAll('.loyaltyengage-pagebuilder-meta');
+            var meta = window.loyaltyEngageCustomerMeta || {};
+            var metaKeys = Object.keys(meta).filter(function (key) {
+                return meta[key] !== null && meta[key] !== '';
+            });
+
+            blocks.forEach(function (block) {
+                var body = block.querySelector('[data-role="loyalty-meta-body"]');
+                var emptyMessage = block.getAttribute('data-empty-message') || 'Log in om je loyalty gegevens te bekijken.';
+                var title = block.getAttribute('data-title') || '';
+
+                if (!body) {
+                    return;
+                }
+
+                if (title) {
+                    block.setAttribute('data-has-title', 'true');
+                } else {
+                    block.removeAttribute('data-has-title');
+                }
+
+                if (!metaKeys.length) {
+                    body.innerHTML = '<p class="loyaltyengage-pagebuilder-meta__empty">' + escapeHtml(emptyMessage) + '</p>';
+                    return;
+                }
+
+                body.innerHTML = '<dl class="loyaltyengage-pagebuilder-meta__list">' + metaKeys.map(function (key) {
+                    return '<div class="loyaltyengage-pagebuilder-meta__row">'
+                        + '<dt>' + escapeHtml(labels[key] || key) + '</dt>'
+                        + '<dd>' + escapeHtml(meta[key]) + '</dd>'
+                        + '</div>';
+                }).join('') + '</dl>';
+            });
+        }
+
+        function renderAccountPageBlock() {
+            var block = document.querySelector('[data-role="loyalty-meta-account-page"]');
+            var meta = window.loyaltyEngageCustomerMeta || {};
+            var metaKeys = Object.keys(meta).filter(function (key) {
+                return meta[key] !== null && meta[key] !== '';
+            });
+            var listContainer;
+            var emptyContainer;
+            var emptyMessage;
+
+            if (!block) {
+                return;
+            }
+
+            listContainer = block.querySelector('[data-role="loyalty-meta-page-list"]');
+            emptyContainer = block.querySelector('[data-role="loyalty-meta-page-empty"]');
+            emptyMessage = block.getAttribute('data-empty-message') || 'No loyalty data is currently available.';
+
+            if (!metaKeys.length) {
+                if (listContainer) {
+                    listContainer.innerHTML = '';
+                }
+                if (emptyContainer) {
+                    emptyContainer.innerHTML = '<span>' + escapeHtml(emptyMessage) + '</span>';
+                    emptyContainer.style.display = '';
+                }
+                return;
+            }
+
+            if (!listContainer) {
+                var content = block.querySelector('.block-content');
+                if (!content) {
+                    return;
+                }
+                listContainer = document.createElement('div');
+                listContainer.className = 'loyalty-meta__list';
+                listContainer.setAttribute('data-role', 'loyalty-meta-page-list');
+                content.appendChild(listContainer);
+            }
+
+            listContainer.innerHTML = metaKeys.map(function (key) {
+                return '<div class="loyalty-meta__row">'
+                    + '<dt>' + escapeHtml(labels[key] || key) + '</dt>'
+                    + '<dd>' + escapeHtml(meta[key]) + '</dd>'
+                    + '</div>';
+            }).join('');
+
+            if (emptyContainer) {
+                emptyContainer.style.display = 'none';
+            }
+        }
+
+        function publish(meta) {
+            window.loyaltyEngageCustomerMeta = meta || {};
+            window.loyaltyEngageCustomerMetaLabels = labels || {};
+            window.dispatchEvent(new CustomEvent('loyaltyengage:meta-updated', {
+                detail: window.loyaltyEngageCustomerMeta
+            }));
+            renderPageBuilderBlocks();
+            renderAccountPageBlock();
+        }
+
+        // Server-rendered bootstrap works for both Luma and Hyva.
+        publish(initialMeta);
+
+        // Enhance with customer-data updates when RequireJS/Luma is available.
+        if (typeof require === 'function') {
+            require(['Magento_Customer/js/customer-data'], function (customerData) {
+                var customer = customerData.get('customer');
+                var updateMeta = function () {
+                    var data = customer() || {};
+                    publish(data.loyalty_meta || initialMeta || {});
+                };
+
+                updateMeta();
+                if (typeof customer.subscribe === 'function') {
+                    customer.subscribe(updateMeta);
+                }
+            });
+        }
+
+        if (typeof window !== 'undefined') {
+            window.loyaltyEngageRenderPageBuilderMeta = renderPageBuilderBlocks;
+        }
+    }());
+</script>

@@ -235,6 +235,184 @@
                     </depends>
                 </field>
             </group>
+            <group id="frontend" translate="label" type="text" sortOrder="25"
+                showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Frontend Loyalty Data</label>
+
+                <field id="expose_customer_meta" translate="label" type="select" sortOrder="10"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Expose Loyalty Meta In Frontend</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Expose store-scoped loyalty fields in customer section data, on the account dashboard, and in the Loyalty Meta widget for PageBuilder/JS consumers.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                <field id="account_block_title" translate="label" type="text" sortOrder="20"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Account Block Title</label>
+                    <comment>Title shown above the loyalty data block on the customer account page.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+
+                <field id="account_navigation_label" translate="label" type="text" sortOrder="21"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Account Navigation Label</label>
+                    <comment>Label shown in the customer account navigation tab for the loyalty page.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+
+                <field id="account_navigation_sort_order" translate="label comment" type="text" sortOrder="22"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Account Navigation Position</label>
+                    <validate>validate-digits</validate>
+                    <comment>Higher numbers appear higher in the customer account navigation. Example: 155.</comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_current_tier_enabled" translate="label" type="select" sortOrder="30"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Current Loyalty Tier</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_current_tier_label" translate="label" type="text" sortOrder="31"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Current Loyalty Tier Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_current_tier_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_points_enabled" translate="label" type="select" sortOrder="40"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Loyalty Points</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_points_label" translate="label" type="text" sortOrder="41"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Loyalty Points Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_points_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_available_coins_enabled" translate="label" type="select" sortOrder="50"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Available Loyalty Coins</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_available_coins_label" translate="label" type="text" sortOrder="51"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Available Loyalty Coins Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_available_coins_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_next_tier_enabled" translate="label" type="select" sortOrder="60"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Next Loyalty Tier</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_next_tier_label" translate="label" type="text" sortOrder="61"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Next Loyalty Tier Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_next_tier_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_points_to_next_tier_enabled" translate="label" type="select" sortOrder="70"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Points To Next Tier</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_points_to_next_tier_label" translate="label" type="text" sortOrder="71"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Points To Next Tier Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_points_to_next_tier_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_reserved_coins_enabled" translate="label" type="select" sortOrder="80"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Reserved Loyalty Coins</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_reserved_coins_label" translate="label" type="text" sortOrder="81"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Reserved Loyalty Coins Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_reserved_coins_enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="le_expiring_points_30d_enabled" translate="label" type="select" sortOrder="90"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Show Expiring Points (30 Days)</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                    </depends>
+                </field>
+                <field id="le_expiring_points_30d_label" translate="label" type="text" sortOrder="91"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Expiring Points (30 Days) Label</label>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/frontend/expose_customer_meta">1</field>
+                        <field id="loyalty/frontend/le_expiring_points_30d_enabled">1</field>
+                    </depends>
+                </field>
+            </group>
         </section>
     </system>
 </config>

@@ -17,7 +17,18 @@ use Magento\Framework\Encryption\EncryptorInterface;
 
 class Data extends AbstractHelper
 {
+    public const LOYALTY_META_FIELDS = [
+        'le_current_tier' => 'Current Loyalty Tier',
+        'le_points' => 'Loyalty Points',
+        'le_available_coins' => 'Available Loyalty Coins',
+        'le_next_tier' => 'Next Loyalty Tier',
+        'le_points_to_next_tier' => 'Points to Next Tier',
+        'le_reserved_coins' => 'Reserved Loyalty Coins',
+        'le_expiring_points_30d' => 'Expiring Points (30 days)',
+    ];
+
     private const XML_PATH_EXPORT = 'loyalty/export/';
+    private const XML_PATH_FRONTEND = 'loyalty/frontend/';
     private const XML_PATH_GENERAL = 'loyalty/general/';
     private const XML_PATH_SHIPPING = 'loyalty/shipping/';
 
@@ -182,6 +193,89 @@ class Data extends AbstractHelper
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_EXPORT . 'review_event',
             ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    public function isFrontendLoyaltyMetaEnabled(): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_FRONTEND . 'expose_customer_meta',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    public function getFrontendLoyaltyMetaTitle(): string
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_FRONTEND . 'account_block_title',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $value !== '' ? $value : 'Loyalty Overview';
+    }
+
+    public function getFrontendLoyaltyNavigationLabel(): string
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_FRONTEND . 'account_navigation_label',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $value !== '' ? $value : 'Loyalty';
+    }
+
+    public function getFrontendLoyaltyNavigationSortOrder(): int
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_FRONTEND . 'account_navigation_sort_order',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return ctype_digit($value) ? (int) $value : 155;
+    }
+
+    public function isFrontendLoyaltyFieldEnabled(string $fieldCode): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_FRONTEND . $fieldCode . '_enabled',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    public function getFrontendLoyaltyFieldLabel(string $fieldCode): string
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_FRONTEND . $fieldCode . '_label',
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $value !== '' ? $value : (self::LOYALTY_META_FIELDS[$fieldCode] ?? $fieldCode);
+    }
+
+    public function getFrontendLoyaltyFieldConfig(): array
+    {
+        $config = [];
+
+        foreach (self::LOYALTY_META_FIELDS as $fieldCode => $defaultLabel) {
+            $config[$fieldCode] = [
+                'enabled' => $this->isFrontendLoyaltyFieldEnabled($fieldCode),
+                'label' => $this->getFrontendLoyaltyFieldLabel($fieldCode),
+            ];
+        }
+
+        return $config;
+    }
+
+    public function filterFrontendLoyaltyMeta(array $meta): array
+    {
+        $fieldConfig = $this->getFrontendLoyaltyFieldConfig();
+
+        return array_filter(
+            $meta,
+            static function (string $fieldCode) use ($fieldConfig): bool {
+                return !empty($fieldConfig[$fieldCode]['enabled']);
+            },
+            ARRAY_FILTER_USE_KEY
         );
     }
 

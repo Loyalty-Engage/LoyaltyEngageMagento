@@ -34,3 +34,65 @@
     border-color: transparent #f0f0f0 transparent transparent;
     z-index: 1;
 }
+
+.loyalty-meta--page {
+    margin-top: 0;
+}
+
+.loyalty-meta--page .block-title {
+    margin-bottom: 1.5rem;
+}
+
+.loyalty-meta__list {
+    clear: both;
+    float: none;
+    left: 0;
+    margin: 0;
+    max-width: 720px;
+    padding: 0;
+    position: relative;
+    width: 100%;
+}
+
+.loyalty-meta__row {
+    align-items: baseline;
+    border-bottom: 1px solid #e8e8e8;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    padding: 0.9rem 0;
+}
+
+.loyalty-meta__row:first-child {
+    padding-top: 0;
+}
+
+.loyalty-meta__row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.loyalty-meta__row dt,
+.loyalty-meta__row dd {
+    margin: 0;
+}
+
+.loyalty-meta__row dt {
+    color: #555;
+    font-weight: 600;
+}
+
+.loyalty-meta__row dd {
+    color: #111;
+}
+
+.loyalty-meta--page .message.info.empty {
+    margin-top: 0;
+}
+
+@media (max-width: 767px) {
+    .loyalty-meta__row {
+        gap: 0.35rem;
+        grid-template-columns: 1fr;
+    }
+}

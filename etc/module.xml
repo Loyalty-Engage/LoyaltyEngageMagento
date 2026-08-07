@@ -4,6 +4,8 @@
     <module name="LoyaltyEngage_LoyaltyShop">
         <sequence>
             <module name="Magento_Customer"/>
+            <module name="Magento_PageBuilder"/>
+            <module name="Magento_Widget"/>
         </sequence>
     </module>
 </config>

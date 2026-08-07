@@ -9,7 +9,7 @@
             </argument>
             <settings>
                 <dataType>text</dataType>
-                <label translate="true">Current Loyalty Tier</label>
+                <label translate="true">Current Loyalty Tier (Default Store Fallback)</label>
                 <visible>true</visible>
                 <disabled>true</disabled>
             </settings>
@@ -22,7 +22,7 @@
             </argument>
             <settings>
                 <dataType>number</dataType>
-                <label translate="true">Loyalty Points</label>
+                <label translate="true">Loyalty Points (Default Store Fallback)</label>
                 <visible>true</visible>
                 <disabled>true</disabled>
             </settings>
@@ -35,7 +35,7 @@
             </argument>
             <settings>
                 <dataType>number</dataType>
-                <label translate="true">Available Loyalty Coins</label>
+                <label translate="true">Available Loyalty Coins (Default Store Fallback)</label>
                 <visible>true</visible>
                 <disabled>true</disabled>
             </settings>
@@ -48,7 +48,7 @@
             </argument>
             <settings>
                 <dataType>text</dataType>
-                <label translate="true">Next Loyalty Tier</label>
+                <label translate="true">Next Loyalty Tier (Default Store Fallback)</label>
                 <visible>true</visible>
                 <disabled>true</disabled>
             </settings>
@@ -61,7 +61,7 @@
             </argument>
             <settings>
                 <dataType>number</dataType>
-                <label translate="true">Points to Next Tier</label>
+                <label translate="true">Points to Next Tier (Default Store Fallback)</label>
                 <visible>true</visible>
                 <disabled>true</disabled>
             </settings>
