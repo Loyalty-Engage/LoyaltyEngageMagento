@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-08-13
+
+### Added
+- **Store-scoped loyalty customer fields**: Loyalty metadata zoals punten, coins en aanvullende klantvelden kunnen nu per store view worden beheerd en via de API op store-niveau worden bijgewerkt in plaats van globaal.
+- **Configureerbare Loyalty account-tab**: Een aparte account-tab voor loyalty gegevens toegevoegd, inclusief instelbare titel, configureerbare sorteerpositie en per veld aan/uit-opties met aanpasbare labels vanuit de moduleconfiguratie.
+- **Frontend en PageBuilder beschikbaarheid voor loyalty velden**: Loyalty meta fields kunnen nu gecontroleerd beschikbaar worden gemaakt voor zowel storefront rendering als PageBuilder content, zodat merchants dit per veld kunnen inschakelen.
+
+### Changed
+- **Accountpagina layout afgestemd op standaard Magento/Hyva accountnavigatie**: De loyalty pagina rendert nu in dezelfde hoofdcontentstructuur als andere accountpagina's, met de navigatie aan de zijkant en consistente spacing/styling.
+- **Hyva/Luma compatibiliteit verbeterd**: Frontend rendering is aangescherpt zodat dezelfde loyalty velden en accountweergave in beide omgevingen ondersteund blijven.
+
+### Fixed
+- **Remove-from-cart synchronisatie**: Het remove-from-cart event voor loyalty producten is verder rechtgetrokken zodat verwijderingen vanuit de cart correct richting LoyaltyEngage worden doorgezet.
+- **Loyalty tab content rendering**: De loyalty account-tab toont nu daadwerkelijk de geconfigureerde meta fields in plaats van een lege pagina of afwijkende layout.
+
 ## [2.5.0] - 2026-05-27
 
 ### Added
