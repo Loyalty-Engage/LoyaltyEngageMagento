@@ -30,13 +30,13 @@ class ApiClient
     /**
      * Common setup
      */
-    protected function prepare(): void
+    protected function prepare(?int $storeId = null): void
     {
         $this->curl->setHeaders([]);
         $this->curl->setTimeout($this->timeout);
 
-        $clientId = $this->helper->getClientId();
-        $clientSecret = $this->helper->getClientSecret();
+        $clientId = $this->helper->getClientId($storeId);
+        $clientSecret = $this->helper->getClientSecret($storeId);
 
         if ($clientId && $clientSecret) {
             $auth = base64_encode($clientId . ':' . $clientSecret);
@@ -75,9 +75,9 @@ class ApiClient
     /**
      * GET
      */
-    public function get(string $url, array $params = []): array
+    public function get(string $url, array $params = [], ?int $storeId = null): array
     {
-        $this->prepare();
+        $this->prepare($storeId);
 
         if (!empty($params)) {
             $url .= '?' . http_build_query($params);
@@ -91,9 +91,9 @@ class ApiClient
     /**
      * POST
      */
-    public function post(string $url, array $body = []): array
+    public function post(string $url, array $body = [], ?int $storeId = null): array
     {
-        $this->prepare();
+        $this->prepare($storeId);
 
         $this->curl->post($url, $this->json->serialize($body));
 
@@ -103,9 +103,9 @@ class ApiClient
     /**
      * PUT
      */
-    public function put(string $url, array $body = []): array
+    public function put(string $url, array $body = [], ?int $storeId = null): array
     {
-        $this->prepare();
+        $this->prepare($storeId);
 
         $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'PUT');
         $this->curl->post($url, $this->json->serialize($body));
@@ -113,9 +113,9 @@ class ApiClient
         return $this->handleResponse();
     }
 
-    public function delete(string $url, array $body = []): array
+    public function delete(string $url, array $body = [], ?int $storeId = null): array
     {
-        $this->prepare();
+        $this->prepare($storeId);
 
         $this->curl->setOption(CURLOPT_CUSTOMREQUEST, 'DELETE');
 

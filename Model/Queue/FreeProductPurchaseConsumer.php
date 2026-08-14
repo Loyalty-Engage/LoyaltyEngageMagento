@@ -43,6 +43,8 @@ class FreeProductPurchaseConsumer extends AbstractConsumer
      */
     protected function execute(array $payload): void
     {
+        $storeId = isset($payload['store_id']) ? (int) $payload['store_id'] : null;
+
         // Validation
         if (empty($payload['email']) || empty($payload['orderId'])) {
 
@@ -56,7 +58,7 @@ class FreeProductPurchaseConsumer extends AbstractConsumer
             return;
         }
 
-        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $apiUrl = rtrim((string)$this->helper->getApiUrl($storeId), '/');
         $email = (string)$payload['email'];
         $hashEmail = $this->helper->hashEmail($email);
 
@@ -68,7 +70,7 @@ class FreeProductPurchaseConsumer extends AbstractConsumer
         ];
 
         try {
-            $this->apiClient->post($endpoint, $requestPayload);
+            $this->apiClient->post($endpoint, $requestPayload, $storeId);
 
             $this->helper->log(
                 'debug',

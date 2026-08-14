@@ -20,12 +20,14 @@ class FreeProductPurchaseObserver implements ObserverInterface
 
     public function execute(Observer $observer): void
     {
-        if (!$this->helper->isLoyaltyEngageEnabled()) {
+        $order = $observer->getEvent()->getOrder();
+        if (!$order || !$order instanceof Order) {
             return;
         }
 
-        $order = $observer->getEvent()->getOrder();
-        if (!$order || !$order instanceof Order) {
+        $storeId = (int) $order->getStoreId();
+
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
             return;
         }
 
@@ -64,6 +66,7 @@ class FreeProductPurchaseObserver implements ObserverInterface
         $payload = [
             'email'    => $email,
             'orderId'  => $orderId,
+            'store_id' => $storeId,
             'products' => $freeProducts
         ];
 

@@ -94,11 +94,12 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isLoyaltyEngageEnabled(): bool
+    public function isLoyaltyEngageEnabled(?int $storeId = null): bool
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_GENERAL . 'module_enable',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -107,11 +108,12 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isReturnExportEnabled(): bool
+    public function isReturnExportEnabled(?int $storeId = null): bool
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_EXPORT . 'return_event',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -120,11 +122,12 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isPurchaseExportEnabled(): bool
+    public function isPurchaseExportEnabled(?int $storeId = null): bool
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_EXPORT . 'purchase_event',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -134,11 +137,12 @@ class Data extends AbstractHelper
      *
      * @return string|null
      */
-    public function getClientId(): ?string
+    public function getClientId(?int $storeId = null): ?string
     {
         $value = $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'tenant_id',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
         
         if (empty($value)) {
@@ -155,11 +159,12 @@ class Data extends AbstractHelper
      *
      * @return string|null
      */
-    public function getClientSecret(): ?string
+    public function getClientSecret(?int $storeId = null): ?string
     {
         $value = $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'bearer_token',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
         
         if (empty($value)) {
@@ -175,11 +180,12 @@ class Data extends AbstractHelper
      *
      * @return string|null
      */
-    public function getApiUrl(): ?string
+    public function getApiUrl(?int $storeId = null): ?string
     {
         return $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'loyalty_api_url',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -188,11 +194,12 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isReviewExportEnabled(): bool
+    public function isReviewExportEnabled(?int $storeId = null): bool
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_EXPORT . 'review_event',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -381,11 +388,12 @@ class Data extends AbstractHelper
      *
      * @return string
      */
-    public function getPurchaseOrderStatus(): string
+    public function getPurchaseOrderStatus(?int $storeId = null): string
     {
         $status = $this->scopeConfig->getValue(
             self::XML_PATH_EXPORT . 'purchase_order_status',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
 
         return $status ?: 'complete';

@@ -43,7 +43,9 @@ class ReturnConsumer extends AbstractConsumer
      */
     protected function execute(array $payload): void
     {
-        if (!$this->helper->isReturnExportEnabled()) {
+        $storeId = isset($payload['store_id']) ? (int) $payload['store_id'] : null;
+
+        if (!$this->helper->isReturnExportEnabled($storeId)) {
             return;
         }
 
@@ -58,12 +60,12 @@ class ReturnConsumer extends AbstractConsumer
             return;
         }
 
-        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $apiUrl = rtrim((string)$this->helper->getApiUrl($storeId), '/');
         $endpoint = "{$apiUrl}/api/v1/events";
 
         try {
             // LoyaltyEngage /api/v1/events expects an array of events
-            $response = $this->apiClient->post($endpoint, [$payload]);
+            $response = $this->apiClient->post($endpoint, [$payload], $storeId);
 
             $this->helper->log(
                 'info',

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] - 2026-08-14
+
+### Fixed
+- **Store-aware order and return queue publishing**: Purchase, return, free product purchase and voucher redeem exports geven nu de `store_id` door in de queue payload, zodat store-scoped exportinstellingen en credentials van de juiste store view worden gebruikt.
+- **Store-aware queue consumers and API authentication**: Queue consumers en `ApiClient` lezen nu Loyalty Engage configuratie expliciet in de context van de juiste store, waardoor events niet meer ten onrechte worden overgeslagen of met verkeerde credentials/API-config worden verstuurd in multistore omgevingen.
+
 ## [2.5.1] - 2026-08-13
 
 ### Added

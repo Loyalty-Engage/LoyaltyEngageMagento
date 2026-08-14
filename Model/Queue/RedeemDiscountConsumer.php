@@ -42,6 +42,8 @@ class RedeemDiscountConsumer extends AbstractConsumer
      */
     protected function execute(array $payload): void
     {
+        $storeId = isset($payload['store_id']) ? (int) $payload['store_id'] : null;
+
         if (empty($payload['discount_code']) || empty($payload['identifier'])) {
             $this->helper->log(
                 'error',
@@ -57,13 +59,13 @@ class RedeemDiscountConsumer extends AbstractConsumer
         $identifier   = (string) $payload['identifier'];
         $orderId      = (string) ($payload['order_id'] ?? '');
 
-        $apiUrl   = rtrim((string) $this->helper->getApiUrl(), '/');
+        $apiUrl   = rtrim((string) $this->helper->getApiUrl($storeId), '/');
         $endpoint = "{$apiUrl}/api/v1/discount/" . urlencode($discountCode) . "/redeem";
 
         try {
             $response = $this->apiClient->put($endpoint, [
                 'identifier' => $identifier
-            ]);
+            ], $storeId);
 
             $this->helper->log(
                 'info',

@@ -41,14 +41,16 @@ abstract class AbstractConsumer
             return;
         }
 
-        if (!$this->helper->isLoyaltyEngageEnabled()) {
-            return;
-        }
-
         $payload = json_decode($payloadJson, true);
 
         if (isset($payload[0]) && is_array($payload[0])) {
             $payload = $payload[0];
+        }
+
+        $storeId = isset($payload['store_id']) ? (int) $payload['store_id'] : null;
+
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
+            return;
         }
 
         $startTime = microtime(true);

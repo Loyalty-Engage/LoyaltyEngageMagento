@@ -22,22 +22,24 @@ class PurchaseObserver implements ObserverInterface
 
     public function execute(Observer $observer)
     {
-        if (!$this->helper->isLoyaltyEngageEnabled()) {
-            return;
-        }
-
-        if (!$this->helper->isPurchaseExportEnabled()) {
-            return;
-        }
-
         $order = $observer->getEvent()->getOrder();
         if (!$order || !$order instanceof Order) {
             return;
         }
 
+        $storeId = (int) $order->getStoreId();
+
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
+            return;
+        }
+
+        if (!$this->helper->isPurchaseExportEnabled($storeId)) {
+            return;
+        }
+
         $originalStatus = $order->getOrigData('status');
         $currentStatus = $order->getStatus();
-        $triggerStatus = $this->helper->getPurchaseOrderStatus();
+        $triggerStatus = $this->helper->getPurchaseOrderStatus($storeId);
 
         if ($originalStatus === $currentStatus || $currentStatus !== $triggerStatus) {
             return;
@@ -62,6 +64,7 @@ class PurchaseObserver implements ObserverInterface
                 'identifier' => $email,
                 'orderId' => $orderId,
                 'orderDate' => $orderDate,
+                'store_id' => $storeId,
                 'products' => $products
             ]
         ];
@@ -110,7 +113,8 @@ class PurchaseObserver implements ObserverInterface
                 $redeemPayload = [
                     'discount_code' => $couponCode,
                     'identifier'    => $emailHash,
-                    'order_id'      => $orderId
+                    'order_id'      => $orderId,
+                    'store_id'      => $storeId
                 ];
 
                 $this->publisher->publish(

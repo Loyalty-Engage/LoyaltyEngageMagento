@@ -19,20 +19,6 @@ class ReturnObserver implements ObserverInterface
 
     public function execute(Observer $observer): void
     {
-        if (!$this->helper->isLoyaltyEngageEnabled()) {
-            return;
-        }
-
-        if (!$this->helper->isReturnExportEnabled()) {
-            $this->helper->log(
-                'info',
-                'LoyaltyShop',
-                'ReturnExportDisabled',
-                'Return export is disabled.'
-            );
-            return;
-        }
-
         $creditmemo = $observer->getEvent()->getCreditmemo();
         if (!$creditmemo) {
             return;
@@ -40,6 +26,23 @@ class ReturnObserver implements ObserverInterface
 
         $order = $creditmemo->getOrder();
         if (!$order) {
+            return;
+        }
+
+        $storeId = (int) $order->getStoreId();
+
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
+            return;
+        }
+
+        if (!$this->helper->isReturnExportEnabled($storeId)) {
+            $this->helper->log(
+                'info',
+                'LoyaltyShop',
+                'ReturnExportDisabled',
+                'Return export is disabled.',
+                ['store_id' => $storeId]
+            );
             return;
         }
 
@@ -59,6 +62,7 @@ class ReturnObserver implements ObserverInterface
             [
                 'event'      => 'Return',
                 'identifier' => $email,
+                'store_id'   => $storeId,
                 'orderDate'  => $returnDate,
                 'products'   => $products
             ]
