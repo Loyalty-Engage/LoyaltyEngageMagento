@@ -74,18 +74,19 @@ class CustomerLoyaltyDataProvider
         $connection = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
 
-        $row = array_merge($this->getScopedRow($customerId, $storeId), [
-            'customer_id' => $customerId,
-            'store_id' => $storeId,
-        ]);
+        $row = ['customer_id' => $customerId, 'store_id' => $storeId];
+        $fields = [];
 
         foreach (self::ATTRIBUTE_CODES as $attributeCode) {
             if (array_key_exists($attributeCode, $data)) {
                 $row[$attributeCode] = $data[$attributeCode];
+                $fields[] = $attributeCode;
             }
         }
 
-        $connection->insertOnDuplicate($tableName, $row, self::ATTRIBUTE_CODES);
+        if ($fields) {
+            $connection->insertOnDuplicate($tableName, $row, $fields);
+        }
     }
 
     public function getCustomerLoyaltyData($customer, ?int $storeId = null): array
@@ -100,12 +101,13 @@ class CustomerLoyaltyDataProvider
         $resolvedData = [];
 
         foreach (self::ATTRIBUTE_CODES as $attributeCode) {
-            if (array_key_exists($attributeCode, $scopedData) && $scopedData[$attributeCode] !== null) {
-                $resolvedData[$attributeCode] = $scopedData[$attributeCode];
+            if ($scopedData !== []) {
+                $resolvedData[$attributeCode] = $scopedData[$attributeCode] ?? null;
                 continue;
             }
 
-            $resolvedData[$attributeCode] = $this->extractAttributeValue($customer, $attributeCode);
+            $resolvedData[$attributeCode] = (int) $customer->getStoreId() === $resolvedStoreId
+                ? $this->extractAttributeValue($customer, $attributeCode) : null;
         }
 
         return $resolvedData;

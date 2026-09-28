@@ -1,111 +1,51 @@
 <?php
-
 declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Observer;
 
-use Magento\Framework\Event\ObserverInterface;
-use Magento\Framework\Event\Observer;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
+use LoyaltyEngage\LoyaltyShop\Model\LoyaltyOrderItems;
+use LoyaltyEngage\LoyaltyShop\Model\OrderExportEligibility;
+use Magento\Framework\Event\Observer;
+use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\MessageQueue\PublisherInterface;
 use Magento\Sales\Model\Order;
 
 class FreeProductPurchaseObserver implements ObserverInterface
 {
     public function __construct(
-        private Data $helper,
-        private PublisherInterface $publisher
+        private Data $helper, private PublisherInterface $publisher,
+        private OrderExportEligibility $exportEligibility, private LoyaltyOrderItems $loyaltyItems
     ) {
     }
 
     public function execute(Observer $observer): void
     {
         $order = $observer->getEvent()->getOrder();
-        if (!$order || !$order instanceof Order) {
+        if (!$order instanceof Order || !$order->getId() || $order->getData('loyalty_order_place')) {
             return;
         }
-
         $storeId = (int) $order->getStoreId();
-
-        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
+        if ($order->getOrigData('status') === $order->getStatus()) {
             return;
         }
-
-        $originalStatus = $order->getOrigData('status');
-        $currentStatus  = $order->getStatus();
-
-        $triggerStatuses = ['complete', 'accepted'];
-        if ($originalStatus === $currentStatus || !in_array($currentStatus, $triggerStatuses, true)) {
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)
+            || !in_array($order->getStatus(), $this->helper->getPurchaseOrderStatuses($storeId), true)
+            || !$this->exportEligibility->evaluate($order)['eligible']) {
             return;
         }
-
-        $freeProducts = [];
+        $products = [];
         foreach ($order->getAllVisibleItems() as $item) {
-            if ((float) $item->getPrice() === 0.0) {
-                $freeProducts[] = [
-                    'sku'      => $item->getSku(),
-                    'quantity' => (int) $item->getQtyOrdered()
-                ];
+            $quantity = (float) $item->getQtyOrdered() - (float) $item->getQtyCanceled();
+            if ($quantity > 0 && $this->loyaltyItems->isRedemption($item)) {
+                $products[] = ['sku' => $item->getSku(), 'quantity' => $quantity];
             }
         }
-
-        if (empty($freeProducts)) {
-            $this->helper->log(
-                'info',
-                'LoyaltyShop',
-                'FreeProductPurchase',
-                sprintf('No free products found in order %s - skipping flow.', $order->getIncrementId()),
-                ['order_id' => $order->getIncrementId()]
-            );
-            return;
-        }
-
-        $email   = $order->getCustomerEmail();
-        $orderId = $order->getIncrementId();
-
-        $payload = [
-            'email'    => $email,
-            'orderId'  => $orderId,
-            'store_id' => $storeId,
-            'products' => $freeProducts
-        ];
-
-        try {
-            $this->publisher->publish(
-                'loyaltyshop.free_product_purchase_event',
-                json_encode($payload)
-            );
-
-            $this->helper->log(
-                'info',
-                'LoyaltyShop',
-                'FreeProductPurchaseTriggered',
-                'Free product purchase flow triggered',
-                [
-                    'trigger_reason'      => sprintf('Order status changed to %s', $currentStatus),
-                    'email'               => $email,
-                    'order_id'            => $orderId,
-                    'previous_status'     => $originalStatus,
-                    'current_status'      => $currentStatus,
-                    'free_products_count' => count($freeProducts),
-                    'free_products'       => $freeProducts,
-                    'payload'             => $payload
-                ]
-            );
-
-        } catch (\Exception $e) {
-            $this->helper->log(
-                'error',
-                'LoyaltyShop',
-                'FreeProductPurchaseError',
-                'Queue publish failed',
-                [
-                    'error_message' => $e->getMessage(),
-                    'email'         => $email,
-                    'order_id'      => $orderId,
-                    'free_products' => $freeProducts
-                ]
-            );
+        if ($products) {
+            $this->publisher->publish('loyaltyshop.free_product_purchase_event', json_encode([
+                'email' => $order->getCustomerEmail(), 'orderId' => $order->getIncrementId(),
+                'store_id' => $storeId, 'products' => $products,
+            ], JSON_THROW_ON_ERROR));
         }
     }
 }

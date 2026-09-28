@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/system_file.xsd">
+    xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
     <system>
         <tab id="loyalty_settings" translate="label" sortOrder="100">
             <label>Loyalty Engage</label>
@@ -176,13 +176,33 @@
                     </depends>
                 </field>
 
-                 <field id="purchase_order_status" translate="label comment" type="text" sortOrder="25"
+                 <field id="purchase_order_status" translate="label comment" type="multiselect" sortOrder="25"
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Purchase Sync Order Status</label>
-                    <comment><![CDATA[The order status that triggers the purchase sync to LoyaltyEngage. Default: complete. Use the Magento status code (e.g., complete, processing, closed).]]></comment>
+                    <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\OrderStatuses</source_model>
+                    <comment><![CDATA[The order statuses that trigger the purchase sync to LoyaltyEngage. All statuses available in this Magento environment are shown. An order is exported only once, even when it passes through multiple selected statuses. Default: Complete.]]></comment>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
                         <field id="loyalty/export/purchase_event">1</field>
+                    </depends>
+                </field>
+
+                <field id="allowed_order_sources" translate="label comment" type="multiselect" sortOrder="26"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Order Event Export Sources</label>
+                    <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\OrderSources</source_model>
+                    <comment><![CDATA[Only orders created through the selected sources are exported. Keep all sources selected to preserve the default behavior. API includes REST, SOAP and GraphQL.]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
+                <field id="excluded_order_comment_markers" translate="label comment" type="textarea" sortOrder="27"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Order Event Excluded Comment Markers</label>
+                    <comment><![CDATA[Optional. Enter one case-insensitive text fragment per line. Orders containing a matching status-history comment are not exported.]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
                     </depends>
                 </field>
 

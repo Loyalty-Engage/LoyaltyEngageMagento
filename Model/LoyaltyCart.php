@@ -1,893 +1,298 @@
 <?php
-
 declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Model;
-
-// phpcs:ignoreFile
-// @codingStandardsIgnoreFile
 
 use LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterfaceFactory;
 use LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartItemInterface;
-use Magento\Catalog\Model\ProductRepository;
+use LoyaltyEngage\LoyaltyShop\Helper\Data;
+use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
+use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DataObject;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
-use Magento\Framework\Webapi\Rest\Response;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
-use Magento\Quote\Api\CartManagementInterface;
-use Magento\Store\Model\StoreManagerInterface;
 use Magento\Quote\Model\QuoteFactory;
-use Magento\SalesRule\Model\RuleFactory;
-use Magento\SalesRule\Model\ResourceModel\Coupon\CollectionFactory as CouponCollectionFactory;
-use Magento\SalesRule\Model\ResourceModel\Rule\CollectionFactory as RuleCollectionFactory;
-use Magento\SalesRule\Model\CouponFactory;
-use Magento\Customer\Api\GroupRepositoryInterface;
-use Magento\Framework\Api\SearchCriteriaBuilderFactory;
+use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface;
-use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
-use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
 
 class LoyaltyCart implements LoyaltyCartInterface
 {
     public function __construct(
-        private CartManagementInterface $cartManagement,
-        private CartRepositoryInterface $quoteRepository,
-        private LoyaltyengageCart $loyaltyengageCart,
-        private ProductRepository $productRepository,
-        private Response $response,
-        private LoyaltyCartResponseInterfaceFactory $loyaltyCartResponseFactory,
-        private StoreManagerInterface $storeManager,
+        private CartRepositoryInterface $quotes,
         private QuoteFactory $quoteFactory,
-        private RuleFactory $ruleFactory,
-        private CouponCollectionFactory $couponCollectionFactory,
-        private LoyaltyHelper $loyaltyHelper,
-        private ?RuleCollectionFactory $ruleCollectionFactory = null,
-        private ?CouponFactory $couponFactory = null,
-        private ?GroupRepositoryInterface $customerGroupRepository = null,
-        private ?SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory = null,
-        private ?LoggerInterface $logger = null
+        private ProductRepositoryInterface $products,
+        private StoreManagerInterface $stores,
+        private StoreContext $context,
+        private Data $helper,
+        private ApiClient $api,
+        private LoyaltyCartResponseInterfaceFactory $responses,
+        private CouponRules $couponRules,
+        private MutationJournal $journal,
+        private EventOutbox $outbox,
+        private LockManagerInterface $lock,
+        private ResourceConnection $resource,
+        private LoggerInterface $logger,
+        private \Magento\Quote\Api\CartRepositoryInterfaceFactory $quoteRepositories,
+        private \Magento\Sales\Api\OrderRepositoryInterface $orders,
+        private OrderExportEligibility $exportEligibility
     ) {
     }
 
     public function addProduct(int $customerId, string $sku): LoyaltyCartResponseInterface
     {
-        $response = $this->loyaltyCartResponseFactory->create();
-
-        // Early checks
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            return $this->loyaltyHelper->successResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
-        }
-
-        if (!$customerId || !$sku) {
-            return $this->loyaltyHelper->errorResponse($response, 'customerId and SKU are required.', 'validation');
-        }
-
-        $this->logDebug('Starting loyalty product addition', ['customer_id' => $customerId, 'sku' => $sku]);
-
-        // Check minimum order value
-        $minOrderValueError = $this->checkMinimumOrderValue($customerId, $response);
-        if ($minOrderValueError) {
-            return $minOrderValueError;
-        }
-
-        // Check max loyalty products in cart
-        $maxProductsError = $this->checkMaxLoyaltyProducts($customerId, $response);
-        if ($maxProductsError) {
-            return $maxProductsError;
-        }
-
-        try {
-            $customerData = $this->loyaltyHelper->getCustomerDataById($customerId);
-            if (!$customerData) {
-                return $this->loyaltyHelper->errorResponse($response, 'Customer not found.', 'validation');
+        return $this->locked($customerId, function () use ($customerId, $sku) {
+            if (trim($sku) === '') {
+                throw new LocalizedException(__('SKU is required.'));
             }
-
-            $email = $customerData['email'];
-            $hashedEmail = $customerData['hashed_email'];
-
-            $this->logDebug('Calling LoyaltyEngage API', ['customer_id' => $customerId, 'email' => $email, 'sku' => $sku]);
-
-            $apiResponse = $this->loyaltyengageCart->addToCart($hashedEmail, $sku);
-
-            $this->logApiInteraction('addToCart', $apiResponse, ['email' => $email, 'sku' => $sku]);
-
-            if ($apiResponse !== LoyaltyHelper::HTTP_OK) {
-                return $this->loyaltyHelper->errorResponse($response, 'Product could not be added. User is not eligible.', 'api_error', $apiResponse);
-            }
-
-            $product = $this->productRepository->get($sku);
-            if (!$this->isValidProduct($product)) {
-                return $this->loyaltyHelper->errorResponse($response, 'Invalid or unavailable product.', 'validation');
-            }
-
             $quote = $this->getOrCreateCustomerQuote($customerId);
-            
-            $quoteItem = $this->addProductToQuote($quote, $product, $sku, $email);
-            
-            if ($quoteItem === null) {
-                return $this->loyaltyHelper->errorResponse($response, 'Failed to add product to cart.', 'system_error');
+            foreach ($quote->getAllVisibleItems() as $item) {
+                if ($item->getSku() === $sku && $this->helper->isLoyaltyProduct($item, true)) {
+                    return 'Product is already in your loyalty cart.';
+                }
             }
-
-            $this->logProductAddition($sku, $email, $quote, $quoteItem, $apiResponse);
-
-            return $this->loyaltyHelper->successResponse($response, 'Product added successfully');
-            
-        } catch (\Throwable $e) {
-            return $this->handleException($e, 'addProduct', ['sku' => $sku, 'customer_id' => $customerId]);
-        }
+            $this->validateCartLimits($quote);
+            $key = $this->operationKey($quote, 'product', $sku);
+            $product = clone $this->products->get($sku, false, (int) $quote->getStoreId(), true);
+            if (!$this->isValidProduct($product)) {
+                throw new LocalizedException(__('Invalid or unavailable product.'));
+            }
+            // Custom product options prevent Magento merging this into a paid line of the same SKU.
+            $product->addCustomOption('loyalty_locked_qty', '1');
+            $item = $quote->addProduct($product, new DataObject(['qty' => 1]));
+            if (is_string($item)) {
+                throw new LocalizedException(__($item));
+            }
+            if (!$item || $item->getHasError()) {
+                throw new LocalizedException(__('The product cannot be added to this cart.'));
+            }
+            $item->setCustomPrice(0)->setOriginalCustomPrice(0)->setData('loyalty_locked_qty', 1);
+            $item->addOption(['code' => 'loyalty_locked_qty', 'value' => '1']);
+            $item->getProduct()->setIsSuperMode(true);
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $storeId = (int) $quote->getStoreId();
+            $hash = $this->helper->hashEmail($quote->getCustomerEmail());
+            try {
+                $this->journal->response($key, $storeId, $customerId, (int) $quote->getId(), 'product', $sku,
+                function () use ($hash, $sku, $storeId, $key): array {
+                    $this->api->setIdempotencyKey($key);
+                    return $this->api->post($this->endpoint($storeId, $hash, 'add'),
+                        ['sku' => $sku, 'quantity' => 1], $storeId);
+                });
+            } catch (\Throwable $e) {
+                // Never let a later bulk-cart save persist an unreserved draft item.
+                $item->isDeleted(true);
+                $quote->setTotalsCollectedFlag(false);
+                throw $e;
+            }
+            // A confirmed reservation is retained in the journal if this local save fails.
+            $this->quotes->save($quote);
+            $this->journal->complete($key);
+            return 'Product added successfully.';
+        });
     }
 
     public function addMultipleProducts(int $customerId, array $skus): LoyaltyCartResponseInterface
     {
-        $response = $this->loyaltyCartResponseFactory->create();
-
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            return $this->loyaltyHelper->successResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
+        if (!$skus || count($skus) > 100 || array_filter($skus, static fn($sku) => !is_string($sku) || trim($sku) === '')) {
+            return $this->helper->errorResponse($this->responses->create(), 'Provide between 1 and 100 valid SKUs.', 'validation');
         }
-
-        if (!$customerId || empty($skus)) {
-            return $this->loyaltyHelper->errorResponse($response, 'customerId and SKUs are required.', 'validation');
-        }
-
-        // Check minimum order value
-        $minOrderValueError = $this->checkMinimumOrderValue($customerId, $response);
-        if ($minOrderValueError) {
-            return $minOrderValueError;
-        }
-
-        try {
-            $customerData = $this->loyaltyHelper->getCustomerDataById($customerId);
-            if (!$customerData) {
-                return $this->loyaltyHelper->errorResponse($response, 'Customer not found.', 'validation');
+        $added = [];
+        $failed = [];
+        foreach (array_unique($skus) as $sku) {
+            $response = $this->addProduct($customerId, $sku);
+            if ($response->getSuccess()) {
+                $added[] = $sku;
+            } else {
+                $failed[] = $sku;
             }
-
-            $email = $customerData['email'];
-            $hashedEmail = $customerData['hashed_email'];
-            $quote = $this->getOrCreateCustomerQuote($customerId);
-            
-            $result = $this->processMultipleProducts($quote, $hashedEmail, $email, $skus);
-            
-            if ($result['success_count'] === 0) {
-                return $this->loyaltyHelper->errorResponse($response, 'Failed to add any products to the cart.', 'api_error');
-            }
-
-            $message = $this->buildSuccessMessage($result['success_count'], $result['failed_skus']);
-            return $this->loyaltyHelper->successResponse($response, $message);
-            
-        } catch (\Throwable $e) {
-            return $this->handleException($e, 'addMultipleProducts', ['customer_id' => $customerId, 'skus' => $skus]);
         }
+        if ($failed) {
+            return $this->helper->errorResponse($this->responses->create(),
+                'Added: ' . implode(', ', $added) . '. Not added: ' . implode(', ', $failed) . '.', 'partial_failure');
+        }
+        return $this->helper->successResponse($this->responses->create(), 'All requested products were added.');
     }
 
     public function buyDiscountCodeProduct(int $customerId, string $sku): LoyaltyCartResponseInterface
     {
-        $response = $this->loyaltyCartResponseFactory->create();
-
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            return $this->loyaltyHelper->successResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
-        }
-
-        try {
-            $customerData = $this->loyaltyHelper->getCustomerDataById($customerId);
-            if (!$customerData) {
-                return $this->loyaltyHelper->errorResponse($response, 'Customer not found.', 'validation');
+        return $this->locked($customerId, function () use ($customerId, $sku) {
+            if (trim($sku) === '') {
+                throw new LocalizedException(__('SKU is required.'));
             }
-
-            $email = $customerData['email'];
-            $hashedEmail = $customerData['hashed_email'];
-
-            $discountResult = $this->loyaltyengageCart->buyDiscountCode($hashedEmail, $sku);
-
-            if (!$discountResult || empty($discountResult['discountCode'])) {
-                return $this->loyaltyHelper->errorResponse($response, 'Failed to purchase discount code. Please check your available coins.', 'api_error');
-            }
-
-            $discountCode = $discountResult['discountCode'];
-            
-            if (strlen($discountCode) > 255) {
-                return $this->loyaltyHelper->errorResponse($response, 'Discount code is too long for Magento.', 'validation');
-            }
-
-            $usePercentage = isset($discountResult['discountPercentage']) && $discountResult['discountPercentage'] > 0;
-            $discountValue = $usePercentage ? $discountResult['discountPercentage'] : ($discountResult['discountAmount'] ?? 0);
-
-            $this->logDiscountPurchase($email, $sku, $discountResult);
-
-            $finalCode = $this->ensureCartRuleExists($discountCode, $discountValue, !$usePercentage);
-
             $quote = $this->getOrCreateCustomerQuote($customerId);
-            $quote->setCouponCode($finalCode);
-            $quote->collectTotals()->save();
-
-            $discountTypeText = $usePercentage ? "{$discountResult['discountPercentage']}%" : "€{$discountResult['discountAmount']}";
-            return $this->loyaltyHelper->successResponse(
-                $response,
-                "Discount code '{$finalCode}' ({$discountTypeText}) applied successfully. You spent {$discountResult['spentCoins']} coins."
-            );
-            
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'buyDiscountCodeProduct', ['customer_id' => $customerId, 'sku' => $sku]);
-        }
-    }
-
-    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, string $orderId, array $products): LoyaltyCartResponseInterface
-    {
-        $response = $this->loyaltyCartResponseFactory->create();
-
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            return $this->loyaltyHelper->successResponse($response, 'LoyaltyEngage module is disabled. No action taken.');
-        }
-
-        if (!$customerId || !$orderId || empty($products)) {
-            return $this->loyaltyHelper->errorResponse($response, 'customerId, orderId, and products are required.', 'validation');
-        }
-
-        try {
-            $formattedProducts = $this->validateAndFormatProducts($products, $response);
-            if ($formattedProducts === null) {
-                return $response;
+            if (!$quote->getAllVisibleItems()) {
+                throw new LocalizedException(__('Add a product to your cart before buying a discount.'));
             }
-
-            $customerData = $this->loyaltyHelper->getCustomerDataById($customerId);
-            if (!$customerData) {
-                return $this->loyaltyHelper->errorResponse($response, 'Customer not found.', 'validation');
+            $storeId = (int) $quote->getStoreId();
+            $hash = $this->helper->hashEmail($quote->getCustomerEmail());
+            $key = $this->operationKey($quote, 'discount', $sku);
+            $result = $this->journal->response($key, $storeId, $customerId, (int) $quote->getId(), 'discount', $sku,
+                function () use ($hash, $sku, $storeId, $key): array {
+                    $this->api->setIdempotencyKey($key);
+                    return $this->api->post($this->endpoint($storeId, $hash, 'buy_discount_code'), ['sku' => $sku], $storeId);
+                });
+            $percentage = (float) ($result['discountPercentage'] ?? 0);
+            $amount = $percentage > 0 ? $percentage : (float) ($result['discountAmount'] ?? 0);
+            $code = $this->couponRules->ensure((string) ($result['discountCode'] ?? ''), $amount, $percentage <= 0);
+            $quote->setCouponCode($code)->setTotalsCollectedFlag(false)->collectTotals();
+            if ($quote->getCouponCode() !== $code) {
+                throw new LocalizedException(__('Your coupon was purchased but cannot be applied to this cart. Please contact the shop.'));
             }
-
-            $email = $customerData['email'];
-
-            $this->logDiscountClaim($customerId, $email, $orderId, $formattedProducts);
-
-            $placeOrderResult = $this->loyaltyengageCart->placeOrder($email, $orderId, $formattedProducts);
-
-            if ($placeOrderResult === LoyaltyHelper::HTTP_OK) {
-                return $this->loyaltyHelper->successResponse($response, 'Discount claimed successfully. Order placed.');
-            }
-
-            return $this->loyaltyHelper->errorResponse($response, 'Failed to claim discount. Please try again.', 'api_error', $placeOrderResult);
-            
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'claimDiscountAfterAddToLoyaltyCart', [
-                'customer_id' => $customerId,
-                'order_id' => $orderId,
-                'products' => $products
-            ]);
-        }
+            $this->quotes->save($quote);
+            $this->journal->complete($key);
+            return "Discount code '" . $code . "' applied successfully.";
+        });
     }
 
     public function ensureCartRuleExists(?string $code, float $discountRate, bool $forceCartFixed = false): string
     {
+        return $this->couponRules->ensure((string) $code, $discountRate, $forceCartFixed);
+    }
+
+    public function claimDiscountAfterAddToLoyaltyCart(int $customerId, string $orderId, array $products): LoyaltyCartResponseInterface
+    {
+        return $this->locked($customerId, function () use ($customerId, $orderId, $products) {
+            $customer = $this->context->customer($customerId);
+            $storeId = $this->context->storeId();
+            $db = $this->resource->getConnection();
+            $order = $db->fetchRow($db->select()->from($this->resource->getTableName('sales_order'))
+                ->where('increment_id = ?', $orderId)->where('customer_id = ?', $customerId)->where('store_id = ?', $storeId));
+            if (!$order || !$products) {
+                throw new LocalizedException(__('The order does not belong to this customer and store.'));
+            }
+            if ($order['loyalty_order_place']) {
+                return 'Order redemption was already delivered.';
+            }
+            $orderModel = $this->orders->get((int) $order['entity_id']);
+            if (!in_array($orderModel->getStatus(), $this->helper->getPurchaseOrderStatuses($storeId), true)
+                || !$this->exportEligibility->evaluate($orderModel)['eligible']) {
+                throw new LocalizedException(__('This order does not qualify for loyalty export.'));
+            }
+            $requested = [];
+            foreach ($products as $product) {
+                if (!$product instanceof LoyaltyCartItemInterface || !$product->getSku() || $product->getQuantity() <= 0) {
+                    throw new LocalizedException(__('Invalid redemption products.'));
+                }
+                $requested[$product->getSku()] = (float) $product->getQuantity();
+            }
+            $actual = [];
+            foreach ($db->fetchAll($db->select()->from($this->resource->getTableName('sales_order_item'))
+                ->where('order_id = ?', $order['entity_id'])->where('loyalty_locked_qty = ?', 1)) as $item) {
+                $quantity = (float) $item['qty_ordered'] - (float) $item['qty_canceled'];
+                if ($quantity > 0) {
+                    $actual[$item['sku']] = ($actual[$item['sku']] ?? 0.0) + $quantity;
+                }
+            }
+            ksort($requested);
+            ksort($actual);
+            if ($requested !== $actual || !$actual) {
+                throw new LocalizedException(__('Products do not match the loyalty items on the order.'));
+            }
+            $this->outbox->publish('loyaltyshop.free_product_purchase_event', json_encode([
+                'email' => $customer->getEmail(), 'orderId' => $orderId, 'store_id' => $storeId,
+                'products' => array_map(static fn($sku, $qty) => ['sku' => $sku, 'quantity' => $qty], array_keys($actual), $actual),
+            ], JSON_THROW_ON_ERROR));
+            return 'Order redemption queued.';
+        });
+    }
+
+    public function getOrCreateCustomerQuote(int $customerId)
+    {
+        $customer = $this->context->customer($customerId);
         try {
-            if (empty($code)) {
-                $code = 'LOYALTY-' . strtoupper(bin2hex(random_bytes(4)));
-            }
-
-            // Check if this coupon code already exists
-            $couponCollection = $this->couponCollectionFactory->create()
-                ->addFieldToFilter('code', $code);
-
-            if ($couponCollection->getSize() > 0) {
-                return $code;
-            }
-
-            $websiteId = (int) $this->storeManager->getStore()->getWebsiteId();
-            $customerGroupIds = $this->getAllCustomerGroupIds();
-            $simpleAction = $forceCartFixed ? 'cart_fixed' : 'by_percent';
-
-            // Generate a consistent rule name based on discount type and value
-            $ruleName = $this->generateLoyaltyRuleName($discountRate, $forceCartFixed);
-
-            // Try to find an existing rule with the same discount value and type
-            $existingRule = null;
-
-            // Log dependency status for debugging
-            $this->loyaltyHelper->log(
-                'info',
-                LoyaltyLogger::COMPONENT_API,
-                LoyaltyLogger::ACTION_LOYALTY,
-                'Checking dependencies for rule reuse',
-                [
-                    'ruleCollectionFactory_available' => $this->ruleCollectionFactory !== null,
-                    'couponFactory_available' => $this->couponFactory !== null,
-                    'discount_rate' => $discountRate,
-                    'simple_action' => $simpleAction,
-                    'rule_name' => $ruleName
-                ]
-            );
-
-            if ($this->ruleCollectionFactory !== null && $this->couponFactory !== null) {
-                $existingRule = $this->findExistingLoyaltyRule($discountRate, $simpleAction, $websiteId);
-            } else {
-                $this->loyaltyHelper->log(
-                    'error',
-                    LoyaltyLogger::COMPONENT_API,
-                    LoyaltyLogger::ACTION_ERROR,
-                    'Dependencies not available - falling back to creating new rule. Run setup:di:compile',
-                    [
-                        'ruleCollectionFactory' => $this->ruleCollectionFactory !== null ? 'available' : 'NULL',
-                        'couponFactory' => $this->couponFactory !== null ? 'available' : 'NULL'
-                    ]
-                );
-            }
-
-            if ($existingRule && $this->couponFactory !== null) {
-                // Add the new coupon code to the existing rule
-                $this->addCouponToRule($existingRule, $code);
-
-                $this->loyaltyHelper->log(
-                    'info',
-                    LoyaltyLogger::COMPONENT_API,
-                    LoyaltyLogger::ACTION_SUCCESS,
-                    sprintf('Added coupon %s to existing rule: %s', $code, $existingRule->getName()),
-                    [
-                        'coupon_code' => $code,
-                        'rule_id' => $existingRule->getId(),
-                        'rule_name' => $existingRule->getName(),
-                        'discount_rate' => $discountRate,
-                        'discount_type' => $simpleAction
-                    ]
-                );
-
-                return $code;
-            }
-
-            // No existing rule found OR factories not available - create a new rule
-            $rule = $this->ruleFactory->create();
-            $rule->setName($ruleName)
-                ->setDescription('Auto-generated from LoyaltyEngage')
-                ->setFromDate(date('Y-m-d'))
-                ->setIsActive(1)
-                ->setSimpleAction($simpleAction)
-                ->setDiscountAmount($discountRate)
-                ->setStopRulesProcessing(1)
-                ->setIsAdvanced(1)
-                ->setUsesPerCustomer(0)
-                ->setCustomerGroupIds($customerGroupIds)
-                ->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_SPECIFIC)
-                ->setUseAutoGeneration(1)
-                ->setUsesPerCoupon(1)
-                ->setWebsiteIds([$websiteId]);
-
-            $rule->save();
-
-            // Add the first coupon as a managed coupon so it appears in Manage Coupon Codes
-            $this->addCouponToRule($rule, $code);
-
-            $this->loyaltyHelper->log(
-                'info',
-                LoyaltyLogger::COMPONENT_API,
-                LoyaltyLogger::ACTION_SUCCESS,
-                sprintf('Created new rule: %s with coupon: %s', $ruleName, $code),
-                [
-                    'coupon_code' => $code,
-                    'rule_id' => $rule->getId(),
-                    'rule_name' => $ruleName,
-                    'discount_rate' => $discountRate,
-                    'discount_type' => $simpleAction
-                ]
-            );
-
-            return $code;
-
-        } catch (\Throwable $e) {
-            if ($this->logger) {
-                $this->logger->critical('[LoyaltyShop] Unexpected error in ensureCartRuleExists', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-            }
-            throw $e;
-        }
-    }
-
-    /**
-     * Add a coupon code to an existing cart rule via CouponFactory
-     *
-     * @param \Magento\SalesRule\Model\Rule $rule
-     * @param string $code
-     * @return void
-     */
-    private function addCouponToRule($rule, string $code): void
-    {
-        // If CouponFactory is not available, throw an exception
-        if ($this->couponFactory === null) {
-            throw new \RuntimeException('CouponFactory is not available. Please run setup:di:compile.');
-        }
-
-        $coupon = $this->couponFactory->create();
-        $coupon->setRuleId($rule->getId())
-            ->setCode($code)
-            ->setUsageLimit(1) // Each coupon can only be used once
-            ->setUsagePerCustomer(1)
-            ->setIsPrimary(false) // Keep coupon_code field on rule empty
-            ->setType(\Magento\SalesRule\Model\Coupon::TYPE_GENERATED);
-
-        $coupon->save();
-    }
-
-    /**
-     * Find an existing LoyaltyEngage rule with the same discount value and type
-     *
-     * @param float $discountRate
-     * @param string $simpleAction
-     * @param int $websiteId
-     * @return \Magento\SalesRule\Model\Rule|null
-     */
-    private function findExistingLoyaltyRule(float $discountRate, string $simpleAction, int $websiteId)
-    {
-        if ($this->ruleCollectionFactory === null) {
-            $this->loyaltyHelper->log(
-                'debug',
-                LoyaltyLogger::COMPONENT_API,
-                LoyaltyLogger::ACTION_LOYALTY,
-                'RuleCollectionFactory is null, cannot search for existing rules'
-            );
-            return null;
-        }
-
-        $ruleName = $this->generateLoyaltyRuleName($discountRate, $simpleAction === 'cart_fixed');
-
-        $this->loyaltyHelper->log(
-            'debug',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            sprintf('Searching for existing rule: %s', $ruleName),
-            ['rule_name' => $ruleName, 'simple_action' => $simpleAction, 'discount_rate' => $discountRate]
-        );
-
-        $ruleCollection = $this->ruleCollectionFactory->create()
-            ->addFieldToFilter('name', $ruleName)
-            ->addFieldToFilter('simple_action', $simpleAction)
-            ->addFieldToFilter('discount_amount', $discountRate)
-            ->addFieldToFilter('is_active', 1);
-
-        if ($ruleCollection->getSize() > 0) {
-            $rule = $ruleCollection->getFirstItem();
-
-            $this->loyaltyHelper->log(
-                'debug',
-                LoyaltyLogger::COMPONENT_API,
-                LoyaltyLogger::ACTION_SUCCESS,
-                sprintf('Found existing rule: %s (ID: %d)', $rule->getName(), $rule->getId()),
-                ['rule_id' => $rule->getId(), 'rule_name' => $rule->getName()]
-            );
-
-            return $rule;
-        }
-
-        $this->loyaltyHelper->log(
-            'debug',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            sprintf('No existing rule found for: %s', $ruleName)
-        );
-
-        return null;
-    }
-
-    /**
-     * Generate a consistent rule name based on discount type and value
-     *
-     * @param float $discountRate
-     * @param bool $isFixed
-     * @return string
-     */
-    private function generateLoyaltyRuleName(float $discountRate, bool $isFixed): string
-    {
-        if ($isFixed) {
-            return sprintf('LoyaltyEngage Fixed €%.2f', $discountRate);
-        }
-        return sprintf('LoyaltyEngage Percentage %.1f%%', $discountRate);
-    }
-
-    /**
-     * Get all customer group IDs with fallback to default groups
-     *
-     * @return array
-     */
-    private function getAllCustomerGroupIds(): array
-    {
-        if ($this->customerGroupRepository === null || $this->searchCriteriaBuilderFactory === null) {
-            // Fallback: NOT LOGGED IN (0), General (1), Wholesale (2), Retailer (3)
-            return [0, 1, 2, 3];
-        }
-
-        try {
-            $searchCriteria = $this->searchCriteriaBuilderFactory->create()->create();
-            $groups = $this->customerGroupRepository->getList($searchCriteria);
-            $groupIds = [];
-            foreach ($groups->getItems() as $group) {
-                $groupIds[] = $group->getId();
-            }
-            return !empty($groupIds) ? $groupIds : [0, 1, 2, 3];
-        } catch (\Exception $e) {
-            return [0, 1, 2, 3];
+            $quote = $this->quoteRepositories->create()->getActiveForCustomer($customerId, [$this->context->storeId()]);
+            $this->context->assertQuote($quote);
+            return $quote;
+        } catch (NoSuchEntityException $e) {
+            $quote = $this->quoteFactory->create();
+            $quote->setStore($this->stores->getStore())->assignCustomer($customer)->setIsActive(true);
+            $this->quotes->save($quote);
+            return $quote;
         }
     }
 
     public function isValidProduct($product): bool
     {
-        return $product->isSalable() && $product->getStatus() == 1;
+        return (bool) $product->isSalable() && (int) $product->getStatus() === 1;
     }
 
-    public function getOrCreateCustomerQuote(int $customerId)
+    private function validateCartLimits($quote): void
     {
-        try {
-            return $this->quoteRepository->getActiveForCustomer($customerId);
-
-        } catch (NoSuchEntityException $e) {
-            try {
-                $store = $this->storeManager->getStore();
-
-                $quote = $this->quoteFactory->create();
-                $quote->setStoreId($store->getId());
-                $quote->setCustomerId($customerId);
-                $quote->setCustomerIsGuest(false);
-                $quote->setIsActive(1);
-
-                $quote->save();
-
-                $this->loyaltyHelper->log(
-                    'info',
-                    'QUOTE',
-                    'NEW_QUOTE_CREATED',
-                    'New active quote created',
-                    [
-                        'customer_id' => $customerId,
-                        'quote_id' => $quote->getId()
-                    ]
-                );
-
-                return $quote;
-
-            } catch (\Throwable $e) {
-
-                $this->loyaltyHelper->log(
-                    'critical',
-                    'QUOTE',
-                    'CREATE_CART_FAILED',
-                    'Failed to create new quote',
-                    [
-                        'customer_id' => $customerId,
-                        'error' => $e->getMessage()
-                    ]
-                );
-
-                throw $e;
-            }
-        }
-    }
-
-    private function getCartSubtotalExcludingLoyaltyProducts(int $customerId): float
-    {
-        try {
-            $quote = $this->quoteRepository->getActiveForCustomer($customerId);
-            $subtotal = 0.0;
-
-            foreach ($quote->getAllVisibleItems() as $item) {
-                // Skip loyalty products
-                if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
-                    continue;
-                }
-
-                // Use row total including tax for the threshold check
+        $count = 0;
+        $subtotal = 0.0;
+        foreach ($quote->getAllVisibleItems() as $item) {
+            if ($this->helper->isLoyaltyProduct($item, true)) {
+                $count++;
+            } else {
                 $subtotal += (float) ($item->getRowTotalInclTax() ?? $item->getRowTotal());
             }
-
-            return $subtotal;
-            
-        } catch (NoSuchEntityException $e) {
-            return 0.0;
+        }
+        $max = $this->helper->getMaxLoyaltyProducts();
+        if ($max > 0 && $count >= $max) {
+            throw new LocalizedException(__('You can add a maximum of %1 loyalty products.', $max));
+        }
+        $minimum = $this->helper->getMinimumOrderValueForLoyalty();
+        if ($subtotal < $minimum) {
+            throw new \LoyaltyEngage\LoyaltyShop\Service\MinimumOrderValueException(
+                __($this->helper->getFormattedMinimumOrderValueMessage($minimum, $subtotal))
+            );
         }
     }
 
-    private function checkMaxLoyaltyProducts(int $customerId, LoyaltyCartResponseInterface $response): ?LoyaltyCartResponseInterface
+    private function operationKey($quote, string $operation, string $sku): string
     {
-        $maxProducts = $this->loyaltyHelper->getMaxLoyaltyProducts();
-
-        // 0 means unlimited
-        if ($maxProducts <= 0) {
-            return null;
+        $cycle = 0;
+        if ($operation === 'product') {
+            $db = $this->resource->getConnection();
+            $row = $db->fetchRow($db->select()->from($this->outbox->table(), ['entity_id', 'status'])
+                ->where('aggregate_key = ?', hash('sha256', $quote->getStoreId() . ':' . $quote->getId() . ':' . $sku))
+                ->order('entity_id DESC')->limit(1));
+            if ($row) {
+                if ($row['status'] !== 'sent') {
+                    throw new LocalizedException(__('The previous removal is still being synchronized. Please retry later.'));
+                }
+                $cycle = (int) $row['entity_id'];
+            }
         }
+        return hash('sha256', $quote->getStoreId() . ':' . $quote->getId() . ':' . $operation . ':' . $sku . ':' . $cycle);
+    }
 
+    private function endpoint(int $storeId, string $hash, string $action): string
+    {
+        return rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/' . rawurlencode($hash) . '/cart/' . $action;
+    }
+
+    private function locked(int $customerId, callable $operation): LoyaltyCartResponseInterface
+    {
+        $response = $this->responses->create();
+        $key = 'le_cart_' . $customerId;
+        if (!$this->helper->isLoyaltyEngageEnabled($this->context->storeId())) {
+            return $this->helper->errorResponse($response, 'Loyalty Engage is disabled.', 'disabled', 403);
+        }
+        if (!$this->lock->lock($key, 5)) {
+            return $this->helper->errorResponse($response, 'Your cart is being updated. Please retry.', 'busy', 409);
+        }
         try {
-            $quote = $this->quoteRepository->getActiveForCustomer($customerId);
-            $loyaltyProductCount = 0;
-
-            foreach ($quote->getAllVisibleItems() as $item) {
-                if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
-                    $loyaltyProductCount++;
-                }
-            }
-
-            if ($loyaltyProductCount < $maxProducts) {
-                return null;
-            }
-
-            $this->loyaltyHelper->log(
-                'info',
-                LoyaltyLogger::COMPONENT_API,
-                LoyaltyLogger::ACTION_VALIDATION,
-                sprintf('Max loyalty products reached - Max: %d, Current: %d', $maxProducts, $loyaltyProductCount),
-                ['customer_id' => $customerId, 'max' => $maxProducts, 'current' => $loyaltyProductCount]
-            );
-
-            return $this->loyaltyHelper->errorResponse(
-                $response,
-                sprintf('You can only add a maximum of %d loyalty product(s) to your cart.', $maxProducts),
-                'max_loyalty_products'
-            );
-
-        } catch (NoSuchEntityException $e) {
-            // No active cart yet, so no loyalty products either
-            return null;
+            return $this->helper->successResponse($response, $operation());
+        } catch (\LoyaltyEngage\LoyaltyShop\Service\MinimumOrderValueException $e) {
+            $this->helper->setHttpResponseCode(400);
+            return $response->setSuccess(false)->setMessage($e->getMessage())->setErrorType('minimum_order_value')
+                ->setBarColor($this->helper->getMinimumOrderValueBarColor())
+                ->setTextColor($this->helper->getMinimumOrderValueTextColor());
+        } catch (LocalizedException $e) {
+            return $this->helper->errorResponse($response, $e->getMessage(), 'validation');
+        } catch (\Throwable $e) {
+            $this->logger->error('Loyalty cart operation failed.', ['customer_id' => $customerId, 'error' => $e->getMessage()]);
+            return $this->helper->errorResponse($response,
+                'The request could not be completed. Please contact the shop if your balance changed.', 'system_error', 502);
+        } finally {
+            $this->api->setIdempotencyKey(null);
+            $this->lock->unlock($key);
         }
-    }
-
-    private function checkMinimumOrderValue(int $customerId, LoyaltyCartResponseInterface $response): ?LoyaltyCartResponseInterface
-    {
-        if (!$this->loyaltyHelper->isMinimumOrderValueEnabled()) {
-            return null;
-        }
-
-        $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty();
-        $cartSubtotal = $this->getCartSubtotalExcludingLoyaltyProducts($customerId);
-        
-        if ($cartSubtotal >= $minimumOrderValue) {
-            return null;
-        }
-
-        $this->loyaltyHelper->log(
-            'info',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_VALIDATION,
-            sprintf('Minimum order value not met - Required: %.2f, Current: %.2f', $minimumOrderValue, $cartSubtotal),
-            ['customer_id' => $customerId, 'minimum' => $minimumOrderValue, 'current' => $cartSubtotal]
-        );
-
-        $errorMessage = $this->loyaltyHelper->getFormattedMinimumOrderValueMessage($minimumOrderValue, $cartSubtotal);
-        
-        return $this->setMinimumOrderValueErrorResponse($response, $errorMessage);
-    }
-
-    private function addProductToQuote($quote, $product, string $sku, string $email)
-    {
-        // Check if product already exists
-        $existingItem = null;
-        foreach ($quote->getAllItems() as $item) {
-            if ($item->getProduct()->getSku() === $sku) {
-                $existingItem = $item;
-                break;
-            }
-        }
-
-        if ($existingItem) {
-            $this->logDebug('Product already in cart', ['sku' => $sku, 'email' => $email]);
-            $quoteItem = $existingItem;
-        } else {
-            $quoteItem = $quote->addProduct($product);
-            $this->logDebug('Product added to cart', ['sku' => $sku, 'email' => $email]);
-        }
-
-        $quoteItem->setCustomPrice(0);
-        $quoteItem->setOriginalCustomPrice(0);
-        $quoteItem->setData('loyalty_locked_qty', 1);
-        $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
-        
-        $quote->collectTotals()->save();
-        
-        return $quoteItem;
-    }
-
-    private function processMultipleProducts($quote, string $hashedEmail, string $email, array $skus): array
-    {
-        $successCount = 0;
-        $failedSkus = [];
-
-        foreach ($skus as $sku) {
-            $apiResponse = $this->loyaltyengageCart->addToCart($hashedEmail, $sku);
-            
-            if ($apiResponse !== LoyaltyHelper::HTTP_OK) {
-                $failedSkus[] = $sku;
-                continue;
-            }
-
-            try {
-                $product = $this->productRepository->get($sku);
-                if (!$this->isValidProduct($product)) {
-                    $failedSkus[] = $sku;
-                    continue;
-                }
-
-                // Check if product already exists
-                $productExists = false;
-                foreach ($quote->getAllItems() as $item) {
-                    if ($item->getProduct()->getSku() === $sku) {
-                        $productExists = true;
-                        break;
-                    }
-                }
-
-                if (!$productExists) {
-                    $quoteItem = $quote->addProduct($product);
-                    $quoteItem->setCustomPrice(0);
-                    $quoteItem->setOriginalCustomPrice(0);
-                    $quoteItem->setData('loyalty_locked_qty', 1);
-                    $quoteItem->addOption(['code' => 'loyalty_locked_qty', 'value' => 1]);
-                }
-                
-                $successCount++;
-                
-            } catch (\Exception $e) {
-                $this->loyaltyHelper->log(
-                    'critical',
-                    LoyaltyLogger::COMPONENT_API,
-                    LoyaltyLogger::ACTION_ERROR,
-                    '[LoyaltyShop] Exception in addMultipleProducts for SKU: ' . $sku,
-                    [
-                        'message' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]
-                );
-                $failedSkus[] = $sku;
-            }
-        }
-
-        $quote->collectTotals()->save();
-        
-        return [
-            'success_count' => $successCount,
-            'failed_skus' => $failedSkus
-        ];
-    }
-
-    private function validateAndFormatProducts(array $products, LoyaltyCartResponseInterface $response): ?array
-    {
-        $formattedProducts = [];
-        
-        foreach ($products as $product) {
-            if (!$product instanceof LoyaltyCartItemInterface) {
-                $this->loyaltyHelper->errorResponse($response, 'Each product must be a valid LoyaltyCartItem object.', 'validation');
-                return null;
-            }
-            
-            $sku = $product->getSku();
-            $quantity = $product->getQuantity();
-            
-            if (empty($sku) || $quantity <= 0) {
-                $this->loyaltyHelper->errorResponse($response, 'Each product must have valid SKU and quantity.', 'validation');
-                return null;
-            }
-            
-            $formattedProducts[] = [
-                'sku' => (string) $sku,
-                'quantity' => (int) $quantity
-            ];
-        }
-        
-        return $formattedProducts;
-    }
-
-    private function setMinimumOrderValueErrorResponse(LoyaltyCartResponseInterface $response, string $message): LoyaltyCartResponseInterface
-    {
-        $this->response->setHttpResponseCode(LoyaltyHelper::HTTP_BAD_REQUEST);
-        
-        $barColor = $this->loyaltyHelper->getMinimumOrderValueBarColor();
-        $textColor = $this->loyaltyHelper->getMinimumOrderValueTextColor();
-        
-        return $response
-            ->setSuccess(false)
-            ->setMessage($message)
-            ->setBarColor($barColor)
-            ->setTextColor($textColor)
-            ->setErrorType('minimum_order_value');
-    }
-
-    private function handleException(\Throwable $e, string $method, array $context): LoyaltyCartResponseInterface
-    {
-        $this->loyaltyHelper->log(
-            'critical',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_ERROR,
-            sprintf('Exception in %s: %s', $method, $e->getMessage()),
-            array_merge($context, [
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ])
-        );
-        
-        return $this->loyaltyHelper->errorResponse(
-            $this->loyaltyCartResponseFactory->create(),
-            'An unexpected error occurred.',
-            'system_error'
-        );
-    }
-
-    private function buildSuccessMessage(int $successCount, array $failedSkus): string
-    {
-        $message = 'Successfully added ' . $successCount . ' product(s) to the cart.';
-        if (!empty($failedSkus)) {
-            $message .= ' Failed to add: ' . implode(', ', $failedSkus);
-        }
-        return $message;
-    }
-
-    private function logDebug(string $message, array $context = []): void
-    {
-        $this->loyaltyHelper->log(
-            'debug',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            $message,
-            $context
-        );
-    }
-
-    private function logApiInteraction(string $endpoint, $response, array $context = []): void
-    {
-        $this->loyaltyHelper->log(
-            'debug',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            $endpoint,
-            [
-                'method' => 'POST',
-                'response' => $response,
-                'status' => $response === LoyaltyHelper::HTTP_OK ? 'Success' : 'User not eligible',
-                'context' => $context
-            ]
-        );
-    }
-
-    private function logProductAddition(string $sku, string $email, $quote, $quoteItem, $apiResponse): void
-    {
-        $this->loyaltyHelper->log(
-            'info',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            sprintf('Successfully processed loyalty product %s for customer %s', $sku, $email),
-            [
-                'product_id' => $quoteItem->getProductId(),
-                'product_name' => $quoteItem->getProduct()->getName(),
-                'quote_id' => $quote->getId(),
-                'quote_item_id' => $quoteItem->getId(),
-                'api_response' => $apiResponse
-            ]
-        );
-    }
-
-    private function logDiscountPurchase(string $email, string $sku, array $discountResult): void
-    {
-        $this->loyaltyHelper->log(
-            'info',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_SUCCESS,
-            sprintf('Discount code purchased: %s', $discountResult['discountCode']),
-            [
-                'email' => $email,
-                'sku' => $sku,
-                'discount_code' => $discountResult['discountCode'],
-                'discount_percentage' => $discountResult['discountPercentage'] ?? null,
-                'discount_amount' => $discountResult['discountAmount'] ?? null,
-                'spent_coins' => $discountResult['spentCoins'] ?? 0,
-                'available_coins' => $discountResult['availableCoins'] ?? 0
-            ]
-        );
-    }
-
-    private function logDiscountClaim(int $customerId, string $email, string $orderId, array $products): void
-    {
-        $this->loyaltyHelper->log(
-            'info',
-            LoyaltyLogger::COMPONENT_API,
-            LoyaltyLogger::ACTION_LOYALTY,
-            'Claiming discount after adding products to loyalty cart',
-            [
-                'customer_id' => $customerId,
-                'email' => $this->loyaltyHelper->logMaskedEmail($email),
-                'order_id' => $orderId,
-                'products' => $products
-            ]
-        );
     }
 }

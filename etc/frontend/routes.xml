@@ -5,5 +5,8 @@
         <route id="loyalty" frontName="loyalty">
             <module name="LoyaltyEngage_LoyaltyShop"/>
         </route>
+        <route id="loyaltyshop" frontName="loyaltyshop">
+            <module name="LoyaltyEngage_LoyaltyShop"/>
+        </route>
     </router>
 </config>

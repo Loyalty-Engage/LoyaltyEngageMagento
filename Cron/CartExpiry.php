@@ -1,187 +1,72 @@
 <?php
-
 declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Cron;
 
-use LoyaltyEngage\LoyaltyShop\Model\LoyaltyengageCart;
+use LoyaltyEngage\LoyaltyShop\Helper\Data;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
-use Magento\Framework\Api\SearchCriteriaBuilder;
-use Magento\Framework\Api\FilterBuilder;
-use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use Psr\Log\LoggerInterface;
 
 class CartExpiry
 {
-    private const LOYALTY_EXPIRY_HOURS = 24;
-
-    /**
-     * Execute Cron For Loyalty Product Expiry (24 hours)
-     * ONLY removes loyalty products, leaves regular products untouched
-     *
-     * CartExpiry Construct
-     *
-     * @param CartRepositoryInterface $quoteRepository
-     * @param LoyaltyengageCart $loyaltyengageCart
-     * @param SearchCriteriaBuilder $searchCriteriaBuilder
-     * @param FilterBuilder $filterBuilder
-     * @param LoyaltyHelper $loyaltyHelper
-     */
     public function __construct(
-        protected CartRepositoryInterface $quoteRepository,
-        protected LoyaltyengageCart $loyaltyengageCart,
-        protected SearchCriteriaBuilder $searchCriteriaBuilder,
-        protected FilterBuilder $filterBuilder,
-        protected LoyaltyHelper $loyaltyHelper
+        private CartRepositoryInterface $quotes, private ResourceConnection $resource,
+        private Data $helper, private LockManagerInterface $lock, private LoggerInterface $logger
     ) {
     }
 
-    /**
-     * Execute cron for removing expired loyalty products from cart
-     *
-     * @return void
-     */
     public function execute(): void
     {
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
-            return;
-        }
-        $fromTime = new \DateTime('now', new \DateTimezone('UTC'));
-        $fromTime->sub(
-            \DateInterval::createFromDateString(
-                self::LOYALTY_EXPIRY_HOURS . " hours"
-            )
-        );
-        $fromDate = $fromTime->format('Y-m-d H:i:s');
-
-        $this->loyaltyHelper->log(
-            'info',
-            'CartExpiry',
-            'execute',
-            sprintf(
-                '[CartExpiry] Starting cleanup for quotes older than %s (%d hours)',
-                $fromDate,
-                self::LOYALTY_EXPIRY_HOURS
-            )
-        );
-
-        $this->searchCriteriaBuilder->addFilter('created_at', $fromDate, 'lteq');
-        $this->searchCriteriaBuilder->addFilter('customer_email', null, 'neq');
-        $this->searchCriteriaBuilder->addFilter('is_active', 1, 'eq');
-
-        $searchCriteria = $this->searchCriteriaBuilder->create();
-        $searchResults = $this->quoteRepository->getList($searchCriteria);
-
-        $processedQuotes = 0;
-        $loyaltyItemsRemoved = 0;
-
-        if ($searchResults->getTotalCount() > 0) {
-            foreach ($searchResults->getItems() as $quote) {
-                try {
-                    $email = $quote->getCustomerEmail();
-
-                    if (!$email) {
-                        $this->loyaltyHelper->log(
-                            'warning',
-                            'CartExpiry',
-                            'execute',
-                            '[CartExpiry] No email for quote ID ' . $quote->getId()
-                        );
-                        continue;
-                    }
-
-                    $quoteFullObject = $this->quoteRepository->get($quote->getId());
-                    $items = $quoteFullObject->getAllItems();
-
-                    $loyaltyItemsInQuote = [];
-                    $regularItemsCount = 0;
-
-                    foreach ($items as $item) {
-                        if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
-                            $loyaltyItemsInQuote[] = $item;
-                        } else {
-                            $regularItemsCount++;
-                        }
-                    }
-
-                    if (empty($loyaltyItemsInQuote)) {
-                        $this->loyaltyHelper->log(
-                            'debug',
-                            'CartExpiry',
-                            'execute',
-                            sprintf(
-                                '[CartExpiry] Quote %d has no loyalty products',
-                                $quote->getId()
-                            )
-                        );
-                        continue;
-                    }
-
-                    $hashedEmail = $this->loyaltyHelper->hashEmail($email);
-                    $response = $this->loyaltyengageCart->removeAllItem($hashedEmail);
-
-                    if ($response !== LoyaltyHelper::HTTP_OK) {
-                        $this->loyaltyHelper->log(
-                            'warning',
-                            'CartExpiry',
-                            'execute',
-                            sprintf(
-                                '[CartExpiry] External removal failed for %s (Quote ID: %d). Response: %d',
-                                $email,
-                                $quote->getId(),
-                                $response
-                            )
-                        );
-                    }
-
-                    $removedCount = 0;
-
-                    foreach ($loyaltyItemsInQuote as $loyaltyItem) {
-                        $quoteFullObject->removeItem($loyaltyItem->getId());
-                        $removedCount++;
-                    }
-
-                    $this->quoteRepository->save($quoteFullObject);
-
-                    $loyaltyItemsRemoved += $removedCount;
-                    $processedQuotes++;
-
-                    $this->loyaltyHelper->log(
-                        'info',
-                        'CartExpiry',
-                        'execute',
-                        sprintf(
-                            '[CartExpiry] Quote %d processed: %d removed, %d remain',
-                            $quote->getId(),
-                            $removedCount,
-                            $regularItemsCount
-                        )
-                    );
-
-                } catch (\Exception $e) {
-                    $this->loyaltyHelper->log(
-                        'error',
-                        'CartExpiry',
-                        'execute',
-                        sprintf(
-                            '[CartExpiry] Error quote %d: %s',
-                            $quote->getId(),
-                            $e->getMessage()
-                        )
-                    );
-                }
+        $db = $this->resource->getConnection();
+        $stores = $db->fetchCol($db->select()->from($this->resource->getTableName('store'), ['store_id'])
+            ->where('store_id > ?', 0)->where('is_active = ?', 1));
+        foreach ($stores as $storeId) {
+            if ($this->helper->isLoyaltyEngageEnabled((int) $storeId)) {
+                $this->processStore((int) $storeId);
             }
         }
+    }
 
-        $this->loyaltyHelper->log(
-            'debug',
-            'CartExpiry',
-            'execute',
-            sprintf(
-                '[CartExpiry] Done: %d quotes, %d removed, %d total',
-                $processedQuotes,
-                $loyaltyItemsRemoved,
-                $searchResults->getTotalCount()
-            )
-        );
+    private function processStore(int $storeId): void
+    {
+        $db = $this->resource->getConnection();
+        $cutoff = gmdate('Y-m-d H:i:s', time() - $this->helper->getCartExpiryHours($storeId) * 3600);
+        $rows = $db->fetchAll($db->select()
+            ->from(['q' => $this->resource->getTableName('quote')], ['entity_id', 'customer_id', 'store_id'])
+            ->joinInner(['i' => $this->resource->getTableName('quote_item')], 'i.quote_id = q.entity_id', [])
+            ->joinLeft(['o' => $this->resource->getTableName('quote_item_option')],
+                "o.item_id = i.item_id AND o.code = 'loyalty_locked_qty'", [])
+            ->where('q.is_active = ?', 1)->where('q.customer_id IS NOT NULL')
+            ->where("(i.loyalty_locked_qty = 1 OR o.value = '1')")
+            ->where('q.store_id = ?', $storeId)->where('i.created_at <= ?', $cutoff)
+            ->distinct()->order('q.entity_id ASC')->limit(100));
+        foreach ($rows as $row) {
+            $storeId = (int) $row['store_id'];
+            $key = 'le_cart_' . $row['customer_id'];
+            if (!$this->helper->isLoyaltyEngageEnabled($storeId) || !$this->lock->lock($key, 0)) {
+                continue;
+            }
+            try {
+                $quote = $this->quotes->getActive((int) $row['entity_id']);
+                $cutoff = gmdate('Y-m-d H:i:s', time() - $this->helper->getCartExpiryHours($storeId) * 3600);
+                $removed = false;
+                foreach ($quote->getAllVisibleItems() as $item) {
+                    if ($this->helper->isLoyaltyProduct($item, true) && $item->getCreatedAt() <= $cutoff) {
+                        $quote->removeItem($item->getId());
+                        $removed = true;
+                    }
+                }
+                if ($removed) {
+                    $quote->setTotalsCollectedFlag(false)->collectTotals();
+                    $this->quotes->save($quote);
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('Loyalty cart expiry failed.', ['quote_id' => $row['entity_id'], 'error' => $e->getMessage()]);
+            } finally {
+                $this->lock->unlock($key);
+            }
+        }
     }
 }

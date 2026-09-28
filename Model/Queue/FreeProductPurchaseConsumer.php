@@ -14,6 +14,8 @@ use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
  */
 class FreeProductPurchaseConsumer extends AbstractConsumer
 {
+    public const TOPIC = 'loyaltyshop.free_product_purchase_event';
+
     /**
      * API client for external requests
      *

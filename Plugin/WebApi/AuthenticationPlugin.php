@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Plugin\WebApi;
 
-use Magento\Framework\App\RequestInterface;
-use Magento\Framework\Exception\AuthorizationException;
 use Magento\Framework\Webapi\Rest\Request as RestRequest;
 use LoyaltyEngage\LoyaltyShop\Helper\Data as LoyaltyHelper;
+use Magento\Framework\Exception\AuthorizationException;
+use Magento\Framework\Webapi\Authorization;
 
 /**
  * Plugin to authenticate LoyaltyEngage API requests using Basic Auth
- * 
+ *
  * This plugin validates that incoming requests to LoyaltyEngage endpoints
  * contain valid Basic Auth credentials matching the configured tenant_id and bearer_token.
  */
 class AuthenticationPlugin
 {
+    private const ACL_RESOURCE = 'LoyaltyEngage_LoyaltyShop::api';
+
     /**
      * @var RestRequest
      */
@@ -30,83 +32,41 @@ class AuthenticationPlugin
     /**
      * @param RestRequest $request
      * @param LoyaltyHelper $loyaltyHelper
-     * @param LoggerInterface $logger
      */
     public function __construct(
         RestRequest $request,
-        LoyaltyHelper $loyaltyHelper
+        LoyaltyHelper $loyaltyHelper,
+        private \Magento\Store\Model\StoreManagerInterface $stores
     ) {
         $this->request = $request;
         $this->loyaltyHelper = $loyaltyHelper;
     }
 
-    /**
-     * Validate Basic Auth credentials before processing the request
-     *
-     * @param \Magento\Webapi\Controller\Rest $subject
-     * @param RequestInterface $request
-     * @return array
-     * @throws AuthorizationException
-     */
-    public function beforeDispatch(\Magento\Webapi\Controller\Rest $subject, RequestInterface $request): array
+    public function aroundIsAllowed(Authorization $subject, callable $proceed, $aclResources): bool
     {
-        $pathInfo = $request->getPathInfo();
-        
-        // Only validate requests to LoyaltyEngage endpoints
-        if (!$this->isLoyaltyEngageEndpoint($pathInfo)) {
-            return [$request];
+        if (!in_array(self::ACL_RESOURCE, (array) $aclResources, true)) {
+            return $proceed($aclResources);
         }
 
-        // Check if module is enabled
         if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
             throw new AuthorizationException(__('LoyaltyEngage module is disabled.'));
         }
 
-        // Validate Basic Auth credentials
         if (!$this->validateBasicAuth()) {
             $this->loyaltyHelper->log(
                 'error',
                 'AuthenticationPlugin',
-                'beforeDispatch',
+                'authorize',
                 'Unauthorized API request attempt',
                 [
-                    'path' => $pathInfo,
-                    'ip' => $request->getClientIp()
+                    'path' => $this->request->getPathInfo(),
+                    'ip' => $this->request->getClientIp()
                 ]
             );
             throw new AuthorizationException(__('Invalid or missing authentication credentials.'));
         }
 
-        return [$request];
-    }
-
-    /**
-     * Check if the request is for a LoyaltyEngage endpoint
-     *
-     * @param string|null $pathInfo
-     * @return bool
-     */
-    private function isLoyaltyEngageEndpoint(?string $pathInfo): bool
-    {
-        if (empty($pathInfo)) {
-            return false;
-        }
-
-        // Match LoyaltyEngage API endpoints
-        $loyaltyEndpoints = [
-            '/V1/loyalty/',
-            '/rest/V1/loyalty/',
-            '/rest/default/V1/loyalty/',
-            '/rest/all/V1/loyalty/'
-        ];
-
-        foreach ($loyaltyEndpoints as $endpoint) {
-            if (stripos($pathInfo, $endpoint) !== false) {
-                return true;
-            }
-        }
-
-        return false;
+        return true;
     }
 
     /**
@@ -129,7 +89,7 @@ class AuthenticationPlugin
 
         // Extract and decode credentials
         $encodedCredentials = substr($authHeader, 6);
-        $decodedCredentials = base64_decode($encodedCredentials);
+        $decodedCredentials = base64_decode($encodedCredentials, true);
         
         if ($decodedCredentials === false) {
             return false;
@@ -142,9 +102,29 @@ class AuthenticationPlugin
 
         [$providedTenantId, $providedToken] = $parts;
 
+        // Mirror ServiceInputProcessor's merged input and camelCase/snake_case precedence.
+        $storeId = null;
+        $params = (array) $this->request->getRequestData();
+        $storeCode = $params['storeCode'] ?? $params['store_code'] ?? null;
+        if ($storeCode !== null && $storeCode !== '') {
+            // Only customer/update accepts a target store; carts always use their route's store.
+            if (!preg_match('#(?:^|/)V1/loyalty/customer/update/?$#', (string) $this->request->getPathInfo())
+                || (!is_string($storeCode) && !is_int($storeCode))) {
+                return false;
+            }
+            try {
+                $storeId = (int) $this->stores->getStore($storeCode)->getId();
+            } catch (\Throwable $e) {
+                return false;
+            }
+            if ($storeId <= 0 || !$this->loyaltyHelper->isLoyaltyEngageEnabled($storeId)) {
+                return false;
+            }
+        }
+
         // Get configured credentials
-        $configuredTenantId = $this->loyaltyHelper->getClientId();
-        $configuredToken = $this->loyaltyHelper->getClientSecret();
+        $configuredTenantId = $this->loyaltyHelper->getClientId($storeId);
+        $configuredToken = $this->loyaltyHelper->getClientSecret($storeId);
 
         // Validate credentials using timing-safe comparison
         if (empty($configuredTenantId) || empty($configuredToken)) {

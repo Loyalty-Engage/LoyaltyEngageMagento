@@ -82,7 +82,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
 
         // Check if rule already exists
         $existingRule = $this->ruleFactory->create();
-        $this->ruleResource->load($existingRule, 'loyalty_free_shipping_brons', 'name');
+        $this->ruleResource->load($existingRule, 'Loyalty Free Shipping - Brons Tier', 'name');
 
         if ($existingRule->getId()) {
             $this->helper->log(
@@ -103,7 +103,7 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
         $rule->setData([
             'name' => 'Loyalty Free Shipping - Brons Tier',
             'description' => 'Free shipping for customers with Brons loyalty tier',
-            'is_active' => 1,
+            'is_active' => 0,
             'website_ids' => $websiteIds,
             'customer_group_ids' => $customerGroups,
             'from_date' => null,
@@ -113,11 +113,11 @@ class CreateLoyaltyFreeShippingRule implements DataPatchInterface
             'usage_limit' => 0,
             'sort_order' => 1,
             'is_advanced' => 1,
-            'simple_action' => 'free_shipping',
+            'simple_action' => 'by_percent',
             'discount_amount' => 0,
             'discount_step' => 0,
-            'apply_to_shipping' => 1,
-            'simple_free_shipping' => 1,
+            'apply_to_shipping' => 0,
+            'simple_free_shipping' => 2,
             'stop_rules_processing' => 0,
         ]);
 

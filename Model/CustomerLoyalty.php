@@ -9,7 +9,6 @@ use LoyaltyEngage\LoyaltyShop\Api\Data\CustomerLoyaltyUpdateResponseInterface;
 use LoyaltyEngage\LoyaltyShop\Api\Data\CustomerLoyaltyUpdateResponseInterfaceFactory;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
-use Magento\Framework\Api\Data\AttributeInterfaceFactory;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\StoreManagerInterface;
@@ -43,7 +42,6 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         CustomerLoyaltyUpdateResponseInterfaceFactory $responseFactory,
         LoyaltyHelper $loyaltyHelper,
         CustomerLoyaltyDataProvider $customerLoyaltyDataProvider,
-        AttributeInterfaceFactory $attributeFactory,
         StoreManagerInterface $storeManager
     ) {
         $this->customerRepository = $customerRepository;
@@ -51,7 +49,6 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         $this->responseFactory = $responseFactory;
         $this->loyaltyHelper = $loyaltyHelper;
         $this->customerLoyaltyDataProvider = $customerLoyaltyDataProvider;
-        $this->attributeFactory = $attributeFactory;
         $this->storeManager = $storeManager;
     }
 
@@ -59,11 +56,6 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
      * @var CustomerLoyaltyDataProvider
      */
     private $customerLoyaltyDataProvider;
-
-    /**
-     * @var AttributeInterfaceFactory
-     */
-    private $attributeFactory;
 
     /**
      * @var StoreManagerInterface
@@ -85,6 +77,15 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         ?string $storeCode = null
     ): CustomerLoyaltyUpdateResponseInterface {
         $response = $this->responseFactory->create();
+
+        if (trim($email) === '') {
+            $this->loyaltyHelper->setHttpResponseCode(LoyaltyHelper::HTTP_BAD_REQUEST);
+            $response->setSuccess(false);
+            $response->setMessage('Email is required');
+            $response->setCustomerId(null);
+            $response->setUpdatedFields([]);
+            return $response;
+        }
 
         try {
             // Find customer by email
@@ -146,12 +147,6 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
                     $storeScopedData
                 );
 
-                if ($this->shouldSyncGlobalFallback($storeId)) {
-                    foreach ($storeScopedData as $attributeCode => $value) {
-                        $customer->setCustomAttribute($attributeCode, $value);
-                    }
-                    $this->customerRepository->save($customer);
-                }
                 
                 $response->setSuccess(true);
                 $response->setMessage('Customer loyalty data updated successfully');
@@ -179,6 +174,7 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             }
 
         } catch (LocalizedException $e) {
+            $this->loyaltyHelper->setHttpResponseCode(LoyaltyHelper::HTTP_BAD_REQUEST);
             $this->loyaltyHelper->log(
                 'error',
                 'CustomerLoyalty',
@@ -195,6 +191,7 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             $response->setCustomerId(null);
             $response->setUpdatedFields([]);
         } catch (\Exception $e) {
+            $this->loyaltyHelper->setHttpResponseCode(LoyaltyHelper::HTTP_INTERNAL_SERVER_ERROR);
             $this->loyaltyHelper->log(
                 'error',
                 'CustomerLoyalty',

@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-09-28
+
+### Added
+- Durable, store-scoped event outbox with bounded retries, delivery diagnostics and the `loyalty:events` recovery command.
+- Redemption journal retaining confirmed API responses for local recovery without spending coins twice.
+- Purchase Sync Order Status is now a multiselect populated with every order status configured in Magento.
+- Added a store-scoped order-source allowlist for Purchase, voucher redemption and free-product exports.
+- Added optional order comment markers to exclude customer-specific imported or administrative orders.
+- Persist the creation source (`storefront`, `admin`, `api` or `unknown`) on every newly submitted order.
+- Return exports wait for their corresponding tracked Purchase; pre-upgrade orders use a documented compatibility check.
+
+### Security
+- Loyalty REST routes now use a private ACL resource and fail closed when the Basic Auth authorizer is unavailable; invalid credentials are handled by Magento as HTTP 401 responses.
+- Existing plaintext tenant IDs and bearer tokens are encrypted during upgrade, while a legacy plaintext read fallback keeps credentials usable until the patch runs.
+
+### Fixed
+- Corrected and disabled the legacy Brons free-shipping sales rule, including a repair patch for installations where the invalid `free_shipping` calculator action already exists.
+- Loyalty customer sections reload only when server-rendered metadata differs from cached data, with support for both Luma customer-data and Hyva private-content events.
+- The dedicated Loyalty account page is explicitly non-cacheable so fresh customer metadata can invalidate stale browser sections; ordinary storefront and Page Builder pages remain cacheable.
+- Return events are persisted inside the creditmemo transaction and delivered after commit. They include `orderId`, exclude duplicate configurable rows and are deduplicated per creditmemo.
+- Purchase events are idempotent per order and record their export state for symmetric Return processing.
+- REST validation and service errors now return meaningful HTTP error status codes instead of HTTP 200 with `success: false`.
+- Both `/loyalty/discount/claim` and the legacy `/loyaltyshop/discount/claim` route resolve to the coupon claim controller.
+- Paid items sharing a SKU with a loyalty item are no longer merged, repriced or removed by loyalty cart operations.
+- Only module-owned coupons trigger loyalty claim/redemption; generated rules are reused within their website and reject merchant coupon collisions.
+- Shipping qualification uses the quote customer and store, including API checkout and tier changes, instead of the browser session.
+- API methods and authentication cannot leak between consecutive requests; HTML, rejected responses and zero accepted events are not recorded as successful deliveries.
+- Partial customer updates preserve unrelated store values. Legacy global data is not copied into other stores, and cacheable pages contain no customer snapshot.
+- Hyva metadata refresh invalidates the browser cache session before reloading; the inline bootstrap is registered with Magento's secure renderer.
+- Disabled fields are filtered during frontend hydration and private data is cleared after logout.
+
+### Changed
+- PHP requirements now reflect the PHP 8 syntax in the module (8.1 through 8.4); PHP 7.4 is no longer advertised.
+- Composer metadata validates strictly and derives release versions from Git tags rather than a hardcoded version; corrected invalid XML schema references.
+- Customer-specific loyalty conditions are offered only in cart price rules, not globally indexed catalog price rules.
+- New events use the outbox cron; legacy Magento queue consumers remain available to drain existing messages. Merchant consumer-runner choices are preserved.
+- See `PRODUCTION_READINESS.md` for deployment, reconciliation and the remaining merchant-specific acceptance checks. Upgrade requires `setup:upgrade` for the outbox, mutation journal and repair patches.
+
 ## [2.5.2] - 2026-08-14
 
 ### Fixed

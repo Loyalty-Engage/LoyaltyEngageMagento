@@ -12,6 +12,7 @@
         <referenceContainer name="content">
             <block class="LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta"
                    name="loyaltyshop.customer.account.page"
+                   cacheable="false"
                    template="LoyaltyEngage_LoyaltyShop::account/loyalty-page.phtml"/>
         </referenceContainer>
     </body>

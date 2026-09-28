@@ -157,81 +157,26 @@ class SalesLoyaltyTier extends \Magento\Rule\Model\Condition\AbstractCondition
      */
     public function validate(AbstractModel $model)
     {
-        $customer = null;
-
-        // From quote (sales rules)
-        if ($model->hasData('quote')) {
+        $quote = $model instanceof \Magento\Quote\Model\Quote ? $model : null;
+        if ($model instanceof \Magento\Quote\Model\Quote\Address
+            || $model instanceof \Magento\Quote\Model\Quote\Item\AbstractItem) {
             $quote = $model->getQuote();
-
-            if ($quote && $quote->getCustomerId()) {
-                try {
-                    $customer = $this->customerRepository->getById($quote->getCustomerId());
-
-                } catch (\Exception $e) {
-                    $this->loyaltyHelper->log(
-                        'error',
-                        'SalesLoyaltyTier',
-                        'quote_customer_error',
-                        'Failed to load customer from quote',
-                        ['exception' => $e->getMessage()]
-                    );
-                }
-            }
-        } elseif ($model->getCustomerId()) {
-            try {
-                $customer = $this->customerRepository->getById($model->getCustomerId());
-
-            } catch (\Exception $e) {
-                $this->loyaltyHelper->log(
-                    'error',
-                    'SalesLoyaltyTier',
-                    'model_customer_error',
-                    'Failed to load customer from model',
-                    ['exception' => $e->getMessage()]
-                );
-            }
         }
-
-        // From session fallback
-        if (!$customer && $this->customerSession->isLoggedIn()) {
-            try {
-                $customer = $this->customerRepository->getById(
-                    $this->customerSession->getCustomerId()
-                );
-
-            } catch (\Exception $e) {
-                $this->loyaltyHelper->log(
-                    'error',
-                    'SalesLoyaltyTier',
-                    'session_customer_error',
-                    'Failed to load customer from session',
-                    ['exception' => $e->getMessage()]
-                );
-                return false;
-            }
-        }
-
-        // No customer
-        if (!$customer) {
-            $this->loyaltyHelper->log(
-                'info',
-                'SalesLoyaltyTier',
-                'no_customer',
-                'No customer found during validation'
-            );
+        if (!$quote || !$quote->getCustomerId() || $quote->getCustomerIsGuest()
+            || !$this->loyaltyHelper->isLoyaltyEngageEnabled((int) $quote->getStoreId())) {
             return false;
         }
-
-        $attributeCode = $this->getAttribute();
-        $attributeValue = $this->customerLoyaltyDataProvider->getAttributeValue($customer, $attributeCode);
-
-        if ($attributeValue === null) {
-            $attributeValue = '';
+        try {
+            $customer = $this->customerRepository->getById((int) $quote->getCustomerId());
+            $value = $this->customerLoyaltyDataProvider->getAttributeValue(
+                $customer, $this->getAttribute(), (int) $quote->getStoreId()
+            );
+            return $value !== null && $this->validateAttribute($value);
+        } catch (\Throwable $e) {
+            $this->loyaltyHelper->log('error', 'SalesLoyaltyTier', 'ValidationFailed',
+                'Could not evaluate loyalty rule.', ['error' => $e->getMessage()]);
+            return false;
         }
-
-        $result = $this->validateAttribute($attributeValue);
-
-        return $result;
     }
 
     /**

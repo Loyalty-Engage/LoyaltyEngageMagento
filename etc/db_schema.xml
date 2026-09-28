@@ -1,6 +1,51 @@
 <?xml version="1.0"?>
 <schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="loyaltyshop_mutation" resource="default" engine="innodb" comment="Loyalty Redemption Recovery Journal">
+        <column xsi:type="varchar" name="operation_key" length="64" nullable="false" comment="Operation Key"/>
+        <column xsi:type="int" name="store_id" unsigned="true" nullable="false" comment="Store"/>
+        <column xsi:type="int" name="customer_id" unsigned="true" nullable="false" comment="Customer"/>
+        <column xsi:type="int" name="quote_id" unsigned="true" nullable="false" comment="Quote"/>
+        <column xsi:type="varchar" name="operation" length="16" nullable="false" comment="Operation"/>
+        <column xsi:type="varchar" name="sku" length="255" nullable="false" comment="SKU"/>
+        <column xsi:type="varchar" name="status" length="16" nullable="false" comment="Status"/>
+        <column xsi:type="text" name="response" nullable="true" comment="Confirmed API Result"/>
+        <column xsi:type="text" name="last_error" nullable="true" comment="Last Error"/>
+        <column xsi:type="int" name="attempts" unsigned="true" nullable="false" default="0" comment="Recovery Attempts"/>
+        <column xsi:type="timestamp" name="available_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="false" comment="Next Recovery"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="false" comment="Created At"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="operation_key"/></constraint>
+    </table>
+    <table name="loyaltyshop_outbox" resource="default" engine="innodb" comment="Durable Loyalty Event Delivery">
+        <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true" comment="ID"/>
+        <column xsi:type="varchar" name="event_key" length="64" nullable="false" comment="Idempotency Key"/>
+        <column xsi:type="varchar" name="aggregate_key" length="64" nullable="true" comment="Cart Item Group"/>
+        <column xsi:type="varchar" name="topic" length="128" nullable="false" comment="Topic"/>
+        <column xsi:type="int" name="store_id" unsigned="true" nullable="false" comment="Store ID"/>
+        <column xsi:type="text" name="payload" nullable="false" comment="Payload"/>
+        <column xsi:type="varchar" name="status" length="16" nullable="false" default="pending" comment="Delivery Status"/>
+        <column xsi:type="int" name="attempts" unsigned="true" nullable="false" default="0" comment="Attempts"/>
+        <column xsi:type="timestamp" name="available_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="false" comment="Next Attempt"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="false" comment="Created At"/>
+        <column xsi:type="timestamp" name="sent_at" nullable="true" on_update="false" comment="Sent At"/>
+        <column xsi:type="text" name="last_error" nullable="true" comment="Last Error"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="entity_id"/></constraint>
+        <constraint xsi:type="unique" referenceId="LOYALTYSHOP_OUTBOX_EVENT_KEY"><column name="event_key"/></constraint>
+        <index referenceId="LOYALTYSHOP_OUTBOX_DUE" indexType="btree"><column name="status"/><column name="available_at"/></index>
+        <index referenceId="LOYALTYSHOP_OUTBOX_AGGREGATE" indexType="btree"><column name="aggregate_key"/></index>
+    </table>
+    <table name="quote_address" resource="checkout" engine="innodb">
+        <column xsi:type="boolean" name="loyalty_free_shipping_applied" nullable="false" default="0" comment="Loyalty Free Shipping Applied"/>
+    </table>
+    <table name="quote_item" resource="checkout" engine="innodb">
+        <column xsi:type="boolean" name="loyalty_locked_qty" nullable="false" default="0" comment="Loyalty Redemption Item"/>
+    </table>
+    <table name="sales_order_item" resource="sales" engine="innodb">
+        <column xsi:type="boolean" name="loyalty_locked_qty" nullable="false" default="0" comment="Loyalty Redemption Item"/>
+    </table>
+    <table name="salesrule" resource="default" engine="innodb">
+        <column xsi:type="boolean" name="loyaltyengage_managed" nullable="false" default="0" comment="Managed By Loyalty Engage"/>
+    </table>
     <table name="loyaltyshop_customer_store_data" resource="default" engine="innodb"
         comment="Loyalty customer store scoped data">
         <column xsi:type="int" name="entity_id" nullable="false" identity="true" unsigned="true"
@@ -44,6 +89,10 @@
             comment="Loyalty Order Placed" />
         <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
             comment="Loyalty Order Retrieve Count" />
+        <column xsi:type="boolean" name="loyalty_purchase_exported" nullable="false" default="0"
+            comment="Loyalty Purchase Event Exported" />
+        <column xsi:type="varchar" name="loyalty_order_source" nullable="false" default="unknown"
+            length="32" comment="Loyalty Order Source" />
     </table>
 
     <table name="sales_order_grid" resource="default" engine="innodb">
@@ -51,5 +100,10 @@
             comment="Loyalty Order Placed" />
         <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
             comment="Loyalty Order Retrieve Count" />
+    </table>
+
+    <table name="sales_creditmemo" resource="default" engine="innodb">
+        <column xsi:type="boolean" name="loyalty_return_exported" nullable="false" default="0"
+            comment="Loyalty Return Event Exported" />
     </table>
 </schema>

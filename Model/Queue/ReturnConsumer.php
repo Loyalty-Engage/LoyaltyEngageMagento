@@ -14,6 +14,8 @@ use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
  */
 class ReturnConsumer extends AbstractConsumer
 {
+    public const TOPIC = 'loyaltyshop.return_event';
+
     /**
      * API client for external requests
      *
@@ -46,7 +48,7 @@ class ReturnConsumer extends AbstractConsumer
         $storeId = isset($payload['store_id']) ? (int) $payload['store_id'] : null;
 
         if (!$this->helper->isReturnExportEnabled($storeId)) {
-            return;
+            throw new \LoyaltyEngage\LoyaltyShop\Service\DeferredDeliveryException('Return export is disabled.');
         }
 
         // Validation
@@ -60,12 +62,14 @@ class ReturnConsumer extends AbstractConsumer
             return;
         }
 
+        $wirePayload = $payload;
+        unset($wirePayload['store_id'], $wirePayload['creditmemo_id']);
         $apiUrl = rtrim((string)$this->helper->getApiUrl($storeId), '/');
         $endpoint = "{$apiUrl}/api/v1/events";
 
         try {
             // LoyaltyEngage /api/v1/events expects an array of events
-            $response = $this->apiClient->post($endpoint, [$payload], $storeId);
+            $response = $this->apiClient->post($endpoint, [$wirePayload], $storeId);
 
             $this->helper->log(
                 'info',

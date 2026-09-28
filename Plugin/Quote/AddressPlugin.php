@@ -45,18 +45,22 @@ class AddressPlugin
      * @param Address $result
      * @return Address
      */
+    public function beforeCollectShippingRates(Address $subject): void
+    {
+        if ($subject->getData('loyalty_free_shipping_applied')
+            || ($subject->getQuote()->getCustomerId() && $this->loyaltyHelper->isFreeShippingEnabled((int) $subject->getQuote()->getStoreId()))) {
+            $subject->setCollectShippingRates(true);
+        }
+    }
+
     public function afterCollectShippingRates(Address $subject, Address $result)
     {
         try {
-            // Early exit if features disabled
-            if (!$this->loyaltyHelper->isLoyaltyEngageEnabled() || !$this->loyaltyHelper->isFreeShippingEnabled()) {
+            $subject->setData('loyalty_free_shipping_applied', 0);
+            if (!$this->loyaltyTierChecker->qualifiesQuote($subject->getQuote())) {
                 return $result;
             }
-
-            // Check if customer qualifies for free shipping
-            if (!$this->loyaltyTierChecker->qualifiesForFreeShipping()) {
-                return $result;
-            }
+            $subject->setData('loyalty_free_shipping_applied', 1);
 
             // Apply free shipping to all shipping rates
             $this->applyFreeShippingToRates($result);
@@ -84,7 +88,7 @@ class AddressPlugin
             
             // Apply free shipping - set price to 0 but keep original method
             $rate->setPrice(0);
-            $rate->setCost(0);
+
             
             $freeShippingApplied = true;
 

@@ -14,6 +14,8 @@ use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
  */
 class FreeProductRemoveConsumer extends AbstractConsumer
 {
+    public const TOPIC = 'loyaltyshop.free_product_remove_event';
+
     /**
      * API client for external requests
      *
@@ -44,6 +46,7 @@ class FreeProductRemoveConsumer extends AbstractConsumer
      */
     protected function execute(array $payload): void
     {
+        $storeId = (int) $payload['store_id'];
         // Basic validation
         if (empty($payload['email']) || empty($payload['sku'])) {
 
@@ -57,7 +60,7 @@ class FreeProductRemoveConsumer extends AbstractConsumer
             return;
         }
 
-        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $apiUrl = rtrim((string)$this->helper->getApiUrl($storeId), '/');
         $email = (string)$payload['email'];
         $hashEmail = $this->helper->hashEmail($email);
 
@@ -69,7 +72,7 @@ class FreeProductRemoveConsumer extends AbstractConsumer
         ];
 
         try {
-            $this->apiClient->delete($endpoint, $requestPayload);
+            $this->apiClient->delete($endpoint, $requestPayload, $storeId);
 
             $this->helper->log(
                 'debug',

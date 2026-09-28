@@ -23,7 +23,7 @@ class CartItemRemoveProcessor
 
     public function process(Quote $quote, QuoteItem $item): void
     {
-        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled()) {
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled((int) $quote->getStoreId())) {
             return;
         }
 
@@ -120,14 +120,23 @@ class CartItemRemoveProcessor
 
     private function publishRemoveEvent(string $email, QuoteItem $item): void
     {
+        $quote = $item->getQuote();
+        if (!$item->getId()) {
+            return;
+        }
         $payload = [
             'email' => $email,
+            'store_id' => (int) $quote->getStoreId(),
+            'quote_id' => (int) $quote->getId(),
+            'removal_id' => (int) $item->getId(),
             'sku' => $item->getSku(),
             'quantity' => (int) $item->getQty(),
         ];
 
         try {
-            $this->publisher->publish('loyaltyshop.free_product_remove_event', json_encode($payload));
+            $removals = $quote->getData('loyalty_pending_removals') ?: [];
+            $removals[$item->getId()] = $payload;
+            $quote->setData('loyalty_pending_removals', $removals);
 
             $this->loyaltyHelper->log(
                 'info',

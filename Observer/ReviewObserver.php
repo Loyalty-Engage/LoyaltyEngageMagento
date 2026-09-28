@@ -50,16 +50,15 @@ class ReviewObserver implements ObserverInterface
      */
     public function execute(Observer $observer): void
     {
-        if (
-            !$this->loyaltyHelper->isLoyaltyEngageEnabled() ||
-            !$this->loyaltyHelper->isReviewExportEnabled()
-        ) {
-            return;
-        }
-
         try {
             $review = $observer->getEvent()->getObject();
             if (!$review) {
+                return;
+            }
+
+            $storeId = (int) $review->getStoreId();
+            if (!$storeId || !$this->loyaltyHelper->isLoyaltyEngageEnabled($storeId)
+                || !$this->loyaltyHelper->isReviewExportEnabled($storeId)) {
                 return;
             }
 
@@ -84,6 +83,7 @@ class ReviewObserver implements ObserverInterface
 
             $reviewData = [
                 'review_id' => $review->getId(),
+                'store_id' => $storeId,
                 'customer_email' => $customerEmail,
                 'product_id' => $review->getEntityPkValue(),
                 'timestamp' => time()
@@ -135,11 +135,6 @@ class ReviewObserver implements ObserverInterface
             } catch (\Exception $e) {
                 // fallback
             }
-        }
-
-        $nickname = $review->getNickname();
-        if ($nickname && filter_var($nickname, FILTER_VALIDATE_EMAIL)) {
-            return $nickname;
         }
 
         return null;

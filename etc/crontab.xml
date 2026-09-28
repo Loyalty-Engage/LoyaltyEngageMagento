@@ -1,15 +1,16 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/crontab.xsd">
+    xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
     <group id="default">
         <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
             method="execute">
-            <schedule>0 0 * * *</schedule> <!-- Runs daily at midnight -->
+            <schedule>*/15 * * * *</schedule>
         </job>
 
-        <!-- Disabled: Regular cart purchase now handled by free product purchase flow only -->
-        <job name="loyalty_order_place" instance="LoyaltyEngage\LoyaltyShop\Cron\OrderPlace"
-            method="execute">
+        <job name="loyaltyshop_deliver_events" instance="LoyaltyEngage\LoyaltyShop\Cron\DeliverEvents" method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
+        <job name="loyaltyshop_recover_mutations" instance="LoyaltyEngage\LoyaltyShop\Cron\RecoverMutations" method="execute">
             <schedule>*/5 * * * *</schedule>
         </job>
     </group>

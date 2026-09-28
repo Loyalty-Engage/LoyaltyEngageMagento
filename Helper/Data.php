@@ -13,6 +13,7 @@ use Magento\Customer\Model\Session as CustomerSession;
 use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
+use Magento\Framework\Webapi\Rest\Response as RestResponse;
 
 
 class Data extends AbstractHelper
@@ -37,6 +38,7 @@ class Data extends AbstractHelper
     public const HTTP_BAD_REQUEST = 400;
     public const HTTP_UNAUTHORIZED = 401;
     public const HTTP_NOT_FOUND = 404;
+    public const HTTP_INTERNAL_SERVER_ERROR = 500;
 
     /**
      * @var SerializerInterface
@@ -64,6 +66,11 @@ class Data extends AbstractHelper
     private $encryptor;
 
     /**
+     * @var RestResponse
+     */
+    private $restResponse;
+
+    /**
      * Data constructor
      *
      * @param \Magento\Framework\App\Helper\Context $context
@@ -79,7 +86,8 @@ class Data extends AbstractHelper
         CustomerSession $customerSession,
         LoyaltyLogger $loyaltyLogger,
         CustomerRepositoryInterface $customerRepository,
-        EncryptorInterface $encryptor
+        EncryptorInterface $encryptor,
+        RestResponse $restResponse
     ) {
         parent::__construct($context);
         $this->serializer = $serializer;
@@ -87,6 +95,7 @@ class Data extends AbstractHelper
         $this->loyaltyLogger = $loyaltyLogger;
         $this->customerRepository = $customerRepository;
         $this->encryptor = $encryptor;
+        $this->restResponse = $restResponse;
     }
 
     /**
@@ -132,6 +141,41 @@ class Data extends AbstractHelper
     }
 
     /**
+     * Get the order sources allowed to generate purchase-related events.
+     *
+     * @return string[]
+     */
+    public function getAllowedOrderSources(?int $storeId = null): array
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_EXPORT . 'allowed_order_sources',
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        $sources = array_values(array_filter(array_map('trim', explode(',', $value))));
+
+        return $sources;
+    }
+
+    /**
+     * Get case-insensitive order history fragments that prevent export.
+     *
+     * @return string[]
+     */
+    public function getExcludedOrderCommentMarkers(?int $storeId = null): array
+    {
+        $value = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_EXPORT . 'excluded_order_comment_markers',
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+        $markers = preg_split('/[\r\n;]+/', $value) ?: [];
+
+        return array_values(array_unique(array_filter(array_map('trim', $markers))));
+    }
+
+    /**
      * Get Client ID (Tenant ID) from config
      * Note: This value is stored encrypted in the database
      *
@@ -149,8 +193,7 @@ class Data extends AbstractHelper
             return null;
         }
         
-        // Decrypt the value - Magento's Encrypted backend stores values encrypted
-        return $this->encryptor->decrypt($value);
+        return $this->decryptConfigValue((string) $value);
     }
 
     /**
@@ -171,8 +214,7 @@ class Data extends AbstractHelper
             return null;
         }
         
-        // Decrypt the value - Magento's Encrypted backend stores values encrypted
-        return $this->encryptor->decrypt($value);
+        return $this->decryptConfigValue((string) $value);
     }
 
     /**
@@ -291,11 +333,12 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isFreeShippingEnabled(): bool
+    public function isFreeShippingEnabled(?int $storeId = null): bool
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_SHIPPING . 'free_shipping_enable',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -304,11 +347,12 @@ class Data extends AbstractHelper
      *
      * @return string|null
      */
-    public function getFreeShippingTiers(): ?string
+    public function getFreeShippingTiers(?int $storeId = null): ?string
     {
         return $this->scopeConfig->getValue(
             self::XML_PATH_SHIPPING . 'free_shipping_tiers',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
     }
 
@@ -317,9 +361,9 @@ class Data extends AbstractHelper
      *
      * @return array
      */
-    public function getFreeShippingTiersArray(): array
+    public function getFreeShippingTiersArray(?int $storeId = null): array
     {
-        $tiers = $this->getFreeShippingTiers();
+        $tiers = $this->getFreeShippingTiers($storeId);
         if (empty($tiers)) {
             return [];
         }
@@ -373,6 +417,13 @@ class Data extends AbstractHelper
      *
      * @return int
      */
+    public function getCartExpiryHours(int $storeId): int
+    {
+        return max(1, (int) $this->scopeConfig->getValue(
+            self::XML_PATH_GENERAL . 'cart_expiry_time', ScopeInterface::SCOPE_STORE, $storeId
+        ));
+    }
+
     public function getMaxLoyaltyProducts(): int
     {
         $value = $this->scopeConfig->getValue(
@@ -384,19 +435,28 @@ class Data extends AbstractHelper
     }
 
     /**
-     * Get the order status that triggers the purchase sync to LoyaltyEngage
+     * Get the order statuses that trigger the purchase sync to LoyaltyEngage.
      *
-     * @return string
+     * @return string[]
      */
-    public function getPurchaseOrderStatus(?int $storeId = null): string
+    public function getPurchaseOrderStatuses(?int $storeId = null): array
     {
-        $status = $this->scopeConfig->getValue(
+        $value = (string) $this->scopeConfig->getValue(
             self::XML_PATH_EXPORT . 'purchase_order_status',
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
+        $statuses = array_values(array_filter(array_map('trim', explode(',', $value))));
 
-        return $status ?: 'complete';
+        return $statuses ?: ['complete'];
+    }
+
+    /**
+     * Get the first configured purchase sync status for backwards compatibility.
+     */
+    public function getPurchaseOrderStatus(?int $storeId = null): string
+    {
+        return $this->getPurchaseOrderStatuses($storeId)[0];
     }
 
     /**
@@ -548,11 +608,35 @@ class Data extends AbstractHelper
         string $errorType = 'error',
         int $statusCode = self::HTTP_BAD_REQUEST
     ) {
-        $statusCode = (string)$statusCode;
+        $statusCode = $statusCode >= 400 && $statusCode <= 599
+            ? $statusCode
+            : self::HTTP_BAD_REQUEST;
+        $this->restResponse->setHttpResponseCode($statusCode);
+
         return $response
             ->setSuccess(false)
             ->setMessage($message)
-            ->setErrorType($errorType . '_' . $statusCode);
+            ->setErrorType($errorType . '_' . (string) $statusCode);
+    }
+
+    public function setHttpResponseCode(int $statusCode): void
+    {
+        $this->restResponse->setHttpResponseCode($statusCode);
+    }
+
+    private function decryptConfigValue(string $value): string
+    {
+        // Legacy module versions stored these settings as plaintext.
+        if (!preg_match('/^\d+:\d+:/', $value)) {
+            return $value;
+        }
+
+        try {
+            $decrypted = $this->encryptor->decrypt($value);
+            return $decrypted !== '' ? $decrypted : '';
+        } catch (\Throwable $exception) {
+            return '';
+        }
     }
 
     /**
@@ -564,6 +648,7 @@ class Data extends AbstractHelper
      */
     public function successResponse($response, string $message)
     {
+        $this->restResponse->setHttpResponseCode(self::HTTP_OK);
         return $response
             ->setSuccess(true)
             ->setMessage($message);

@@ -1,15 +1,15 @@
 <?php
 /** @var \LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta $block */
+/** @var \Magento\Framework\View\Helper\SecureHtmlRenderer $secureRenderer */
 if (!$block->canBootstrap()) {
     return;
 }
 $metaJson = $block->getLoyaltyMetaJson();
 $labelsJson = $block->getLabelsJson();
-?>
-<script>
+$script = <<<JS
     (function () {
-        var initialMeta = <?= /* @noEscape */ $metaJson ?>;
-        var labels = <?= /* @noEscape */ $labelsJson ?>;
+        var initialMeta = {$metaJson};
+        var labels = {$labelsJson};
 
         function escapeHtml(value) {
             return String(value)
@@ -24,7 +24,7 @@ $labelsJson = $block->getLabelsJson();
             var blocks = document.querySelectorAll('.loyaltyengage-pagebuilder-meta');
             var meta = window.loyaltyEngageCustomerMeta || {};
             var metaKeys = Object.keys(meta).filter(function (key) {
-                return meta[key] !== null && meta[key] !== '';
+                return Object.prototype.hasOwnProperty.call(labels, key) && meta[key] !== null && meta[key] !== '';
             });
 
             blocks.forEach(function (block) {
@@ -60,7 +60,7 @@ $labelsJson = $block->getLabelsJson();
             var block = document.querySelector('[data-role="loyalty-meta-account-page"]');
             var meta = window.loyaltyEngageCustomerMeta || {};
             var metaKeys = Object.keys(meta).filter(function (key) {
-                return meta[key] !== null && meta[key] !== '';
+                return Object.prototype.hasOwnProperty.call(labels, key) && meta[key] !== null && meta[key] !== '';
             });
             var listContainer;
             var emptyContainer;
@@ -109,13 +109,29 @@ $labelsJson = $block->getLabelsJson();
         }
 
         function publish(meta) {
-            window.loyaltyEngageCustomerMeta = meta || {};
+            window.loyaltyEngageCustomerMeta = Object.keys(meta || {}).reduce(function (filtered, key) {
+                if (Object.prototype.hasOwnProperty.call(labels, key)) { filtered[key] = meta[key]; }
+                return filtered;
+            }, {});
             window.loyaltyEngageCustomerMetaLabels = labels || {};
             window.dispatchEvent(new CustomEvent('loyaltyengage:meta-updated', {
                 detail: window.loyaltyEngageCustomerMeta
             }));
             renderPageBuilderBlocks();
             renderAccountPageBlock();
+        }
+
+        function hasMeta(meta) {
+            return meta && Object.keys(meta).length > 0;
+        }
+
+        function metaEquals(left, right) {
+            var leftKeys = Object.keys(left || {}).sort();
+            var rightKeys = Object.keys(right || {}).sort();
+
+            return leftKeys.length === rightKeys.length && leftKeys.every(function (key, index) {
+                return key === rightKeys[index] && String(left[key]) === String(right[key]);
+            });
         }
 
         // Server-rendered bootstrap works for both Luma and Hyva.
@@ -125,9 +141,19 @@ $labelsJson = $block->getLabelsJson();
         if (typeof require === 'function') {
             require(['Magento_Customer/js/customer-data'], function (customerData) {
                 var customer = customerData.get('customer');
+                var reloadRequested = false;
                 var updateMeta = function () {
                     var data = customer() || {};
-                    publish(data.loyalty_meta || initialMeta || {});
+                    var cachedMeta = data.loyalty_meta || {};
+
+                    if (hasMeta(initialMeta) && !reloadRequested && !metaEquals(initialMeta, cachedMeta)) {
+                        reloadRequested = true;
+                        publish(initialMeta);
+                        customerData.reload(['customer'], true);
+                        return;
+                    }
+
+                    publish(cachedMeta);
                 };
 
                 updateMeta();
@@ -137,8 +163,31 @@ $labelsJson = $block->getLabelsJson();
             });
         }
 
+        // Hyva exposes Magento customer sections through this browser event.
+        var hyvaReloadRequested = false;
+        window.addEventListener('private-content-loaded', function (event) {
+            var sectionData = event.detail && event.detail.data ? event.detail.data : {};
+            var customer = sectionData.customer || {};
+            var cachedMeta = customer.loyalty_meta || {};
+
+            if (hasMeta(initialMeta) && !hyvaReloadRequested && !metaEquals(initialMeta, cachedMeta)) {
+                hyvaReloadRequested = true;
+                publish(initialMeta);
+                // Hyva's reload event may reuse localStorage unless its session cookie is invalidated.
+                if (window.hyva && typeof window.hyva.setCookie === 'function') {
+                    window.hyva.setCookie('mage-cache-sessid', '', -1, true);
+                }
+                window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
+                return;
+            }
+
+            publish(cachedMeta);
+        });
+
         if (typeof window !== 'undefined') {
             window.loyaltyEngageRenderPageBuilderMeta = renderPageBuilderBlocks;
         }
     }());
-</script>
+JS;
+?>
+<?= /* @noEscape */ $secureRenderer->renderTag('script', [], $script, false) ?>

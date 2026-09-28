@@ -1,101 +1,23 @@
 <?php
-
 declare(strict_types=1);
-
 namespace LoyaltyEngage\LoyaltyShop\Observer;
 
-use Magento\Framework\Event\ObserverInterface;
+use LoyaltyEngage\LoyaltyShop\Model\CartItemRemoveProcessor;
 use Magento\Framework\Event\Observer;
-use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use Magento\Customer\Model\Session as CustomerSession;
-use Magento\Framework\MessageQueue\PublisherInterface;
+use Magento\Framework\Event\ObserverInterface;
 
+/** Compatibility wrapper for merchants that registered the legacy observer themselves. */
 class FreeProductRemoveObserver implements ObserverInterface
 {
-    public function __construct(
-        private Data $helper,
-        private CustomerSession $customerSession,
-        private PublisherInterface $publisher
-    ) {
+    public function __construct(private CartItemRemoveProcessor $processor)
+    {
     }
 
     public function execute(Observer $observer): void
     {
-        if (!$this->helper->isLoyaltyEngageEnabled()) {
-            return;
-        }
-
-        $item = $observer->getEvent()->getQuoteItem();
-        if (!$item) {
-            return;
-        }
-
-        if ((float) $item->getPrice() !== 0.0) {
-            $this->helper->log(
-                'info',
-                'LoyaltyShop',
-                'FreeProductRemoveSkipped',
-                'Removed item is not free, skipping.',
-                ['sku' => $item->getSku()]
-            );
-            return;
-        }
-
-        $sku = $item->getSku();
-        $qty = (int) $item->getQty();
-
-        $customer = $this->customerSession->getCustomer();
-        $email    = $customer ? $customer->getEmail() : null;
-
-        if (!$email) {
-            $this->helper->log(
-                'error',
-                'LoyaltyShop',
-                'FreeProductRemoveNoEmail',
-                'Cannot determine customer email for free product removal.',
-                ['sku' => $sku, 'quantity' => $qty]
-            );
-            return;
-        }
-
-        $payload = [
-            'email'    => $email,
-            'sku'      => $sku,
-            'quantity' => $qty
-        ];
-
-        try {
-            $this->publisher->publish(
-                'loyaltyshop.free_product_remove_event',
-                json_encode($payload)
-            );
-
-            $this->helper->log(
-                'info',
-                'LoyaltyShop',
-                'FreeProductRemovePublished',
-                'Free product remove payload published to queue.',
-                [
-                    'email'    => $email,
-                    'sku'      => $sku,
-                    'quantity' => $qty,
-                    'payload'  => $payload
-                ]
-            );
-
-        } catch (\Exception $e) {
-            $this->helper->log(
-                'error',
-                'LoyaltyShop',
-                'FreeProductRemoveError',
-                'Failed to queue free product remove event.',
-                [
-                    'error_message' => $e->getMessage(),
-                    'email'         => $email,
-                    'sku'           => $sku,
-                    'quantity'      => $qty
-                ]
-            );
+        $item = $observer->getEvent()->getQuoteItem() ?: $observer->getEvent()->getItem();
+        if ($item && $item->getQuote()) {
+            $this->processor->process($item->getQuote(), $item);
         }
     }
 }

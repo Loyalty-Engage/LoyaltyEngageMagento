@@ -15,6 +15,8 @@ use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
  */
 class RedeemDiscountConsumer extends AbstractConsumer
 {
+    public const TOPIC = 'loyaltyshop.redeem_discount_event';
+
     /**
      * @var ApiClient
      */

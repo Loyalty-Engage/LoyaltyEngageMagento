@@ -12,8 +12,8 @@ A Magento 2 module that allows customers to add products to their cart based on 
 
 ## Requirements
 
-- PHP 7.4 or higher
-- Magento 2.4.x or higher
+- PHP 8.1, 8.2, 8.3 or 8.4, matching the PHP version supported by your Magento release
+- Magento 2.4.x (the local verification environment uses Magento 2.4.8 / PHP 8.3)
 - Composer
 
 ## Installation
@@ -70,18 +70,27 @@ The module adds functionality to the customer's shopping cart, allowing them to:
 
 ### API Endpoints
 
-The module provides the following API endpoints:
+The REST endpoints require the store's configured Basic Auth credentials. Use the appropriate `/rest/<store-code>/` prefix:
 
-- `POST /V1/loyaltyengage/cart`: Add loyalty-based products to cart
-- `DELETE /V1/loyaltyengage/cart/items/{itemId}`: Remove a specific loyalty item from cart
-- `DELETE /V1/loyaltyengage/cart/items`: Remove all loyalty items from cart
+- `POST /V1/loyalty/shop/:customer_id/cart/add`
+- `POST /V1/loyalty/shop/:customer_id/cart/add-multiple`
+- `POST /V1/loyalty/shop/:customerId/cart/remove`
+- `DELETE /V1/loyalty/shop/:customerId/cart`
+- `POST /V1/loyalty/discount/:customerId/claim-after-cart`
+- `POST /V1/loyalty/customer/update`
+
+Storefront scripts use session-authenticated POST routes `/loyalty/cart/add` and `/loyalty/discount/claim`. The `/loyaltyshop/` aliases remain supported. Prefer a valid Magento `form_key`; same-origin Magento AJAX requests remain compatible.
 
 ## Cron Jobs
 
 The module includes the following cron jobs:
 
-- `loyaltyengage_cart_expiry`: Removes expired loyalty items from carts
-- `loyaltyengage_order_place`: Processes loyalty-based orders
+- `loyalty_cart_expiry`: Removes expired loyalty items per store every 15 minutes.
+- `loyaltyshop_deliver_events`: Delivers the durable event outbox every minute.
+- `loyaltyshop_recover_mutations`: Retries local application of confirmed remote reservations every 5 minutes, without buying again.
+
+Magento's normal cron must run. Inspect failures with `bin/magento loyalty:events`.
+For upgrade steps, recovery commands, compatibility changes and test instructions, see [Production Readiness](PRODUCTION_READINESS.md).
 
 ## Support
 

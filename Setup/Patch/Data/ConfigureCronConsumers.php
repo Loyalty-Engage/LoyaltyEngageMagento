@@ -25,6 +25,7 @@ class ConfigureCronConsumers implements DataPatchInterface
         'loyaltyshop_purchase_event_consumer',
         'loyaltyshop_return_event_consumer',
         'loyaltyshop_review_event_consumer',
+        'loyaltyshop_redeem_discount_event_consumer',
     ];
 
     /**
@@ -69,7 +70,7 @@ class ConfigureCronConsumers implements DataPatchInterface
         $existingConfig = $this->deploymentConfig->get('cron_consumers_runner', []);
         
         // Ensure cron_run is enabled
-        $existingConfig['cron_run'] = true;
+        $existingConfig['cron_run'] = $existingConfig['cron_run'] ?? true;
         
         // Set max messages if not already set
         if (!isset($existingConfig['max_messages'])) {
@@ -78,6 +79,10 @@ class ConfigureCronConsumers implements DataPatchInterface
         
         // Get existing consumers list or create new
         $existingConsumers = $existingConfig['consumers'] ?? [];
+        // Magento treats an empty allowlist as all consumers; never narrow it.
+        if ($existingConsumers === []) {
+            return;
+        }
         
         // Add our consumers if not already present
         foreach (self::LOYALTY_CONSUMERS as $consumer) {

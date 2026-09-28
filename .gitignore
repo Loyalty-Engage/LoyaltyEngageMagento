@@ -55,3 +55,6 @@ composer.phar
 .env.development
 .env.test
 .env.production
+
+# Local acceptance-test reports contain customer identifiers.
+/Test/Manual/output/

@@ -17,9 +17,10 @@ class QuoteRemoveItemPlugin
     public function aroundRemoveItem(Quote $subject, callable $proceed, $itemId): Quote
     {
         $item = $subject->getItemById($itemId);
+        $alreadyDeleted = $item && $item->isDeleted();
         $result = $proceed($itemId);
 
-        if ($item) {
+        if ($item && !$alreadyDeleted) {
             $this->cartItemRemoveProcessor->process($subject, $item);
         }
 

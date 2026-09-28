@@ -1,10 +1,12 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="urn:magento:framework:Config/etc/config.xsd">
+    xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
     <default>
         <loyalty>
             <export>
                 <purchase_order_status>complete</purchase_order_status>
+                <allowed_order_sources>storefront,admin,api,unknown</allowed_order_sources>
+                <excluded_order_comment_markers></excluded_order_comment_markers>
             </export>
             <frontend>
                 <expose_customer_meta>0</expose_customer_meta>

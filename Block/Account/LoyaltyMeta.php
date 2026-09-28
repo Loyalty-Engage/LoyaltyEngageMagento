@@ -38,7 +38,7 @@ class LoyaltyMeta extends Template
 
     public function getLoyaltyMeta(): array
     {
-        if (!$this->canRender()) {
+        if (!$this->canRender() || $this->getLayout()->isCacheable()) {
             return [];
         }
 
@@ -66,7 +66,9 @@ class LoyaltyMeta extends Template
         $labels = [];
 
         foreach ($this->loyaltyHelper->getFrontendLoyaltyFieldConfig() as $fieldCode => $config) {
-            $labels[$fieldCode] = $config['label'];
+            if ($config['enabled']) {
+                $labels[$fieldCode] = $config['label'];
+            }
         }
 
         return $labels;
@@ -81,11 +83,11 @@ class LoyaltyMeta extends Template
 
     public function getLoyaltyMetaJson(): string
     {
-        return $this->jsonSerializer->serialize($this->getLoyaltyMeta());
+        return json_encode($this->getLoyaltyMeta(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
     }
 
     public function getLabelsJson(): string
     {
-        return $this->jsonSerializer->serialize($this->getLabels());
+        return json_encode($this->getLabels(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
     }
 }

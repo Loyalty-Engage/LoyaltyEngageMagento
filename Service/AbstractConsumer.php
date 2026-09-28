@@ -79,6 +79,32 @@ abstract class AbstractConsumer
      */
     abstract protected function execute(array $payload): void;
 
+    public function deliver(array $payload): void
+    {
+        $required = match (static::TOPIC) {
+            'loyaltyshop.purchase_event', 'loyaltyshop.return_event' => ['event', 'identifier', 'orderId', 'products'],
+            'loyaltyshop.free_product_purchase_event' => ['email', 'orderId', 'products'],
+            'loyaltyshop.free_product_remove_event' => ['email', 'sku', 'quantity'],
+            'loyaltyshop.review_event' => ['review_id', 'customer_email'],
+            'loyaltyshop.redeem_discount_event' => ['discount_code', 'identifier'],
+            'loyaltyshop.claim_discount_event' => ['identifier', 'amount', 'currency'],
+            default => [],
+        };
+        foreach ($required as $field) {
+            if (empty($payload[$field])) {
+                throw new \InvalidArgumentException('Invalid event: missing ' . $field);
+            }
+        }
+        $storeId = (int) ($payload['store_id'] ?? 0);
+        if ($storeId <= 0) {
+            throw new \InvalidArgumentException('An explicit store is required for delivery.');
+        }
+        if (!$this->helper->isLoyaltyEngageEnabled($storeId)) {
+            throw new DeferredDeliveryException('Loyalty Engage is disabled for this store.');
+        }
+        $this->execute($payload);
+    }
+
     /**
      * Log info message
      *

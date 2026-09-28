@@ -16,6 +16,12 @@ class ApiClient
     protected Data $helper;
 
     protected int $timeout = 15;
+    private ?string $idempotencyKey = null;
+
+    public function setIdempotencyKey(?string $key): void
+    {
+        $this->idempotencyKey = $key;
+    }
 
     public function __construct(
         Curl $curl,
@@ -34,9 +40,20 @@ class ApiClient
     {
         $this->curl->setHeaders([]);
         $this->curl->setTimeout($this->timeout);
+        $this->curl->setOption(CURLOPT_CUSTOMREQUEST, null);
+        $this->curl->setOption(CURLOPT_CONNECTTIMEOUT, 5);
+        $this->curl->setOption(CURLOPT_FOLLOWLOCATION, false);
+        $this->curl->setOption(CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 
         $clientId = $this->helper->getClientId($storeId);
         $clientSecret = $this->helper->getClientSecret($storeId);
+
+        if (!$clientId || !$clientSecret) {
+            throw new DeferredDeliveryException('Loyalty Engage credentials are not configured for this store.');
+        }
+        if ($this->idempotencyKey !== null) {
+            $this->curl->addHeader('Idempotency-Key', $this->idempotencyKey);
+        }
 
         if ($clientId && $clientSecret) {
             $auth = base64_encode($clientId . ':' . $clientSecret);
@@ -56,9 +73,7 @@ class ApiClient
         $body = $this->curl->getBody();
 
         if ($status < 200 || $status > 299) {
-            throw new LocalizedException(
-                __('API failed. Status: %1 Response: %2', $status, $body)
-            );
+            throw new ApiException('Loyalty Engage returned HTTP ' . $status, (int) $status);
         }
 
         if (!$body) {
@@ -66,10 +81,17 @@ class ApiClient
         }
 
         try {
-            return $this->json->unserialize($body);
-        } catch (\Exception $e) {
-            return ['raw' => $body];
+            $data = $this->json->unserialize($body);
+        } catch (\InvalidArgumentException $e) {
+            throw new ApiException('Loyalty Engage returned invalid JSON.', 502, $e);
         }
+        if (!is_array($data) || (($data['success'] ?? null) === false)) {
+            throw new ApiException('Loyalty Engage rejected the operation or returned an invalid response.', 422);
+        }
+        if (array_key_exists('acceptedEventCount', $data) && (int) $data['acceptedEventCount'] <= 0) {
+            throw new ApiException('Loyalty Engage accepted no events. Reconcile the event before replaying it.', 422);
+        }
+        return $data;
     }
 
     /**

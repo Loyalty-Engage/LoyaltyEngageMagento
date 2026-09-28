@@ -55,15 +55,15 @@ class LoyaltyengageCart
      * @param string $sku Product SKU
      * @return int HTTP status code
      */
-    public function addToCart(string $email, string $sku): int
+    public function addToCart(string $email, string $sku, ?int $storeId = null): int
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/add';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'.$email.'/cart/add';
 
         try {
             $this->apiClient->post($url, [
                 'sku'      => $sku,
                 'quantity' => 1
-            ]);
+            ], $storeId);
 
             $this->logSuccess('AddToCart Success', [
                 'email' => $email,
@@ -89,15 +89,15 @@ class LoyaltyengageCart
      * @param int $quantity Quantity to remove
      * @return int|null HTTP status code
      */
-    public function removeItem(string $email, string $sku, int $quantity): ?int
+    public function removeItem(string $email, string $sku, int $quantity, ?int $storeId = null): ?int
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/remove';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'.$email.'/cart/remove';
 
         try {
             $this->apiClient->delete($url, [
                 'sku'      => $sku,
                 'quantity' => $quantity
-            ]);
+            ], $storeId);
 
             $this->logSuccess('RemoveItem Success', [
                 'email' => $email,
@@ -122,12 +122,12 @@ class LoyaltyengageCart
      * @param string $email Customer email
      * @return int|null HTTP status code
      */
-    public function removeAllItem(string $email): ?int
+    public function removeAllItem(string $email, ?int $storeId = null): ?int
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'.$email.'/cart';
 
         try {
-            $this->apiClient->delete($url);
+            $this->apiClient->delete($url, [], $storeId);
             
             $this->logSuccess('RemoveAllItem Success', [
                 'email' => $email
@@ -151,15 +151,15 @@ class LoyaltyengageCart
      * @param array $products Product list
      * @return int|null HTTP status code
      */
-    public function placeOrder(string $email, string $orderId, array $products): ?int
+    public function placeOrder(string $email, string $orderId, array $products, ?int $storeId = null): ?int
     {
         $identifier = $this->helper->hashEmail($email);
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$identifier.'/cart/purchase';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'.$identifier.'/cart/purchase';
         try {
             $this->apiClient->post($url, [
                 'orderId' => $orderId,
                 'products' => $products
-            ]);
+            ], $storeId);
 
             $this->logSuccess('PlaceOrder Success', [
                 'email'   => $email,
@@ -187,14 +187,14 @@ class LoyaltyengageCart
      * @param string $sku Discount SKU
      * @return array|null API response or null on failure
      */
-    public function buyDiscountCode(string $email, string $sku): ?array
+    public function buyDiscountCode(string $email, string $sku, ?int $storeId = null): ?array
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/loyalty/shop/'.$email.'/cart/buy_discount_code';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'.$email.'/cart/buy_discount_code';
 
         try {
             $response = $this->apiClient->post($url, [
                 'sku' => $sku
-            ]);
+            ], $storeId);
 
             $this->logSuccess('BuyDiscountCode Success', [
                 'email' => $email,
@@ -221,9 +221,9 @@ class LoyaltyengageCart
      * @param string $identifier Hashed customer email
      * @return array|null API response or null on failure
      */
-    public function redeemDiscount(string $discountCode, string $identifier): ?array
+    public function redeemDiscount(string $discountCode, string $identifier, ?int $storeId = null): ?array
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/discount/' . urlencode($discountCode) . '/redeem';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/discount/' . urlencode($discountCode) . '/redeem';
 
         $this->helper->log(
             'info',
@@ -240,7 +240,7 @@ class LoyaltyengageCart
         try {
             $response = $this->apiClient->put($url, [
                 'identifier' => $identifier
-            ]);
+            ], $storeId);
 
             $this->helper->log(
                 'debug',
@@ -281,9 +281,9 @@ class LoyaltyengageCart
      * @param string $discountCurrency Currency code
      * @return array|null API response or null on failure
      */
-    public function claimDiscount(string $email, float $amount, string $currency = 'EUR'): ?array
+    public function claimDiscount(string $email, float $amount, string $currency = 'EUR', ?int $storeId = null): ?array
     {
-        $url = $this->helper->getApiUrl() . '/api/v1/discount/'.$email.'/claim';
+        $url = rtrim((string) $this->helper->getApiUrl($storeId), '/') . '/api/v1/discount/'.$email.'/claim';
 
         $this->helper->log(
             'info',
@@ -302,7 +302,7 @@ class LoyaltyengageCart
             $response = $this->apiClient->post($url, [
                 'discountAmount'   => $amount,
                 'discountCurrency' => $currency
-            ]);
+            ], $storeId);
 
             $this->helper->log(
                 'debug',

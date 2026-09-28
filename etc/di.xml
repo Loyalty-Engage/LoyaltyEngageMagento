@@ -1,6 +1,13 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="urn:magento:framework/ObjectManager/etc/config.xsd">
+    xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="loyalty_events" xsi:type="object">LoyaltyEngage\LoyaltyShop\Console\EventsCommand</item>
+            </argument>
+        </arguments>
+    </type>
     <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface"
@@ -54,40 +61,30 @@
             sortOrder="10" />
     </type>
     
-    <type name="Magento\Shipping\Model\Rate\CarrierResult">
-        <plugin name="loyaltyshop_shipping_method_plugin"
-            type="LoyaltyEngage\LoyaltyShop\Plugin\ShippingMethodPlugin"
-            sortOrder="100" />
+    <type name="Magento\Quote\Model\Quote\Address">
+        <plugin name="loyaltyshop_address_shipping" type="LoyaltyEngage\LoyaltyShop\Plugin\Quote\AddressPlugin" sortOrder="100"/>
     </type>
-    
-    <!-- Configure message queue consumers to run automatically -->
-    <type name="Magento\Framework\MessageQueue\Consumer\Config\ConsumerConfigItem">
+    <type name="Magento\Quote\Model\Quote\Item\ToOrderItem">
+        <plugin name="loyaltyshop_item_marker" type="LoyaltyEngage\LoyaltyShop\Plugin\ConvertLoyaltyItemPlugin"/>
+    </type>
+    <type name="Magento\Framework\MessageQueue\PublisherInterface">
+        <plugin name="loyaltyshop_durable_publish" type="LoyaltyEngage\LoyaltyShop\Plugin\DurablePublisherPlugin"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Service\AbstractConsumer">
+        <plugin name="loyaltyshop_legacy_consumer" type="LoyaltyEngage\LoyaltyShop\Plugin\LegacyConsumerPlugin"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Cron\DeliverEvents">
         <arguments>
-            <argument name="consumerConfig" xsi:type="array">
-                <item name="loyaltyshop_purchase_event_consumer" xsi:type="array">
-                    <item name="autoStart" xsi:type="boolean">true</item>
-                </item>
-                <item name="loyaltyshop_return_event_consumer" xsi:type="array">
-                    <item name="autoStart" xsi:type="boolean">true</item>
-                </item>
-                <item name="loyaltyshop_free_product_purchase_event_consumer" xsi:type="array">
-                    <item name="autoStart" xsi:type="boolean">true</item>
-                </item>
-                <item name="loyaltyshop_free_product_remove_event_consumer" xsi:type="array">
-                    <item name="autoStart" xsi:type="boolean">true</item>
-                </item>
-                <item name="loyaltyshop_review_event_consumer" xsi:type="array">
-                    <item name="autoStart" xsi:type="boolean">true</item>
-                </item>
+            <argument name="consumers" xsi:type="array">
+                <item name="loyaltyshop.purchase_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\PurchaseConsumer</item>
+                <item name="loyaltyshop.return_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\ReturnConsumer</item>
+                <item name="loyaltyshop.review_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\ReviewConsumer</item>
+                <item name="loyaltyshop.free_product_purchase_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductPurchaseConsumer</item>
+                <item name="loyaltyshop.free_product_remove_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\FreeProductRemoveConsumer</item>
+                <item name="loyaltyshop.redeem_discount_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\RedeemDiscountConsumer</item>
+                <item name="loyaltyshop.claim_discount_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\ClaimDiscountConsumer</item>
             </argument>
         </arguments>
-    </type>
-    
-    <!-- Add loyalty conditions to catalog price rules -->
-    <type name="Magento\CatalogRule\Model\Rule\Condition\Combine">
-        <plugin name="loyaltyshop_catalog_rule_condition_plugin"
-            type="LoyaltyEngage\LoyaltyShop\Plugin\CatalogRule\Model\Rule\Condition\CombinePlugin"
-            sortOrder="100" />
     </type>
     
     <!-- Add loyalty conditions to cart price rules -->
@@ -97,32 +94,8 @@
             sortOrder="100" />
     </type>
     
-    <!-- Target shipping carriers directly -->
-    <type name="Magento\OfflineShipping\Model\Carrier\Tablerate">
-        <plugin name="loyaltyshop_tablerate_plugin"
-            type="LoyaltyEngage\LoyaltyShop\Plugin\Shipping\TableratePlugin"
-            sortOrder="100" />
-    </type>
-    
-    <type name="Magento\OfflineShipping\Model\Carrier\Flatrate">
-        <plugin name="loyaltyshop_flatrate_plugin"
-            type="LoyaltyEngage\LoyaltyShop\Plugin\Shipping\FlatratePlugin"
-            sortOrder="100" />
-    </type>
-    
-    <!-- Configure LoyaltyCart dependencies for rule reuse -->
-    <type name="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart">
-        <arguments>
-            <argument name="ruleCollectionFactory" xsi:type="object">Magento\SalesRule\Model\ResourceModel\Rule\CollectionFactory</argument>
-            <argument name="couponFactory" xsi:type="object">Magento\SalesRule\Model\CouponFactory</argument>
-            <argument name="customerGroupRepository" xsi:type="object">Magento\Customer\Api\GroupRepositoryInterface</argument>
-            <argument name="searchCriteriaBuilderFactory" xsi:type="object">Magento\Framework\Api\SearchCriteriaBuilderFactory</argument>
-            <argument name="logger" xsi:type="object">Psr\Log\LoggerInterface</argument>
-        </arguments>
-    </type>
-    
     <!-- REST API Authentication Plugin - validates Basic Auth for LoyaltyEngage endpoints -->
-    <type name="Magento\Webapi\Controller\Rest">
+    <type name="Magento\Framework\Webapi\Authorization">
         <plugin name="loyaltyshop_webapi_authentication_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\WebApi\AuthenticationPlugin"
             sortOrder="10" />

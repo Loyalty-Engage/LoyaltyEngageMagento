@@ -14,6 +14,8 @@ use LoyaltyEngage\LoyaltyShop\Logger\Logger as LoyaltyLogger;
  */
 class ReviewConsumer extends AbstractConsumer
 {
+    public const TOPIC = 'loyaltyshop.review_event';
+
     /**
      * API client for external requests
      *
@@ -43,9 +45,10 @@ class ReviewConsumer extends AbstractConsumer
      */
     protected function execute(array $payload): void
     {
+        $storeId = (int) $payload['store_id'];
         // Feature flag
-        if (!$this->helper->isReviewExportEnabled()) {
-            return;
+        if (!$this->helper->isReviewExportEnabled($storeId)) {
+            throw new \LoyaltyEngage\LoyaltyShop\Service\DeferredDeliveryException('Review export is disabled.');
         }
 
         // Validation
@@ -61,7 +64,7 @@ class ReviewConsumer extends AbstractConsumer
             return;
         }
 
-        $apiUrl = rtrim((string)$this->helper->getApiUrl(), '/');
+        $apiUrl = rtrim((string)$this->helper->getApiUrl($storeId), '/');
         $endpoint = "{$apiUrl}/api/v1/events";
 
         $requestPayload = [
@@ -71,7 +74,7 @@ class ReviewConsumer extends AbstractConsumer
         ];
 
         try {
-            $this->apiClient->post($endpoint, $requestPayload);
+            $this->apiClient->post($endpoint, [$requestPayload], $storeId);
 
             $this->helper->log(
                 'debug',
