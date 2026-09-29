@@ -25,25 +25,54 @@ class MutationJournal
             ->where('operation_key = ?', $key)) ?: null;
     }
 
-    public function response(string $key, int $storeId, int $customerId, int $quoteId, string $operation, string $sku, callable $request): array
+    public function response(string $key, int $storeId, int $customerId, int $quoteId, string $operation, string $sku, callable $request, ?callable $reconcile = null): array
     {
         if ($this->recoveryKey !== null && $this->recoveryKey !== $key) {
             throw new LocalizedException(__('Cart has changed since the original reservation; manual reconciliation required.'));
         }
         $row = $this->get($key);
         if ($row) {
+            if ((int) $row['store_id'] !== $storeId || (int) $row['customer_id'] !== $customerId
+                || (int) $row['quote_id'] !== $quoteId || $row['operation'] !== $operation || $row['sku'] !== $sku) {
+                throw new LocalizedException(__('The original redemption belongs to a different cart or store.'));
+            }
             if ($row['response'] !== null) {
                 return json_decode($row['response'], true, 512, JSON_THROW_ON_ERROR);
             }
-            throw new LocalizedException(__('This request needs reconciliation. Contact the shop with reference %1.', $key));
+            if ($operation === 'product' && in_array($row['status'], ['started', 'uncertain'], true) && $reconcile !== null) {
+                $confirmed = $reconcile();
+                if (is_array($confirmed)) {
+                    $saved = $this->resource->getConnection()->update(
+                        $this->resource->getTableName('loyaltyshop_mutation'),
+                        ['response' => json_encode($confirmed, JSON_THROW_ON_ERROR), 'status' => 'received', 'last_error' => null],
+                        ['operation_key = ?' => $key, 'response IS NULL', 'status IN (?)' => ['started', 'uncertain']]
+                    );
+                    if (!$saved) {
+                        throw new LocalizedException(__('Your cart is being updated. Please retry.'));
+                    }
+                    return $confirmed;
+                }
+            }
+            if ($row['status'] !== 'rejected') {
+                throw new LocalizedException(__('This request needs reconciliation. Contact the shop with reference %1.', $key));
+            }
         }
         if ($this->recoveryKey !== null) {
             throw new LocalizedException(__('Recovery requires a confirmed journal response.'));
         }
         $db = $this->resource->getConnection();
         $table = $this->resource->getTableName('loyaltyshop_mutation');
-        $db->insert($table, ['operation_key' => $key, 'store_id' => $storeId, 'customer_id' => $customerId,
-            'sku' => $sku, 'quote_id' => $quoteId, 'operation' => $operation, 'status' => 'started']);
+        if ($row) {
+            // Only an explicit refusal is safe to retry; atomically claim the next attempt.
+            $claimed = $db->update($table, ['status' => 'started', 'last_error' => null],
+                ['operation_key = ?' => $key, 'status = ?' => 'rejected', 'response IS NULL']);
+            if (!$claimed) {
+                throw new LocalizedException(__('Your cart is being updated. Please retry.'));
+            }
+        } else {
+            $db->insert($table, ['operation_key' => $key, 'store_id' => $storeId, 'customer_id' => $customerId,
+                'sku' => $sku, 'quote_id' => $quoteId, 'operation' => $operation, 'status' => 'started']);
+        }
         try {
             $response = $request();
             if (!is_array($response)) {
@@ -58,7 +87,8 @@ class MutationJournal
                 $db->delete($table, ['operation_key = ?' => $key]);
                 throw $e;
             }
-            $db->update($table, ['status' => 'uncertain', 'last_error' => substr($e->getMessage(), 0, 2000)],
+            $status = $e instanceof \LoyaltyEngage\LoyaltyShop\Service\ApiRejectionException ? 'rejected' : 'uncertain';
+            $db->update($table, ['status' => $status, 'last_error' => substr($e->getMessage(), 0, 2000)],
                 ['operation_key = ?' => $key]);
             throw $e;
         }

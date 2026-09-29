@@ -6,6 +6,7 @@ namespace LoyaltyEngage\LoyaltyShop\Test\Unit\Service;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
 use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 use LoyaltyEngage\LoyaltyShop\Service\ApiException;
+use LoyaltyEngage\LoyaltyShop\Service\ApiRejectionException;
 use LoyaltyEngage\LoyaltyShop\Service\DeferredDeliveryException;
 use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\Serialize\Serializer\Json;
@@ -13,6 +14,58 @@ use PHPUnit\Framework\TestCase;
 
 class ApiClientTest extends TestCase
 {
+    /** @dataProvider rejectionReasons */
+    public function testDocumented400IsADefinitiveRejection(string $reason): void
+    {
+        $curl = $this->createMock(Curl::class);
+        $curl->method('getStatus')->willReturn(400);
+        $curl->method('getBody')->willReturn(json_encode(['message' => $reason]));
+        try {
+            (new ApiClient($curl, new Json(), $this->helper()))->post('https://example.test', [], 20);
+            self::fail('Expected a rejection.');
+        } catch (ApiRejectionException $e) {
+            self::assertSame(400, $e->getCode());
+            self::assertSame($reason, $e->getReason());
+            self::assertFalse($e->isRetryable(), 'Queue workers must not automatically retry a business rejection.');
+        }
+    }
+
+    public static function rejectionReasons(): array
+    {
+        return array_map(static fn($reason) => [$reason], [
+            'EMPTY_REQUEST_BODY', 'INVALID_REQUEST_BODY', 'INVALID_IDENTIFIER', 'INVALID_SKU',
+            'SKU_NOT_FOUND', 'QUANTITY_INVALID', 'PRODUCT_NOT_AVAILABLE_IN_LOYALTY_SHOP',
+            'DISCOUNT_CODE_TYPE_PRODUCT_NOT_PURCHASABLE', 'LOYALTY_TIER_INSUFFICIENT',
+            'AVAILABLE_COINS_INSUFFICIENT', 'PRODUCTS_IN_CART_LIMIT_REACHED', 'MAXIMUM_COIN_SPEND_LIMIT_EXCEEDED',
+        ]);
+    }
+
+    /** @dataProvider ambiguousResponses */
+    public function testOtherFailuresAreNotClassifiedAsDefinitiveRejections(int $status, string $body): void
+    {
+        $curl = $this->createMock(Curl::class);
+        $curl->method('getStatus')->willReturn($status);
+        $curl->method('getBody')->willReturn($body);
+        try {
+            (new ApiClient($curl, new Json(), $this->helper()))->post('https://example.test', [], 20);
+            self::fail('Expected an API failure.');
+        } catch (ApiException $e) {
+            self::assertNotInstanceOf(ApiRejectionException::class, $e);
+        }
+    }
+
+    public static function ambiguousResponses(): array
+    {
+        return [
+            [400, '<html>Bad request</html>'], [400, ''], [400, '{broken'],
+            [400, '{"message":"NEW_UNKNOWN_REASON"}'], [400, '{"message":["AVAILABLE_COINS_INSUFFICIENT"]}'],
+            [400, '[{"message":"AVAILABLE_COINS_INSUFFICIENT"}]'],
+            [502, '{"message":"AVAILABLE_COINS_INSUFFICIENT"}'],
+            [429, '{"message":"AVAILABLE_COINS_INSUFFICIENT"}'],
+            [200, '{"success":false,"message":"AVAILABLE_COINS_INSUFFICIENT"}'],
+        ];
+    }
+
     public function testHttpMethodDoesNotLeakBetweenRequests(): void
     {
         $curl = $this->createMock(Curl::class);

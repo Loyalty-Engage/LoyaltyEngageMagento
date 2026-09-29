@@ -11,6 +11,7 @@ use LoyaltyEngage\LoyaltyShop\Model\CustomerLoyaltyDataProvider;
 use LoyaltyEngage\LoyaltyShop\Model\Queue\PurchaseConsumer;
 use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 use LoyaltyEngage\LoyaltyShop\Service\ApiException;
+use LoyaltyEngage\LoyaltyShop\Service\ApiRejectionException;
 use Magento\Framework\App\Bootstrap;
 use Magento\Framework\App\MaintenanceMode;
 use Magento\Framework\App\ResourceConnection;
@@ -49,6 +50,8 @@ class RuntimeTest extends TestCase
         self::assertGreaterThan(0, $this->storeId);
         // Keep existing pending events out of the smoke worker's batch, inside this rollback transaction.
         $this->db->update($this->outbox->table(), ['available_at' => '2099-01-01 00:00:00'], ['status = ?' => 'pending']);
+        $this->db->update($this->resource->getTableName('loyaltyshop_mutation'),
+            ['available_at' => '2099-01-01 00:00:00'], ['status IN (?)' => ['received', 'started', 'uncertain']]);
     }
 
     protected function tearDown(): void
@@ -165,6 +168,146 @@ class RuntimeTest extends TestCase
         self::assertSame(1, $calls);
     }
 
+    public function testRejectedProductAndCouponCanBeRetriedWithoutLosingConfirmation(): void
+    {
+        foreach (['product', 'discount'] as $operation) {
+            $journal = new MutationJournal($this->resource);
+            $key = hash('sha256', uniqid('rejected-', true));
+            $calls = 0;
+            $request = static function () use (&$calls): array {
+                if (++$calls <= 2) {
+                    throw new ApiRejectionException('AVAILABLE_COINS_INSUFFICIENT');
+                }
+                return ['success' => true];
+            };
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                try {
+                    $journal->response($key, $this->storeId, 123, 321, $operation, 'SKU', $request);
+                    self::fail('Insufficient balance must be rejected.');
+                } catch (ApiRejectionException $e) {
+                    $row = $journal->get($key);
+                    self::assertSame('rejected', $row['status']);
+                    self::assertNull($row['response']);
+                    self::assertStringContainsString('AVAILABLE_COINS_INSUFFICIENT', $row['last_error']);
+                }
+            }
+            self::assertSame(['success' => true], $journal->response($key, $this->storeId, 123, 321, $operation, 'SKU', $request));
+            self::assertSame('received', $journal->get($key)['status']);
+            $journal->complete($key);
+            self::assertSame(['success' => true], $journal->response($key, $this->storeId, 123, 321, $operation, 'SKU', $request));
+            self::assertSame(3, $calls, 'Confirmed responses must still prevent repeat spending.');
+        }
+    }
+
+    public function testUnknown400And502RemainUncertainAndCannotBeReplayed(): void
+    {
+        foreach ([400, 502] as $status) {
+            $journal = new MutationJournal($this->resource);
+            $key = hash('sha256', uniqid('uncertain-', true));
+            $calls = 0;
+            $request = static function () use (&$calls, $status): array {
+                $calls++;
+                throw new ApiException('Loyalty Engage returned HTTP ' . $status, $status);
+            };
+            try {
+                $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', $request);
+                self::fail('Expected API failure.');
+            } catch (ApiException $e) {
+                self::assertSame('uncertain', $journal->get($key)['status']);
+            }
+            try {
+                $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', $request);
+                self::fail('Uncertain request must remain blocked.');
+            } catch (\Magento\Framework\Exception\LocalizedException $e) {
+                self::assertStringContainsString('reconciliation', $e->getMessage());
+            }
+            self::assertSame(1, $calls);
+        }
+    }
+
+    public function testRecoveryNeverRetriesRejectedRequests(): void
+    {
+        $journal = new MutationJournal($this->resource);
+        $key = hash('sha256', uniqid('recovery-', true));
+        try {
+            $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', static function (): array {
+                throw new ApiRejectionException('SKU_NOT_FOUND');
+            });
+        } catch (ApiRejectionException $e) {
+        }
+        $journal->setRecoveryKey($key);
+        $this->expectException(\Magento\Framework\Exception\LocalizedException::class);
+        $this->expectExceptionMessage('confirmed journal response');
+        $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', static function (): array {
+            self::fail('Recovery must never send another purchase.');
+        });
+    }
+
+    public function testUncertainRequestDoesNotBlockAnotherSkuForTheSameCustomer(): void
+    {
+        $journal = new MutationJournal($this->resource);
+        $key = hash('sha256', uniqid('uncertain-sku-', true));
+        try {
+            $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU-A', static function (): array {
+                throw new \RuntimeException('timeout');
+            });
+        } catch (\RuntimeException $e) {
+        }
+        self::assertSame('uncertain', $journal->get($key)['status']);
+        $otherKey = hash('sha256', uniqid('other-sku-', true));
+        self::assertSame(['success' => true], $journal->response(
+            $otherKey, $this->storeId, 123, 321, 'product', 'SKU-B', static fn() => ['success' => true]
+        ));
+        self::assertSame('uncertain', $journal->get($key)['status']);
+    }
+
+    public function testTimeoutAfterRejectedRetryRestoresUncertainProtection(): void
+    {
+        $journal = new MutationJournal($this->resource);
+        $key = hash('sha256', uniqid('retry-timeout-', true));
+        $calls = 0;
+        $request = static function () use (&$calls): array {
+            if (++$calls === 1) {
+                throw new ApiRejectionException('AVAILABLE_COINS_INSUFFICIENT');
+            }
+            throw new \RuntimeException('timeout');
+        };
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', $request);
+                self::fail('Expected a failure.');
+            } catch (\RuntimeException $e) {
+                self::assertSame($attempt === 0 ? 'rejected' : 'uncertain', $journal->get($key)['status']);
+            }
+        }
+        try {
+            $journal->response($key, $this->storeId, 123, 321, 'product', 'SKU', $request);
+            self::fail('A later timeout must not inherit the previous permission to retry.');
+        } catch (\Magento\Framework\Exception\LocalizedException $e) {
+            self::assertStringContainsString('reconciliation', $e->getMessage());
+        }
+        self::assertSame(2, $calls);
+    }
+
+    public function testCouponUncertaintyCannotBeResolvedUsingPhysicalCartEvidence(): void
+    {
+        $journal = new MutationJournal($this->resource);
+        $key = hash('sha256', uniqid('coupon-timeout-', true));
+        try {
+            $journal->response($key, $this->storeId, 123, 321, 'discount', 'SKU', static function (): array {
+                throw new \RuntimeException('timeout');
+            });
+        } catch (\RuntimeException $e) {
+        }
+        $this->expectException(\Magento\Framework\Exception\LocalizedException::class);
+        $this->expectExceptionMessage('reconciliation');
+        $journal->response($key, $this->storeId, 123, 321, 'discount', 'SKU', static function (): array {
+            self::fail('A coupon must never be repurchased during recovery.');
+        }, static function (): ?array {
+            self::fail('A physical cart cannot confirm coupon issuance.');
+        });
+    }
+
     public function testPartialCustomerUpdatesPreserveOtherFields(): void
     {
         $customerId = (int) $this->db->fetchOne($this->db->select()->from($this->resource->getTableName('customer_entity'), ['entity_id'])->limit(1));
@@ -224,7 +367,8 @@ class RuntimeTest extends TestCase
             'products' => [['sku' => 'TEST', 'price' => '10.00', 'quantity' => 1.5]]];
     }
 
-    public function testPaidAndLoyaltyLinesStaySeparateAndOnlyLoyaltyIsRemoved(): void
+    /** @dataProvider recoverableRewardFailures */
+    public function testFailedRewardCanBeRecoveredAndPaidLinesStaySeparate(bool $timeout, bool $remoteEmpty): void
     {
         $customerTable = $this->resource->getTableName('customer_entity');
         $store = self::$om->get(\Magento\Store\Model\StoreManagerInterface::class)->getStore($this->storeId);
@@ -235,7 +379,16 @@ class RuntimeTest extends TestCase
         $customerId = (int) $this->db->lastInsertId($customerTable);
         $sku = '24-MB01';
         $api = $this->createMock(ApiClient::class);
-        $api->expects(self::once())->method('post')->willReturn(['success' => true]);
+        $calls = 0;
+        $api->expects(self::exactly($timeout ? 1 : 2))->method('post')->willReturnCallback(static function () use (&$calls, $timeout): array {
+            if (++$calls === 1) {
+                if ($timeout) {
+                    throw new ApiException('timeout');
+                }
+                throw new ApiRejectionException('AVAILABLE_COINS_INSUFFICIENT');
+            }
+            return ['success' => true];
+        });
         $helper = $this->createMock(Data::class);
         $helper->method('isLoyaltyEngageEnabled')->willReturn(true);
         $helper->method('isLoyaltyProduct')->willReturnCallback(static fn($item) => (bool) $item->getData('loyalty_locked_qty')
@@ -243,8 +396,16 @@ class RuntimeTest extends TestCase
         $helper->method('hashEmail')->willReturn(hash('sha256', 'fixture'));
         $helper->method('getApiUrl')->willReturn('https://example.invalid');
         $helper->method('successResponse')->willReturnCallback(static fn($r, $m) => $r->setSuccess(true)->setMessage($m));
-        $helper->method('errorResponse')->willReturnCallback(static fn($r, $m) => $r->setSuccess(false)->setMessage($m));
-        $cart = self::$om->create(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart::class, ['api' => $api, 'helper' => $helper]);
+        $helper->method('errorResponse')->willReturnCallback(static fn($r, $m, $type, $status = 400) =>
+            $r->setSuccess(false)->setMessage($m)->setErrorType($type . '_' . $status));
+        $api->expects($timeout ? self::once() : self::never())->method('get')
+            ->with('https://example.invalid/api/v1/loyalty/shop/' . hash('sha256', 'fixture') . '/cart', [], $this->storeId)
+            ->willReturn(['reservedCoins' => $remoteEmpty ? 0 : 800, 'availableCoins' => 100, 'products' => $remoteEmpty ? [] : [
+                ['sku' => $sku, 'quantity' => 1, 'coinPrice' => 800],
+            ]]);
+        $reconciler = new \LoyaltyEngage\LoyaltyShop\Model\PhysicalCartReconciler($this->resource, $api, $helper);
+        $cart = self::$om->create(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart::class,
+            ['api' => $api, 'helper' => $helper, 'physicalReconciler' => $reconciler]);
         $quote = $cart->getOrCreateCustomerQuote($customerId);
         $product = self::$om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class)->get($sku, false, $this->storeId);
         $paid = $quote->addProduct(clone $product, new \Magento\Framework\DataObject(['qty' => 2]));
@@ -252,8 +413,31 @@ class RuntimeTest extends TestCase
         $quote->collectTotals();
         self::$om->get(\Magento\Quote\Api\CartRepositoryInterface::class)->save($quote);
         $paidId = (int) $paid->getId();
-        $result = $cart->addProduct($customerId, $sku);
-        self::assertTrue($result->getSuccess(), $result->getMessage());
+        $rejected = $cart->addProduct($customerId, $sku);
+        self::assertFalse($rejected->getSuccess());
+        self::assertSame($timeout ? 'system_error_502' : 'available_coins_insufficient_400', $rejected->getErrorType());
+        if (!$timeout) {
+            self::assertStringContainsString('enough available coins', $rejected->getMessage());
+        }
+        self::assertCount(1, $cart->getOrCreateCustomerQuote($customerId)->getAllVisibleItems(),
+            'Rejected reward must not persist an unpaid/unreserved line.');
+        if ($timeout) {
+            self::$om->create(\LoyaltyEngage\LoyaltyShop\Cron\RecoverMutations::class, ['cart' => $cart])->execute();
+            $row = $this->db->fetchRow($this->db->select()->from($this->resource->getTableName('loyaltyshop_mutation'))
+                ->where('quote_id = ?', $quote->getId())->where('sku = ?', $sku));
+            if ($remoteEmpty) {
+                self::assertSame('uncertain', $row['status']);
+                self::assertNull($row['response']);
+                self::assertSame(1, (int) $row['attempts']);
+                self::assertCount(1, $cart->getOrCreateCustomerQuote($customerId)->getAllVisibleItems());
+                return;
+            }
+            self::assertSame('applied', $row['status']);
+            self::assertSame('loyalty_cart', json_decode($row['response'], true)['reconciled_from']);
+        } else {
+            $result = $cart->addProduct($customerId, $sku);
+            self::assertTrue($result->getSuccess(), $result->getMessage());
+        }
         $quote = $cart->getOrCreateCustomerQuote($customerId);
         $items = $quote->getAllVisibleItems();
         self::assertCount(2, $items);
@@ -276,6 +460,61 @@ class RuntimeTest extends TestCase
         self::assertNotNull($row, 'A committed quote removal must persist its store-scoped event.');
         self::assertSame('pending', $row['status']);
         self::assertCount(1, $quote->getAllVisibleItems());
+    }
+
+    public static function recoverableRewardFailures(): array
+    {
+        return ['definitive rejection' => [false, false], 'timeout with remote reservation' => [true, false],
+            'timeout with empty remote cart' => [true, true]];
+    }
+
+    public function testCartLookupCannotConfirmMissingMalformedOrDuplicateReservations(): void
+    {
+        $quote = self::$om->create(\Magento\Quote\Model\Quote::class)->setData([
+            'entity_id' => 987654, 'store_id' => $this->storeId, 'customer_id' => 987654,
+            'customer_email' => 'reconcile-' . bin2hex(random_bytes(6)) . '@example.invalid', 'is_active' => 1,
+        ]);
+        $cases = [[], ['products' => []], ['products' => null], ['products' => ['SKU' => ['quantity' => 1]]],
+            ['products' => [['sku' => 'OTHER', 'quantity' => 1, 'coinPrice' => 800]]],
+            ['products' => [['sku' => 'SKU', 'quantity' => 2, 'coinPrice' => 800]]],
+            ['products' => [['sku' => 'SKU', 'quantity' => 1]]],
+            ['products' => [['sku' => 'SKU', 'quantity' => 1, 'coinPrice' => 800], ['sku' => 'SKU', 'quantity' => 1, 'coinPrice' => 800]]],
+        ];
+        $helper = $this->createMock(Data::class);
+        $helper->method('getApiUrl')->willReturn('https://example.invalid');
+        $helper->method('hashEmail')->willReturn('fixture');
+        $api = $this->createMock(ApiClient::class);
+        $api->expects(self::never())->method('post');
+        $api->expects(self::exactly(count($cases)))->method('get')->willReturnOnConsecutiveCalls(...$cases);
+        $reconciler = new \LoyaltyEngage\LoyaltyShop\Model\PhysicalCartReconciler($this->resource, $api, $helper);
+        foreach ($cases as $case) {
+            self::assertNull($reconciler->confirm($quote, 'SKU', 'fixture'));
+        }
+    }
+
+    public function testCartLookupCannotClaimAnotherPendingOperationOrRemoval(): void
+    {
+        $quote = self::$om->create(\Magento\Quote\Model\Quote::class)->setData([
+            'entity_id' => 987654, 'store_id' => $this->storeId, 'customer_id' => 987654,
+            'customer_email' => 'reconcile-' . bin2hex(random_bytes(6)) . '@example.invalid', 'is_active' => 1,
+        ]);
+        $api = $this->createMock(ApiClient::class);
+        $api->expects(self::never())->method('get');
+        $api->expects(self::never())->method('post');
+        $reconciler = new \LoyaltyEngage\LoyaltyShop\Model\PhysicalCartReconciler(
+            $this->resource, $api, $this->createMock(Data::class)
+        );
+        $table = $this->resource->getTableName('loyaltyshop_mutation');
+        $key = hash('sha256', uniqid('conflict-', true));
+        $this->db->insert($table, ['operation_key' => $key, 'customer_id' => 987654,
+            'quote_id' => 987655, 'store_id' => $this->storeId, 'operation' => 'product', 'sku' => 'SKU', 'status' => 'uncertain']);
+        self::assertNull($reconciler->confirm($quote, 'SKU', 'current-key'));
+        $this->db->delete($table, ['operation_key = ?' => $key]);
+        $this->outbox->publish('loyaltyshop.free_product_remove_event', json_encode([
+            'email' => $quote->getCustomerEmail(), 'sku' => 'SKU', 'quantity' => 1,
+            'store_id' => $this->storeId, 'quote_id' => $quote->getId(), 'removal_id' => random_int(10000000, 99999999),
+        ]));
+        self::assertNull($reconciler->confirm($quote, 'SKU', 'current-key'));
     }
 
     public function testCouponCodeCollisionCannotReuseAMerchantRule(): void

@@ -72,6 +72,18 @@ class ApiClient
         $status = $this->curl->getStatus();
         $body = $this->curl->getBody();
 
+        if ($status === 400) {
+            try {
+                $error = $this->json->unserialize($body);
+            } catch (\InvalidArgumentException $e) {
+                $error = null;
+            }
+            $reason = is_array($error) ? ($error['message'] ?? null) : null;
+            if (is_string($reason) && ApiRejectionException::isKnownReason($reason)) {
+                throw new ApiRejectionException($reason);
+            }
+        }
+
         if ($status < 200 || $status > 299) {
             throw new ApiException('Loyalty Engage returned HTTP ' . $status, (int) $status);
         }

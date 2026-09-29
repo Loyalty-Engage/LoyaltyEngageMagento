@@ -39,7 +39,8 @@ class LoyaltyCart implements LoyaltyCartInterface
         private LoggerInterface $logger,
         private \Magento\Quote\Api\CartRepositoryInterfaceFactory $quoteRepositories,
         private \Magento\Sales\Api\OrderRepositoryInterface $orders,
-        private OrderExportEligibility $exportEligibility
+        private OrderExportEligibility $exportEligibility,
+        private PhysicalCartReconciler $physicalReconciler
     ) {
     }
 
@@ -82,7 +83,7 @@ class LoyaltyCart implements LoyaltyCartInterface
                     $this->api->setIdempotencyKey($key);
                     return $this->api->post($this->endpoint($storeId, $hash, 'add'),
                         ['sku' => $sku, 'quantity' => 1], $storeId);
-                });
+                }, fn(): ?array => $this->physicalReconciler->confirm($quote, $sku, $key));
             } catch (\Throwable $e) {
                 // Never let a later bulk-cart save persist an unreserved draft item.
                 $item->isDeleted(true);
@@ -284,6 +285,8 @@ class LoyaltyCart implements LoyaltyCartInterface
             return $response->setSuccess(false)->setMessage($e->getMessage())->setErrorType('minimum_order_value')
                 ->setBarColor($this->helper->getMinimumOrderValueBarColor())
                 ->setTextColor($this->helper->getMinimumOrderValueTextColor());
+        } catch (\LoyaltyEngage\LoyaltyShop\Service\ApiRejectionException $e) {
+            return $this->helper->errorResponse($response, $e->getCustomerMessage(), strtolower($e->getReason()), 400);
         } catch (LocalizedException $e) {
             return $this->helper->errorResponse($response, $e->getMessage(), 'validation');
         } catch (\Throwable $e) {

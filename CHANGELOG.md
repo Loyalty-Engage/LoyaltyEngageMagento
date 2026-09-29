@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2026-09-29
+
+### Fixed
+- Documented Loyalty Engage HTTP 400 rejection reasons now return a readable customer message and a specific error type instead of a generic 502. Rejected redemptions remain visible in the journal and allow a later customer retry; timeouts, unknown responses and server failures remain protected against duplicate spends. Existing uncertain records are not automatically unlocked.
+- Uncertain physical redemptions can be recovered by a read-only Loyalty cart lookup, on a later request or by the recovery cron. Only a single matching reserved item with no competing local operation is restored, without a second reservation request. Missing or ambiguous items remain protected; coupon issuance is not inferred from the physical cart.
+
 ## [2.6.0] - 2026-09-28
 
 ### Added
