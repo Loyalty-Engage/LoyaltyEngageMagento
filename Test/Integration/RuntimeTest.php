@@ -103,13 +103,14 @@ class RuntimeTest extends TestCase
         $row = $this->outbox->find(PurchaseConsumer::TOPIC, $payload);
         self::assertSame('pending', $row['status']);
         self::assertSame(1, (int) $row['attempts']);
-        self::assertSame(0, (int) $this->db->fetchOne($this->db->select()->from($orderTable, ['loyalty_purchase_exported'])
-            ->where('entity_id = ?', $orderId)));
+        $loyaltyOrderTable = $this->resource->getTableName('loyaltyshop_order_data');
+        self::assertSame(0, (int) $this->db->fetchOne($this->db->select()->from($loyaltyOrderTable, ['loyalty_purchase_exported'])
+            ->where('order_id = ?', $orderId)));
         $this->db->update($this->outbox->table(), ['available_at' => '2000-01-01 00:00:00'], ['entity_id = ?' => $row['entity_id']]);
         $worker->execute();
         self::assertSame('sent', $this->outbox->find(PurchaseConsumer::TOPIC, $payload)['status']);
-        self::assertSame(1, (int) $this->db->fetchOne($this->db->select()->from($orderTable, ['loyalty_purchase_exported'])
-            ->where('entity_id = ?', $orderId)));
+        self::assertSame(1, (int) $this->db->fetchOne($this->db->select()->from($loyaltyOrderTable, ['loyalty_purchase_exported'])
+            ->where('order_id = ?', $orderId)));
     }
 
     public function testPermanentFailureIsVisibleAndNotRepeated(): void
@@ -546,7 +547,9 @@ class RuntimeTest extends TestCase
         $lock->method('lock')->willReturn(true);
         $maintenance = $this->createMock(MaintenanceMode::class);
         $maintenance->method('isOn')->willReturn(false);
-        $worker = new DeliverEvents($this->resource, $this->outbox, $lock, $api, new NullLogger(), $maintenance, [
+        $worker = new DeliverEvents($this->resource, $this->outbox, $lock, $api, new NullLogger(),
+            self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class),
+            self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\CreditmemoData::class), $maintenance, [
             PurchaseConsumer::TOPIC => new PurchaseConsumer($helper, $api),
             'loyaltyshop.return_event' => new \LoyaltyEngage\LoyaltyShop\Model\Queue\ReturnConsumer($helper, $api),
         ]);
@@ -567,7 +570,9 @@ class RuntimeTest extends TestCase
         $lock->method('lock')->willReturn(true);
         $maintenance = $this->createMock(MaintenanceMode::class);
         $maintenance->method('isOn')->willReturn(false);
-        return new DeliverEvents($this->resource, $this->outbox, $lock, $api, new NullLogger(), $maintenance,
+        return new DeliverEvents($this->resource, $this->outbox, $lock, $api, new NullLogger(),
+            self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class),
+            self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\CreditmemoData::class), $maintenance,
             [PurchaseConsumer::TOPIC => new PurchaseConsumer($helper, $api)]);
     }
 

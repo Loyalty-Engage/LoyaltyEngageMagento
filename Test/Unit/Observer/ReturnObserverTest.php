@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Test\Unit\Observer;
 
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
+use LoyaltyEngage\LoyaltyShop\Model\CreditmemoData;
 use LoyaltyEngage\LoyaltyShop\Observer\ReturnObserver;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
@@ -73,7 +74,9 @@ class ReturnObserverTest extends TestCase
         $observer = new Observer();
         $observer->setEvent(new Event(['creditmemo' => $creditmemo]));
 
-        (new ReturnObserver($helper, $publisher, $history))->execute($observer);
+        $creditmemoData = $this->createMock(CreditmemoData::class);
+        $creditmemoData->method('isReturnExported')->willReturn(false);
+        (new ReturnObserver($helper, $publisher, $history, $creditmemoData))->execute($observer);
     }
 
     public function testSkipsReturnWhenPurchaseWasNotExported(): void
@@ -94,7 +97,8 @@ class ReturnObserverTest extends TestCase
         (new ReturnObserver(
             $this->createMock(Data::class),
             $publisher,
-            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\PurchaseHistory::class)
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\PurchaseHistory::class),
+            $this->createMock(CreditmemoData::class)
         ))->execute($observer);
     }
 }

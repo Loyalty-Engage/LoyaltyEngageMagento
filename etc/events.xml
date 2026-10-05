@@ -7,6 +7,7 @@
         <observer name="loyaltyshop_quote_removals" instance="LoyaltyEngage\LoyaltyShop\Observer\QuoteSavedObserver"/>
     </event>
     <event name="sales_order_save_after">
+        <observer name="loyaltyshop_persist_order_data" instance="LoyaltyEngage\LoyaltyShop\Observer\PersistOrderDataObserver" />
         <observer name="loyaltyshop_purchase_event" instance="LoyaltyEngage\LoyaltyShop\Observer\PurchaseObserver" />
         <observer name="loyaltyshop_freeproduct_purchase" instance="LoyaltyEngage\LoyaltyShop\Observer\FreeProductPurchaseObserver" />
     </event>

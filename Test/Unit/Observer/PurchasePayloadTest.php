@@ -56,7 +56,9 @@ class PurchasePayloadTest extends TestCase
                 ], $payload['products']);
                 return true;
             }));
-        (new PurchaseObserver($helper, $publisher, $eligibility, $this->createMock(CouponOwnership::class)))
+        $orderData = $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class);
+        $orderData->method('isPurchaseExported')->willReturn(false);
+        (new PurchaseObserver($helper, $publisher, $eligibility, $this->createMock(CouponOwnership::class), $orderData))
             ->execute(new Observer(['event' => new Event(['order' => $order])]));
     }
 

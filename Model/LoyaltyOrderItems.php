@@ -8,13 +8,13 @@ use Magento\Sales\Model\Order\Item;
 
 class LoyaltyOrderItems
 {
-    public function __construct(private ResourceConnection $resource)
+    public function __construct(private ResourceConnection $resource, private OrderItemData $orderItemData)
     {
     }
 
     public function isRedemption(Item $item): bool
     {
-        if ($item->getData('loyalty_locked_qty')) {
+        if ($this->orderItemData->isRedemption($item)) {
             return true;
         }
         $options = $item->getProductOptions() ?: [];

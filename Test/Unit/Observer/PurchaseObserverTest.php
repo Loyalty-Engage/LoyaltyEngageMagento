@@ -51,7 +51,8 @@ class PurchaseObserverTest extends TestCase
             $helper,
             $publisher,
             $eligibility,
-            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\CouponOwnership::class)
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\CouponOwnership::class),
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class)
         ))->execute($observer);
     }
 }

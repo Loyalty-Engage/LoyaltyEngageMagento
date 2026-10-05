@@ -13,7 +13,8 @@ class PurchaseHistory
         private ResourceConnection $resource,
         private EventOutbox $outbox,
         private OrderExportEligibility $eligibility,
-        private Data $helper
+        private Data $helper,
+        private OrderData $orderData
     ) {
     }
 
@@ -25,9 +26,7 @@ class PurchaseHistory
             return true;
         }
         $db = $this->resource->getConnection();
-        $exported = $db->fetchOne($db->select()->from($this->resource->getTableName('sales_order'),
-            ['loyalty_purchase_exported'])->where('entity_id = ?', $order->getId()));
-        if ($exported) {
+        if ($this->orderData->isPurchaseExported($order)) {
             return true;
         }
         $cutover = $db->fetchOne($db->select()->from($this->resource->getTableName('core_config_data'), ['value'])

@@ -42,6 +42,9 @@ class FreeProductPurchaseObserverTest extends TestCase
         $observer = new Observer();
         $observer->setEvent(new Event(['order' => $order]));
 
-        (new FreeProductPurchaseObserver($helper, $publisher, $eligibility, $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyOrderItems::class)))->execute($observer);
+        $orderData = $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class);
+        $orderData->method('isOrderPlaced')->willReturn(false);
+        (new FreeProductPurchaseObserver($helper, $publisher, $eligibility,
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyOrderItems::class), $orderData))->execute($observer);
     }
 }

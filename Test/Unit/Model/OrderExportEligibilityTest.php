@@ -7,6 +7,7 @@ namespace LoyaltyEngage\LoyaltyShop\Test\Unit\Model;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
 use LoyaltyEngage\LoyaltyShop\Model\OrderExportEligibility;
 use LoyaltyEngage\LoyaltyShop\Model\OrderSource;
+use LoyaltyEngage\LoyaltyShop\Model\OrderData;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Status\History;
 use PHPUnit\Framework\TestCase;
@@ -19,7 +20,7 @@ class OrderExportEligibilityTest extends TestCase
         $helper->method('getAllowedOrderSources')->with(20)->willReturn([OrderSource::STOREFRONT]);
         $helper->method('getExcludedOrderCommentMarkers')->with(20)->willReturn([]);
 
-        $result = (new OrderExportEligibility($helper, new OrderSource()))->evaluate(
+        $result = (new OrderExportEligibility($helper, new OrderSource(), $this->orderData(OrderSource::STOREFRONT)))->evaluate(
             $this->createOrder(20, OrderSource::STOREFRONT)
         );
 
@@ -33,7 +34,7 @@ class OrderExportEligibilityTest extends TestCase
         $helper->method('getAllowedOrderSources')->with(20)->willReturn([OrderSource::STOREFRONT]);
         $helper->expects(self::never())->method('getExcludedOrderCommentMarkers');
 
-        $result = (new OrderExportEligibility($helper, new OrderSource()))->evaluate(
+        $result = (new OrderExportEligibility($helper, new OrderSource(), $this->orderData(OrderSource::API)))->evaluate(
             $this->createOrder(20, OrderSource::API)
         );
 
@@ -53,7 +54,7 @@ class OrderExportEligibilityTest extends TestCase
         $order = $this->createOrder(20, OrderSource::UNKNOWN);
         $order->method('getAllStatusHistory')->willReturn([$history]);
 
-        $result = (new OrderExportEligibility($helper, new OrderSource()))->evaluate($order);
+        $result = (new OrderExportEligibility($helper, new OrderSource(), $this->orderData(OrderSource::UNKNOWN)))->evaluate($order);
 
         self::assertFalse($result['eligible']);
         self::assertSame('excluded_order_comment', $result['reason']);
@@ -72,7 +73,7 @@ class OrderExportEligibilityTest extends TestCase
         $order->method('getAllStatusHistory')->willReturn([]);
         $order->method('getStatusHistories')->willReturn([$history]);
 
-        $result = (new OrderExportEligibility($helper, new OrderSource()))->evaluate($order);
+        $result = (new OrderExportEligibility($helper, new OrderSource(), $this->orderData(OrderSource::UNKNOWN)))->evaluate($order);
 
         self::assertFalse($result['eligible']);
         self::assertSame('excluded_order_comment', $result['reason']);
@@ -85,5 +86,12 @@ class OrderExportEligibilityTest extends TestCase
         $order->method('getData')->with('loyalty_order_source')->willReturn($source);
 
         return $order;
+    }
+
+    private function orderData(string $source): OrderData
+    {
+        $data = $this->createMock(OrderData::class);
+        $data->method('source')->willReturn($source);
+        return $data;
     }
 }

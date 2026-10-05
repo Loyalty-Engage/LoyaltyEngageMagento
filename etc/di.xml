@@ -22,17 +22,6 @@
         type="LoyaltyEngage\LoyaltyShop\Model\Data\CustomerLoyaltyUpdateResponse" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartItemInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCartItem" />
-    <virtualType name="Magento\Sales\Model\ResourceModel\Order\Grid"
-        type="Magento\Sales\Model\ResourceModel\Grid">
-        <arguments>
-            <argument name="columns" xsi:type="array">
-                <item name="loyalty_order_place" xsi:type="string">
-                    sales_order.loyalty_order_place</item>
-                <item name="loyalty_order_place_retrieve" xsi:type="string">
-                    sales_order.loyalty_order_place_retrieve</item>
-            </argument>
-        </arguments>
-    </virtualType>
     <type name="Magento\Customer\CustomerData\Customer">
         <plugin name="loyaltyshop_customer_data_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\CustomerDataPlugin" />

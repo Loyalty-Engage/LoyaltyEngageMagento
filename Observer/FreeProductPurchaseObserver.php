@@ -15,14 +15,15 @@ class FreeProductPurchaseObserver implements ObserverInterface
 {
     public function __construct(
         private Data $helper, private PublisherInterface $publisher,
-        private OrderExportEligibility $exportEligibility, private LoyaltyOrderItems $loyaltyItems
+        private OrderExportEligibility $exportEligibility, private LoyaltyOrderItems $loyaltyItems,
+        private \LoyaltyEngage\LoyaltyShop\Model\OrderData $orderData
     ) {
     }
 
     public function execute(Observer $observer): void
     {
         $order = $observer->getEvent()->getOrder();
-        if (!$order instanceof Order || !$order->getId() || $order->getData('loyalty_order_place')) {
+        if (!$order instanceof Order || !$order->getId() || $this->orderData->isOrderPlaced($order)) {
             return;
         }
         $storeId = (int) $order->getStoreId();

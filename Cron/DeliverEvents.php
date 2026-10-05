@@ -19,6 +19,8 @@ class DeliverEvents
         private LockManagerInterface $lock,
         private ApiClient $apiClient,
         private LoggerInterface $logger,
+        private \LoyaltyEngage\LoyaltyShop\Model\OrderData $orderData,
+        private \LoyaltyEngage\LoyaltyShop\Model\CreditmemoData $creditmemoData,
         private \Magento\Framework\App\MaintenanceMode $maintenance,
         private array $consumers = []
     ) {
@@ -106,14 +108,15 @@ class DeliverEvents
     {
         $db = $this->resource->getConnection();
         if (in_array($topic, ['loyaltyshop.purchase_event', 'loyaltyshop.free_product_purchase_event'], true)) {
-            $column = $topic === 'loyaltyshop.purchase_event' ? 'loyalty_purchase_exported' : 'loyalty_order_place';
-            $db->update($this->resource->getTableName('sales_order'), [$column => 1], [
-                'increment_id = ?' => $payload['orderId'], 'store_id = ?' => $payload['store_id'],
-            ]);
+            $order = $this->resource->getConnection()->fetchRow($this->resource->getConnection()->select()
+                ->from($this->resource->getTableName('sales_order'))->where('increment_id = ?', $payload['orderId'])
+                ->where('store_id = ?', $payload['store_id']));
+            if ($order) {
+                $this->orderData->markDeliveredById((int) $order['entity_id'], (int) $order['store_id'], $topic === 'loyaltyshop.purchase_event'
+                    ? 'loyalty_purchase_exported' : 'loyalty_order_place');
+            }
         } elseif ($topic === 'loyaltyshop.return_event' && !empty($payload['creditmemo_id'])) {
-            $db->update($this->resource->getTableName('sales_creditmemo'), ['loyalty_return_exported' => 1], [
-                'entity_id = ?' => $payload['creditmemo_id'],
-            ]);
+            $this->creditmemoData->markExportedById((int) $payload['creditmemo_id']);
         }
     }
 }

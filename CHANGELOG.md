@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-10-05
+
+### Changed
+- Loyalty order, order-item and creditmemo delivery state is stored in dedicated `loyaltyshop_*_data` tables with foreign keys and unique identifiers; Magento sales tables are no longer extended or updated by the module.
+- Existing installations read legacy columns lazily per entity during the transition, avoiding a full-table migration during deployment. New orders persist only loyalty-owned state in the dedicated tables.
+- Removed the loyalty order-grid schema extension and its global join so standard order/grid queries remain untouched.
+
 ## [2.6.1] - 2026-09-29
 
 ### Fixed

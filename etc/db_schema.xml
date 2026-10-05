@@ -40,9 +40,6 @@
     <table name="quote_item" resource="checkout" engine="innodb">
         <column xsi:type="boolean" name="loyalty_locked_qty" nullable="false" default="0" comment="Loyalty Redemption Item"/>
     </table>
-    <table name="sales_order_item" resource="sales" engine="innodb">
-        <column xsi:type="boolean" name="loyalty_locked_qty" nullable="false" default="0" comment="Loyalty Redemption Item"/>
-    </table>
     <table name="salesrule" resource="default" engine="innodb">
         <column xsi:type="boolean" name="loyaltyengage_managed" nullable="false" default="0" comment="Managed By Loyalty Engage"/>
     </table>
@@ -84,26 +81,31 @@
         </index>
     </table>
 
-    <table name="sales_order" resource="default" engine="innodb">
-        <column xsi:type="boolean" name="loyalty_order_place" nullable="false" default="0"
-            comment="Loyalty Order Placed" />
-        <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
-            comment="Loyalty Order Retrieve Count" />
-        <column xsi:type="boolean" name="loyalty_purchase_exported" nullable="false" default="0"
-            comment="Loyalty Purchase Event Exported" />
-        <column xsi:type="varchar" name="loyalty_order_source" nullable="false" default="unknown"
-            length="32" comment="Loyalty Order Source" />
+    <table name="loyaltyshop_order_data" resource="default" engine="innodb" comment="Loyalty order state">
+        <column xsi:type="int" name="order_id" unsigned="true" nullable="false" comment="Sales Order ID"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" comment="Store ID"/>
+        <column xsi:type="boolean" name="loyalty_order_place" nullable="false" default="0" comment="Loyalty Order Place"/>
+        <column xsi:type="int" name="loyalty_order_place_retrieve" unsigned="true" nullable="false" default="0" comment="Retrieve Count"/>
+        <column xsi:type="boolean" name="loyalty_purchase_exported" nullable="false" default="0" comment="Purchase Exported"/>
+        <column xsi:type="varchar" name="loyalty_order_source" length="32" nullable="false" default="unknown" comment="Order Source"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="false"/>
+        <column xsi:type="timestamp" name="updated_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="true"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="order_id"/></constraint>
+        <constraint xsi:type="foreign" referenceId="LOYALTYSHOP_ORDER_DATA_ORDER_ID_SALES_ORDER_ENTITY_ID" table="loyaltyshop_order_data" column="order_id" referenceTable="sales_order" referenceColumn="entity_id" onDelete="CASCADE"/>
+        <constraint xsi:type="foreign" referenceId="LOYALTYSHOP_ORDER_DATA_STORE_ID_STORE_STORE_ID" table="loyaltyshop_order_data" column="store_id" referenceTable="store" referenceColumn="store_id" onDelete="CASCADE"/>
+        <index referenceId="LOYALTYSHOP_ORDER_DATA_STORE_ID" indexType="btree"><column name="store_id"/></index>
+        <index referenceId="LOYALTYSHOP_ORDER_DATA_PURCHASE_EXPORTED" indexType="btree"><column name="loyalty_purchase_exported"/></index>
     </table>
-
-    <table name="sales_order_grid" resource="default" engine="innodb">
-        <column xsi:type="boolean" name="loyalty_order_place" nullable="false" default="0"
-            comment="Loyalty Order Placed" />
-        <column xsi:type="int" name="loyalty_order_place_retrieve" nullable="false" default="0"
-            comment="Loyalty Order Retrieve Count" />
+    <table name="loyaltyshop_order_item_data" resource="default" engine="innodb" comment="Loyalty order item state">
+        <column xsi:type="int" name="order_item_id" unsigned="true" nullable="false" comment="Sales Order Item ID"/>
+        <column xsi:type="boolean" name="loyalty_locked_qty" nullable="false" default="0" comment="Loyalty Redemption Item"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="order_item_id"/></constraint>
+        <constraint xsi:type="foreign" referenceId="LOYALTYSHOP_ORDER_ITEM_DATA_ORDER_ITEM_ID_SALES_ORDER_ITEM_ITEM_ID" table="loyaltyshop_order_item_data" column="order_item_id" referenceTable="sales_order_item" referenceColumn="item_id" onDelete="CASCADE"/>
     </table>
-
-    <table name="sales_creditmemo" resource="default" engine="innodb">
-        <column xsi:type="boolean" name="loyalty_return_exported" nullable="false" default="0"
-            comment="Loyalty Return Event Exported" />
+    <table name="loyaltyshop_creditmemo_data" resource="default" engine="innodb" comment="Loyalty creditmemo state">
+        <column xsi:type="int" name="creditmemo_id" unsigned="true" nullable="false" comment="Sales Creditmemo ID"/>
+        <column xsi:type="boolean" name="loyalty_return_exported" nullable="false" default="0" comment="Return Exported"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="creditmemo_id"/></constraint>
+        <constraint xsi:type="foreign" referenceId="LOYALTYSHOP_CREDITMEMO_DATA_CREDITMEMO_ID_SALES_CREDITMEMO_ENTITY_ID" table="loyaltyshop_creditmemo_data" column="creditmemo_id" referenceTable="sales_creditmemo" referenceColumn="entity_id" onDelete="CASCADE"/>
     </table>
 </schema>

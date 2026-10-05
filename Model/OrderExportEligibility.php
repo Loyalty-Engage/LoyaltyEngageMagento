@@ -11,7 +11,8 @@ class OrderExportEligibility
 {
     public function __construct(
         private Data $helper,
-        private OrderSource $orderSource
+        private OrderSource $orderSource,
+        private OrderData $orderData
     ) {
     }
 
@@ -21,7 +22,7 @@ class OrderExportEligibility
     public function evaluate(Order $order): array
     {
         $storeId = (int) $order->getStoreId();
-        $source = $this->orderSource->normalize((string) $order->getData('loyalty_order_source'));
+        $source = $this->orderSource->normalize($this->orderData->source($order));
 
         if (!in_array($source, $this->helper->getAllowedOrderSources($storeId), true)) {
             return [

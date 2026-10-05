@@ -4,6 +4,10 @@ Review date: 2026-09-24. Live acceptance follow-up: 2026-09-27/28. Release targe
 
 ## Confirmed Findings and Fixes
 
+### Large Sales Tables
+
+The module no longer declares or writes loyalty columns on `sales_order`, `sales_order_item`, `sales_order_grid` or `sales_creditmemo`. New state lives in `loyaltyshop_order_data`, `loyaltyshop_order_item_data` and `loyaltyshop_creditmemo_data`, each keyed to its Magento entity with a foreign key and cascade delete. Existing legacy columns are read only for the individual entity being processed when the new row does not exist; there is no bulk `INSERT ... SELECT` migration during `setup:upgrade`. This keeps deployment and rollback independent of the size of the sales tables.
+
 | Priority | Finding | Resolution |
 | --- | --- | --- |
 | Blocker | The automatic Brons rule used an invalid `free_shipping` calculator and could break totals. | New rules are inactive, use `by_percent` with zero discount and address free shipping. A separate repair patch corrects already-installed invalid rules. |
@@ -37,7 +41,7 @@ Review date: 2026-09-24. Live acceptance follow-up: 2026-09-27/28. Release targe
 ## Deployment
 
 1. Back up the database and configuration. Test the release candidate on staging using the merchant's themes, enabled modules and PHP version. Drain or stop existing queue workers during code deployment; do not leave workers running old PHP code.
-2. Enable maintenance mode, deploy the module and run `bin/magento setup:upgrade`. New named patches repair old shipping rules, encrypt legacy credentials, mark generated coupon rules and establish the event-tracking cutover. Existing explicit consumer-runner settings are preserved; a nonempty consumer allowlist is extended with the six legacy consumers.
+2. Enable maintenance mode, deploy the module and run `bin/magento setup:upgrade`. The release creates only the dedicated loyalty state tables; it does not rebuild or scan the large sales tables. New named patches repair old shipping rules, encrypt legacy credentials, mark generated coupon rules and establish the event-tracking cutover. Existing explicit consumer-runner settings are preserved; a nonempty consumer allowlist is extended with the six legacy consumers.
 3. Run `bin/magento setup:di:compile`, deploy static assets for the actual themes/locales, then `bin/magento cache:clean`. Keep health checks and concurrent requests from regenerating code during compilation. Do not delete business data or event records to clear caches.
 4. Disable maintenance mode and resume the normal Magento cron/workers. `bin/magento setup:db:status` must report that modules are up to date.
 5. Check `bin/magento loyalty:events` and confirm the new cron jobs run successfully in `cron_schedule`. Review pending age, failure counts and processing throughput for the merchant's actual order volume.

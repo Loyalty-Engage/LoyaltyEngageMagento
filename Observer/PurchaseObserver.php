@@ -17,7 +17,8 @@ class PurchaseObserver implements ObserverInterface
         private Data $helper,
         private PublisherInterface $publisher,
         private OrderExportEligibility $exportEligibility,
-        private CouponOwnership $coupons
+        private CouponOwnership $coupons,
+        private \LoyaltyEngage\LoyaltyShop\Model\OrderData $orderData
     ) {
     }
 
@@ -36,7 +37,7 @@ class PurchaseObserver implements ObserverInterface
             || !$this->exportEligibility->evaluate($order)['eligible']) {
             return;
         }
-        if ($this->helper->isPurchaseExportEnabled($storeId) && !$order->getData('loyalty_purchase_exported')) {
+        if ($this->helper->isPurchaseExportEnabled($storeId) && !$this->orderData->isPurchaseExported($order)) {
             $products = [];
             foreach ($order->getAllItems() as $item) {
                 if (($item->getParentItemId() && !$item->isChildrenCalculated())

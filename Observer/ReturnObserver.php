@@ -12,7 +12,8 @@ use Magento\Sales\Model\Order\Creditmemo;
 
 class ReturnObserver implements ObserverInterface
 {
-    public function __construct(private Data $helper, private PublisherInterface $publisher, private PurchaseHistory $history)
+    public function __construct(private Data $helper, private PublisherInterface $publisher, private PurchaseHistory $history,
+        private \LoyaltyEngage\LoyaltyShop\Model\CreditmemoData $creditmemoData)
     {
     }
 
@@ -21,7 +22,7 @@ class ReturnObserver implements ObserverInterface
         $creditmemo = $observer->getEvent()->getCreditmemo();
         if (!$creditmemo instanceof Creditmemo || !$creditmemo->getId()
             || (int) $creditmemo->getState() !== Creditmemo::STATE_REFUNDED
-            || $creditmemo->getData('loyalty_return_exported')) {
+            || $this->creditmemoData->isReturnExported($creditmemo)) {
             return;
         }
         $order = $creditmemo->getOrder();

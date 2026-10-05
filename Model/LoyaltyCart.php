@@ -40,7 +40,8 @@ class LoyaltyCart implements LoyaltyCartInterface
         private \Magento\Quote\Api\CartRepositoryInterfaceFactory $quoteRepositories,
         private \Magento\Sales\Api\OrderRepositoryInterface $orders,
         private OrderExportEligibility $exportEligibility,
-        private PhysicalCartReconciler $physicalReconciler
+        private PhysicalCartReconciler $physicalReconciler,
+        private OrderData $orderData
     ) {
     }
 
@@ -166,10 +167,10 @@ class LoyaltyCart implements LoyaltyCartInterface
             if (!$order || !$products) {
                 throw new LocalizedException(__('The order does not belong to this customer and store.'));
             }
-            if ($order['loyalty_order_place']) {
+            $orderModel = $this->orders->get((int) $order['entity_id']);
+            if ($this->orderData->isOrderPlaced($orderModel)) {
                 return 'Order redemption was already delivered.';
             }
-            $orderModel = $this->orders->get((int) $order['entity_id']);
             if (!in_array($orderModel->getStatus(), $this->helper->getPurchaseOrderStatuses($storeId), true)
                 || !$this->exportEligibility->evaluate($orderModel)['eligible']) {
                 throw new LocalizedException(__('This order does not qualify for loyalty export.'));
@@ -182,8 +183,11 @@ class LoyaltyCart implements LoyaltyCartInterface
                 $requested[$product->getSku()] = (float) $product->getQuantity();
             }
             $actual = [];
-            foreach ($db->fetchAll($db->select()->from($this->resource->getTableName('sales_order_item'))
-                ->where('order_id = ?', $order['entity_id'])->where('loyalty_locked_qty = ?', 1)) as $item) {
+            foreach ($db->fetchAll($db->select()->from([
+                'i' => $this->resource->getTableName('sales_order_item')
+            ])->joinInner(['li' => $this->resource->getTableName('loyaltyshop_order_item_data')],
+                'li.order_item_id = i.item_id', [])->where('i.order_id = ?', $order['entity_id'])
+                ->where('li.loyalty_locked_qty = ?', 1)) as $item) {
                 $quantity = (float) $item['qty_ordered'] - (float) $item['qty_canceled'];
                 if ($quantity > 0) {
                     $actual[$item['sku']] = ($actual[$item['sku']] ?? 0.0) + $quantity;
