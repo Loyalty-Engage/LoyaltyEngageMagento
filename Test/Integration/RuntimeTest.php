@@ -73,6 +73,91 @@ class RuntimeTest extends TestCase
             ->where('event_key = ?', $row['event_key'])));
     }
 
+    public function testLegacyFlagsSurviveFirstSourceWriteAndSubsequentDelivery(): void
+    {
+        $table = $this->resource->getTableName('sales_order');
+        if (!$this->db->tableColumnExists($table, 'loyalty_order_source')) {
+            self::markTestSkipped('Legacy-column upgrade fixture requires a pre-2.6.2 database.');
+        }
+        $this->db->insert($table, ['increment_id' => 'MIG-' . bin2hex(random_bytes(6)),
+            'store_id' => $this->storeId, 'loyalty_order_source' => 'api',
+            'loyalty_purchase_exported' => 1, 'loyalty_order_place' => 1]);
+        $id = (int) $this->db->lastInsertId($table);
+        $order = self::$om->get(\Magento\Sales\Model\OrderFactory::class)->create()
+            ->setId($id)->setStoreId($this->storeId)->setData('loyalty_order_source', 'unknown');
+        $data = self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class);
+        $data->saveSource($order, 'storefront');
+        self::assertTrue($data->isPurchaseExported($order));
+        self::assertTrue($data->isOrderPlaced($order));
+        self::assertSame('storefront', $data->source($order));
+        // A normal resave carrying stale legacy data must not overwrite the new source.
+        self::$om->get(\LoyaltyEngage\LoyaltyShop\Observer\PersistOrderDataObserver::class)
+            ->execute(new \Magento\Framework\Event\Observer([
+                'event' => new \Magento\Framework\Event(['order' => $order]),
+            ]));
+        self::assertSame('storefront', $data->source($order));
+        $data->markDeliveredById($id, $this->storeId, 'loyalty_purchase_exported');
+        self::assertTrue($data->isOrderPlaced($order));
+        self::assertSame('storefront', $data->source($order));
+    }
+
+    public function testFirstDeliverySeedsOtherLegacyFlags(): void
+    {
+        $table = $this->resource->getTableName('sales_order');
+        if (!$this->db->tableColumnExists($table, 'loyalty_order_source')) {
+            self::markTestSkipped('Requires legacy columns.');
+        }
+        $this->db->insert($table, ['increment_id' => 'DEL-' . bin2hex(random_bytes(6)),
+            'store_id' => $this->storeId, 'loyalty_order_source' => 'api',
+            'loyalty_order_place' => 1]);
+        $id = (int) $this->db->lastInsertId($table);
+        $data = self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class);
+        $data->markDeliveredById($id, $this->storeId, 'loyalty_purchase_exported');
+        $order = self::$om->get(\Magento\Sales\Model\OrderFactory::class)->create()
+            ->setId($id)->setStoreId($this->storeId);
+        self::assertTrue($data->isOrderPlaced($order));
+        self::assertTrue($data->isPurchaseExported($order));
+        self::assertSame('api', $data->source($order));
+    }
+
+    public function testFirstOrderSavePersistsItemMarkerAndSourceWithoutSecondSave(): void
+    {
+        $order = self::$om->get(\Magento\Sales\Model\OrderFactory::class)->create();
+        $order->setStoreId($this->storeId)->setIncrementId('FIRST-' . bin2hex(random_bytes(6)))
+            ->setState('new')->setStatus('pending')->setCustomerEmail('fixture@example.invalid')
+            ->setData(\LoyaltyEngage\LoyaltyShop\Model\OrderData::CAPTURED_SOURCE, 'api');
+        $order->setPayment(self::$om->get(\Magento\Sales\Model\Order\PaymentFactory::class)->create()->setMethod('checkmo'));
+        $factory = self::$om->get(\Magento\Sales\Model\Order\ItemFactory::class);
+        $reward = $factory->create()->setSku('REWARD')->setQtyOrdered(1)
+            ->setProductOptions(['loyalty_locked_qty' => 1]);
+        $paid = $factory->create()->setSku('PAID')->setQtyOrdered(1);
+        $order->addItem($reward)->addItem($paid);
+        self::$om->get(\Magento\Sales\Model\ResourceModel\Order::class)->save($order);
+        self::assertGreaterThan(0, (int) $reward->getId());
+        $table = $this->resource->getTableName('loyaltyshop_order_item_data');
+        self::assertSame(1, (int) $this->db->fetchOne($this->db->select()->from($table, ['loyalty_locked_qty'])
+            ->where('order_item_id = ?', $reward->getId())));
+        self::assertFalse($this->db->fetchOne($this->db->select()->from($table, ['order_item_id'])
+            ->where('order_item_id = ?', $paid->getId())));
+        $reloaded = self::$om->get(\Magento\Sales\Model\OrderFactory::class)->create();
+        self::$om->get(\Magento\Sales\Model\ResourceModel\Order::class)->load($reloaded, $order->getId());
+        self::assertSame('api', self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class)->source($reloaded));
+        $items = self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyOrderItems::class)
+            ->redemptionItems($reloaded->getAllVisibleItems());
+        self::assertSame(['REWARD'], array_values(array_map(static fn($item) => $item->getSku(), $items)));
+    }
+
+    public function testBatchMarkersSupportLegacyItemsWithoutNewRows(): void
+    {
+        $factory = self::$om->get(\Magento\Sales\Model\Order\ItemFactory::class);
+        $legacy = $factory->create()->setSku('LEGACY')->setData('loyalty_locked_qty', 1);
+        $modern = $factory->create()->setSku('MODERN')->setProductOptions(['loyalty_locked_qty' => 1]);
+        $paid = $factory->create()->setSku('PAID');
+        $items = self::$om->get(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyOrderItems::class)
+            ->redemptionItems([$legacy, $modern, $paid]);
+        self::assertSame(['LEGACY', 'MODERN'], array_values(array_map(static fn($item) => $item->getSku(), $items)));
+    }
+
     public function testLegacyConsumerTransfersMessageWithoutCallingApi(): void
     {
         $payload = $this->purchase();

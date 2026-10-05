@@ -9,7 +9,8 @@ use Magento\Sales\Model\Order;
 
 class OrderData
 {
-    private ?bool $legacyColumnsAvailable = null;
+    public const CAPTURED_SOURCE = '_loyaltyshop_captured_source';
+    private ?array $legacyColumns = null;
 
     public function __construct(private ResourceConnection $resource)
     {
@@ -20,20 +21,15 @@ class OrderData
         $db = $this->resource->getConnection();
         $row = $db->fetchRow($db->select()->from($this->resource->getTableName('loyaltyshop_order_data'))
             ->where('order_id = ?', (int) $order->getId()));
-        if (!$row && $this->hasLegacyColumns()) {
-            $row = $db->fetchRow($db->select()->from($this->resource->getTableName('sales_order'), [
-                'order_id' => 'entity_id', 'store_id', 'loyalty_order_place',
-                'loyalty_order_place_retrieve', 'loyalty_purchase_exported', 'loyalty_order_source',
-            ])->where('entity_id = ?', (int) $order->getId()));
-        }
-        return $row ?: ['order_id' => (int) $order->getId(), 'store_id' => (int) $order->getStoreId(),
+        return $row ?: $this->legacyData((int) $order->getId()) + [
+            'order_id' => (int) $order->getId(), 'store_id' => (int) $order->getStoreId(),
             'loyalty_order_place' => 0, 'loyalty_order_place_retrieve' => 0,
             'loyalty_purchase_exported' => 0, 'loyalty_order_source' => OrderSource::UNKNOWN];
     }
 
     public function source(Order $order): string
     {
-        $runtimeSource = $order->getData('loyalty_order_source');
+        $runtimeSource = $order->getData(self::CAPTURED_SOURCE);
         if (is_string($runtimeSource) && $runtimeSource !== '') {
             return $runtimeSource;
         }
@@ -70,22 +66,33 @@ class OrderData
 
     private function upsert(int $orderId, int $storeId, array $values): void
     {
-        $values += ['order_id' => $orderId, 'store_id' => $storeId];
         $db = $this->resource->getConnection();
-        $db->insertOnDuplicate($this->resource->getTableName('loyaltyshop_order_data'), $values, array_keys($values));
+        $table = $this->resource->getTableName('loyaltyshop_order_data');
+        $exists = $db->fetchOne($db->select()->from($table, ['order_id'])->where('order_id = ?', $orderId));
+        $changed = array_keys($values);
+        // Seed all legacy flags on first write. A concurrent insert must only receive
+        // the requested changes, never stale flags from our compatibility read.
+        $row = $values + ['order_id' => $orderId, 'store_id' => $storeId];
+        if (!$exists) {
+            $row += $this->legacyData($orderId);
+        }
+        $db->insertOnDuplicate($table, $row, $changed);
     }
 
-    private function hasLegacyColumns(): bool
+    private function legacyData(int $orderId): array
     {
-        if ($this->legacyColumnsAvailable !== null) {
-            return $this->legacyColumnsAvailable;
+        if (!$orderId) {
+            return [];
         }
         $db = $this->resource->getConnection();
-        $this->legacyColumnsAvailable = (bool) $db->fetchOne($db->select()
-            ->from('information_schema.columns', ['column_name'])
-            ->where('table_schema = DATABASE()')
-            ->where('table_name = ?', $this->resource->getTableName('sales_order'))
-            ->where('column_name = ?', 'loyalty_order_source'));
-        return $this->legacyColumnsAvailable;
+        $table = $this->resource->getTableName('sales_order');
+        if ($this->legacyColumns === null) {
+            $this->legacyColumns = array_values(array_intersect([
+                'loyalty_order_place', 'loyalty_order_place_retrieve',
+                'loyalty_purchase_exported', 'loyalty_order_source',
+            ], array_keys($db->describeTable($table))));
+        }
+        return $this->legacyColumns ? ($db->fetchRow($db->select()->from($table, $this->legacyColumns)
+            ->where('entity_id = ?', $orderId)) ?: []) : [];
     }
 }

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] - 2026-10-05
+
+### Fixed
+- Preserve available legacy flags on first order-state writes; concurrent upserts update only intended fields.
+- Keep captured order source separate from legacy columns so stale values cannot overwrite the current source.
+- Persist redemption markers on the item-save event, including the first order save.
+- Resolve legacy redemption items consistently in claims and automatic exports.
+
+### Performance
+- Ordinary order saves no longer load all items to persist loyalty data.
+- Resolve item markers with at most two batched queries per order.
+- Skip free-product delivery-state lookups on unchanged or ineligible statuses.
+
 ## [2.6.2] - 2026-10-05
 
 ### Changed

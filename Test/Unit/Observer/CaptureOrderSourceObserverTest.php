@@ -23,7 +23,7 @@ class CaptureOrderSourceObserverTest extends TestCase
         $order = $this->createMock(Order::class);
         $order->expects(self::once())
             ->method('setData')
-            ->with('loyalty_order_source', OrderSource::API);
+            ->with(\LoyaltyEngage\LoyaltyShop\Model\OrderData::CAPTURED_SOURCE, OrderSource::API);
 
         $observer = new Observer();
         $observer->setEvent(new Event(['order' => $order]));
@@ -39,7 +39,7 @@ class CaptureOrderSourceObserverTest extends TestCase
         $order = $this->createMock(Order::class);
         $order->expects(self::once())
             ->method('setData')
-            ->with('loyalty_order_source', OrderSource::UNKNOWN);
+            ->with(\LoyaltyEngage\LoyaltyShop\Model\OrderData::CAPTURED_SOURCE, OrderSource::UNKNOWN);
 
         $observer = new Observer();
         $observer->setEvent(new Event(['order' => $order]));

@@ -2,11 +2,21 @@
 
 Review date: 2026-09-24. Live acceptance follow-up: 2026-09-27/28. Release target: 2.6.1 (2026-09-29); existing release tags are unchanged.
 
+## 2.6.3 Verification
+
+Follow-up fixes first-save item persistence, legacy flag initialization and source precedence. Magento 2.4.8 / PHP 8.3 validation passed: 99 unit tests (244 assertions), 30 runtime tests (187 assertions), six frontend tests and DI compilation. New runtime cases save and reload an actual order with its items and verify legacy flag preservation. Runtime fixtures roll back database changes and mock outbound transport.
+
+The order-state observer performs no item loads or writes without a newly captured source. A unit test verifies that 100 unresolved items require two marker queries. This is a query-count check, not a production-volume or concurrency benchmark.
+
+Installations that already processed orders with 2.6.2 must inspect affected source/flag rows before historical replay. This fix prevents further overwrites but cannot infer lost source values or prove remote delivery. No automatic bulk repair is run. Keep the dedicated tables on rollback; older code reading only legacy columns cannot see newer state, so delivery state must be reviewed before reverting or replaying events.
+
 ## Confirmed Findings and Fixes
 
 ### Large Sales Tables
 
-The module no longer declares or writes loyalty columns on `sales_order`, `sales_order_item`, `sales_order_grid` or `sales_creditmemo`. New state lives in `loyaltyshop_order_data`, `loyaltyshop_order_item_data` and `loyaltyshop_creditmemo_data`, each keyed to its Magento entity with a foreign key and cascade delete. Existing legacy columns are read only for the individual entity being processed when the new row does not exist; there is no bulk `INSERT ... SELECT` migration during `setup:upgrade`. This keeps deployment and rollback independent of the size of the sales tables.
+The module no longer declares or writes loyalty columns on `sales_order`, `sales_order_item`, `sales_order_grid` or `sales_creditmemo`. New state lives in `loyaltyshop_order_data`, `loyaltyshop_order_item_data` and `loyaltyshop_creditmemo_data`, each keyed to its Magento entity with a foreign key and cascade delete. Existing legacy columns are read only for the individual entity being processed when the new row does not exist; there is no bulk `INSERT ... SELECT` migration during `setup:upgrade`. Leaving the dedicated tables in place avoids a schema rollback, but code rollback requires the delivery-state review described above.
+
+Before production deployment, review the actual upgrade SQL on ACC for the installed module set: no ALTER or DROP on sales_order or sales_order_item should be introduced by this module. Existing declarations still extend quote_item, quote_address and salesrule; assess their upgrade cost on the merchant database. Foreign-key creation can acquire metadata locks. No production-size load benchmark has been performed.
 
 | Priority | Finding | Resolution |
 | --- | --- | --- |

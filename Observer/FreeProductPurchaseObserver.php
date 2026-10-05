@@ -23,7 +23,7 @@ class FreeProductPurchaseObserver implements ObserverInterface
     public function execute(Observer $observer): void
     {
         $order = $observer->getEvent()->getOrder();
-        if (!$order instanceof Order || !$order->getId() || $this->orderData->isOrderPlaced($order)) {
+        if (!$order instanceof Order || !$order->getId()) {
             return;
         }
         $storeId = (int) $order->getStoreId();
@@ -32,13 +32,14 @@ class FreeProductPurchaseObserver implements ObserverInterface
         }
         if (!$this->helper->isLoyaltyEngageEnabled($storeId)
             || !in_array($order->getStatus(), $this->helper->getPurchaseOrderStatuses($storeId), true)
-            || !$this->exportEligibility->evaluate($order)['eligible']) {
+            || !$this->exportEligibility->evaluate($order)['eligible']
+            || $this->orderData->isOrderPlaced($order)) {
             return;
         }
         $products = [];
-        foreach ($order->getAllVisibleItems() as $item) {
+        foreach ($this->loyaltyItems->redemptionItems($order->getAllVisibleItems()) as $item) {
             $quantity = (float) $item->getQtyOrdered() - (float) $item->getQtyCanceled();
-            if ($quantity > 0 && $this->loyaltyItems->isRedemption($item)) {
+            if ($quantity > 0) {
                 $products[] = ['sku' => $item->getSku(), 'quantity' => $quantity];
             }
         }

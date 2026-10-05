@@ -31,6 +31,7 @@ class CaptureOrderSourceObserver implements ObserverInterface
             $areaCode = '';
         }
 
-        $order->setData('loyalty_order_source', $this->orderSource->fromAreaCode($areaCode));
+        $order->setData(\LoyaltyEngage\LoyaltyShop\Model\OrderData::CAPTURED_SOURCE,
+            $this->orderSource->fromAreaCode($areaCode));
     }
 }

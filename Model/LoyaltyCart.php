@@ -41,7 +41,8 @@ class LoyaltyCart implements LoyaltyCartInterface
         private \Magento\Sales\Api\OrderRepositoryInterface $orders,
         private OrderExportEligibility $exportEligibility,
         private PhysicalCartReconciler $physicalReconciler,
-        private OrderData $orderData
+        private OrderData $orderData,
+        private LoyaltyOrderItems $loyaltyItems
     ) {
     }
 
@@ -183,14 +184,10 @@ class LoyaltyCart implements LoyaltyCartInterface
                 $requested[$product->getSku()] = (float) $product->getQuantity();
             }
             $actual = [];
-            foreach ($db->fetchAll($db->select()->from([
-                'i' => $this->resource->getTableName('sales_order_item')
-            ])->joinInner(['li' => $this->resource->getTableName('loyaltyshop_order_item_data')],
-                'li.order_item_id = i.item_id', [])->where('i.order_id = ?', $order['entity_id'])
-                ->where('li.loyalty_locked_qty = ?', 1)) as $item) {
-                $quantity = (float) $item['qty_ordered'] - (float) $item['qty_canceled'];
+            foreach ($this->loyaltyItems->redemptionItems($orderModel->getAllVisibleItems()) as $item) {
+                $quantity = (float) $item->getQtyOrdered() - (float) $item->getQtyCanceled();
                 if ($quantity > 0) {
-                    $actual[$item['sku']] = ($actual[$item['sku']] ?? 0.0) + $quantity;
+                    $actual[$item->getSku()] = ($actual[$item->getSku()] ?? 0.0) + $quantity;
                 }
             }
             ksort($requested);
