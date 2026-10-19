@@ -5,6 +5,8 @@
         <loyalty>
             <export>
                 <purchase_order_status>complete</purchase_order_status>
+                <event_price_includes_tax>0</event_price_includes_tax>
+                <exclude_tier_priced_items>0</exclude_tier_priced_items>
                 <allowed_order_sources>storefront,admin,api,unknown</allowed_order_sources>
                 <excluded_order_comment_markers></excluded_order_comment_markers>
             </export>

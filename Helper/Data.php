@@ -140,6 +140,24 @@ class Data extends AbstractHelper
         );
     }
 
+    public function isEventPriceIncludingTax(?int $storeId = null): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_EXPORT . 'event_price_includes_tax',
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    public function isTierPricePurchaseExclusionEnabled(?int $storeId = null): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_EXPORT . 'exclude_tier_priced_items',
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
     /**
      * Get the order sources allowed to generate purchase-related events.
      *
@@ -391,11 +409,12 @@ class Data extends AbstractHelper
      *
      * @return float
      */
-    public function getMinimumOrderValueForLoyalty(): float
+    public function getMinimumOrderValueForLoyalty(?int $storeId = null): float
     {
         $value = $this->scopeConfig->getValue(
             self::XML_PATH_GENERAL . 'minimum_order_value',
-            ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE,
+            $storeId
         );
         
         return $value ? (float)$value : 0.0;
@@ -406,9 +425,9 @@ class Data extends AbstractHelper
      *
      * @return bool
      */
-    public function isMinimumOrderValueEnabled(): bool
+    public function isMinimumOrderValueEnabled(?int $storeId = null): bool
     {
-        return $this->getMinimumOrderValueForLoyalty() > 0;
+        return $this->getMinimumOrderValueForLoyalty($storeId) > 0;
     }
 
     /**

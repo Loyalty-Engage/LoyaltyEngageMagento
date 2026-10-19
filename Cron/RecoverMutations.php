@@ -35,11 +35,23 @@ class RecoverMutations
     {
         $db = $this->resource->getConnection();
         $table = $this->resource->getTableName('loyaltyshop_mutation');
-        $rows = $db->fetchAll($db->select()->from($table)
-            ->where("status = 'received' OR (operation = 'product' AND status IN ('started', 'uncertain'))")
-            ->where('attempts < ?', 10)->where('available_at <= ?', gmdate('Y-m-d H:i:s'))
-            ->order('created_at ASC')->limit(25));
-        foreach ($rows as $row) {
+        $rows = [];
+        foreach (['received', 'started', 'uncertain'] as $status) {
+            $query = $db->select()->from($table)->where('status = ?', $status)
+                ->where('attempts < ?', 10)->where('available_at <= ?', gmdate('Y-m-d H:i:s'))
+                ->order(['available_at ASC', 'operation_key ASC'])->limit(25);
+            if ($status !== 'received') {
+                $query->where('operation = ?', 'product');
+            }
+            $rows = array_merge($rows, $db->fetchAll($query));
+        }
+        usort($rows, static fn(array $a, array $b): int =>
+            [$a['available_at'], $a['operation_key']] <=> [$b['available_at'], $b['operation_key']]);
+        $deadline = microtime(true) + 45;
+        foreach (array_slice($rows, 0, 25) as $row) {
+            if (microtime(true) >= $deadline) {
+                break;
+            }
             $started = false;
             try {
                 $this->emulation->startEnvironmentEmulation((int) $row['store_id'], 'frontend', true);

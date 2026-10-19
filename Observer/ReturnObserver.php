@@ -31,15 +31,25 @@ class ReturnObserver implements ObserverInterface
             || !$this->helper->isReturnExportEnabled($storeId) || !$this->history->canExportReturn($order)) {
             return;
         }
+        $includingTax = $this->helper->isEventPriceIncludingTax($storeId);
         $products = [];
         foreach ($creditmemo->getAllItems() as $item) {
             $orderItem = $item->getOrderItem();
-            if (($orderItem && $orderItem->getParentItemId() && !$orderItem->isChildrenCalculated())
+            if (($orderItem && ($orderItem->getParentItemId() || $orderItem->getParentItem()) && !$orderItem->isChildrenCalculated())
                 || ($orderItem && $orderItem->getHasChildren() && $orderItem->isChildrenCalculated())
                 || (float) $item->getQty() <= 0) {
                 continue;
             }
-            $products[] = ['sku' => $item->getSku(), 'price' => number_format((float) $item->getPrice(), 2, '.', ''),
+            $options = $orderItem ? ($orderItem->getProductOptions() ?: []) : [];
+            if (!empty($options[\LoyaltyEngage\LoyaltyShop\Model\AppliedTierPrice::EXCLUDED_OPTION])) {
+                continue;
+            }
+            $price = $item->getPrice();
+            if ($includingTax) {
+                // Use historical unit prices, never current catalog tax rates or a row's refunded tax.
+                $price = $item->getPriceInclTax() ?? ($orderItem ? $orderItem->getPriceInclTax() : null) ?? $price;
+            }
+            $products[] = ['sku' => $item->getSku(), 'price' => number_format((float) $price, 2, '.', ''),
                 'quantity' => (float) $item->getQty()];
         }
         if ($products) {

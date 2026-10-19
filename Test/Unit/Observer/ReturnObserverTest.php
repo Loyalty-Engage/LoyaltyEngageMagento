@@ -20,14 +20,18 @@ use PHPUnit\Framework\TestCase;
 
 class ReturnObserverTest extends TestCase
 {
-    public function testPublishesVisibleItemsOnceWithOrderId(): void
+    /** @dataProvider priceProvider */
+    public function testPublishesVisibleItemsOnceWithOrderId(bool $includingTax, ?float $memoPrice, ?float $orderPrice,
+        float $qty, string $expected): void
     {
         $helper = $this->createMock(Data::class);
         $helper->method('isLoyaltyEngageEnabled')->with(20)->willReturn(true);
         $helper->method('isReturnExportEnabled')->with(20)->willReturn(true);
+        $helper->expects(self::once())->method('isEventPriceIncludingTax')->with(20)->willReturn($includingTax);
 
         $parentOrderItem = $this->createMock(OrderItem::class);
         $parentOrderItem->method('getParentItemId')->willReturn(null);
+        $parentOrderItem->method('getPriceInclTax')->willReturn($orderPrice);
         $childOrderItem = $this->createMock(OrderItem::class);
         $childOrderItem->method('getParentItemId')->willReturn(123);
 
@@ -35,7 +39,8 @@ class ReturnObserverTest extends TestCase
         $parentItem->method('getOrderItem')->willReturn($parentOrderItem);
         $parentItem->method('getSku')->willReturn('CONFIGURABLE-SKU');
         $parentItem->method('getPrice')->willReturn(25.0);
-        $parentItem->method('getQty')->willReturn(1.0);
+        $parentItem->method('getPriceInclTax')->willReturn($memoPrice);
+        $parentItem->method('getQty')->willReturn($qty);
 
         $childItem = $this->createMock(Item::class);
         $childItem->method('getOrderItem')->willReturn($childOrderItem);
@@ -62,8 +67,10 @@ class ReturnObserverTest extends TestCase
             ->method('publish')
             ->with(
                 'loyaltyshop.return_event',
-                self::callback(static function (string $json): bool {
+                self::callback(static function (string $json) use ($expected, $qty): bool {
                     $payload = json_decode($json, true);
+                    self::assertSame($expected, $payload[0]['products'][0]['price']);
+                    self::assertEquals($qty, $payload[0]['products'][0]['quantity']);
                     return $payload[0]['orderId'] === '100000123'
                         && $payload[0]['store_id'] === 20
                         && count($payload[0]['products']) === 1
@@ -77,6 +84,20 @@ class ReturnObserverTest extends TestCase
         $creditmemoData = $this->createMock(CreditmemoData::class);
         $creditmemoData->method('isReturnExported')->willReturn(false);
         (new ReturnObserver($helper, $publisher, $history, $creditmemoData))->execute($observer);
+    }
+
+    public static function priceProvider(): array
+    {
+        return [
+            'default unchanged' => [false, 30.25, 30.25, 1, '25.00'],
+            'inclusive creditmemo unit price' => [true, 30.25, 31.00, 2, '30.25'],
+            'partial fractional refund' => [true, 30.25, 30.25, 0.5, '30.25'],
+            'historical order fallback' => [true, null, 30.25, 1, '30.25'],
+            'missing historical gross price does not guess tax' => [true, null, null, 1, '25.00'],
+            'zero gross is preserved' => [true, 0, 30.25, 1, '0.00'],
+            'tax exempt' => [true, 25.00, 25.00, 1, '25.00'],
+            'unit price rounded once' => [true, 30.255, 30.255, 2, '30.26'],
+        ];
     }
 
     public function testSkipsReturnWhenPurchaseWasNotExported(): void

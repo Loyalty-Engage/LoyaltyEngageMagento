@@ -38,19 +38,25 @@ class PurchaseObserver implements ObserverInterface
             return;
         }
         if ($this->helper->isPurchaseExportEnabled($storeId) && !$this->orderData->isPurchaseExported($order)) {
+            $includingTax = $this->helper->isEventPriceIncludingTax($storeId);
             $products = [];
             foreach ($order->getAllItems() as $item) {
-                if (($item->getParentItemId() && !$item->isChildrenCalculated())
+                if ((($item->getParentItemId() || $item->getParentItem()) && !$item->isChildrenCalculated())
                     || ($item->getHasChildren() && $item->isChildrenCalculated())) {
+                    continue;
+                }
+                $options = $item->getProductOptions() ?: [];
+                if (!empty($options[\LoyaltyEngage\LoyaltyShop\Model\AppliedTierPrice::EXCLUDED_OPTION])) {
                     continue;
                 }
                 $quantity = (float) $item->getQtyOrdered() - (float) $item->getQtyCanceled();
                 if ($quantity <= 0) {
                     continue;
                 }
+                $price = $includingTax ? ($item->getPriceInclTax() ?? $item->getPrice()) : $item->getPrice();
                 $products[] = [
                     'sku' => $item->getSku(),
-                    'price' => number_format((float) $item->getPrice(), 2, '.', ''),
+                    'price' => number_format((float) $price, 2, '.', ''),
                     'quantity' => $quantity,
                 ];
             }

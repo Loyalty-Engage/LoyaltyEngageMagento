@@ -17,7 +17,8 @@ use PHPUnit\Framework\TestCase;
 
 class PurchasePayloadTest extends TestCase
 {
-    public function testPayloadExcludesConfigurableChildrenAndCancelledUnitsButKeepsDynamicBundlePrices(): void
+    /** @dataProvider taxBasisProvider */
+    public function testPayloadExcludesConfigurableChildrenAndCancelledUnitsButKeepsDynamicBundlePrices(bool $includingTax): void
     {
         $items = [
             $this->item('CONFIG', 10, 2, 0, 0, true, false),
@@ -26,6 +27,8 @@ class PurchasePayloadTest extends TestCase
             $this->item('BUNDLE-SIMPLE', 20, 1, 0, 3, false, true),
             $this->item('DECIMAL', 5, 2.5, 1, 0, false, false),
             $this->item('CANCELLED', 10, 1, 1, 0, false, false),
+            $this->item('LEGACY', 7, 1, 0, 0, false, false)->setPriceInclTax(null),
+            $this->item('ZERO', 0, 1, 0, 0, false, false),
         ];
         $order = $this->createMock(Order::class);
         $order->method('getId')->willReturn(123);
@@ -40,19 +43,22 @@ class PurchasePayloadTest extends TestCase
         $helper = $this->createMock(Data::class);
         $helper->method('isLoyaltyEngageEnabled')->with(20)->willReturn(true);
         $helper->method('isPurchaseExportEnabled')->with(20)->willReturn(true);
+        $helper->expects(self::once())->method('isEventPriceIncludingTax')->with(20)->willReturn($includingTax);
         $helper->method('getPurchaseOrderStatuses')->with(20)->willReturn(['processing', 'complete']);
         $eligibility = $this->createMock(OrderExportEligibility::class);
         $eligibility->method('evaluate')->willReturn(['eligible' => true]);
         $publisher = $this->createMock(PublisherInterface::class);
         $publisher->expects(self::once())->method('publish')->with('loyaltyshop.purchase_event',
-            self::callback(static function (string $json): bool {
+            self::callback(static function (string $json) use ($includingTax): bool {
                 $payload = json_decode($json, true)[0];
                 self::assertSame(20, $payload['store_id']);
                 self::assertSame('TEST-123', $payload['orderId']);
                 self::assertSame([
-                    ['sku' => 'CONFIG', 'price' => '10.00', 'quantity' => 2],
-                    ['sku' => 'BUNDLE-SIMPLE', 'price' => '20.00', 'quantity' => 1],
-                    ['sku' => 'DECIMAL', 'price' => '5.00', 'quantity' => 1.5],
+                    ['sku' => 'CONFIG', 'price' => $includingTax ? '12.10' : '10.00', 'quantity' => 2],
+                    ['sku' => 'BUNDLE-SIMPLE', 'price' => $includingTax ? '24.20' : '20.00', 'quantity' => 1],
+                    ['sku' => 'DECIMAL', 'price' => $includingTax ? '6.05' : '5.00', 'quantity' => 1.5],
+                    ['sku' => 'LEGACY', 'price' => '7.00', 'quantity' => 1],
+                    ['sku' => 'ZERO', 'price' => '0.00', 'quantity' => 1],
                 ], $payload['products']);
                 return true;
             }));
@@ -62,10 +68,16 @@ class PurchasePayloadTest extends TestCase
             ->execute(new Observer(['event' => new Event(['order' => $order])]));
     }
 
+    public static function taxBasisProvider(): array
+    {
+        return ['excluding tax' => [false], 'including tax' => [true]];
+    }
+
     private function item(string $sku, float $price, float $qty, float $cancelled, int $parent, bool $hasChildren, bool $childrenCalculated): Item
     {
         $item = $this->getMockBuilder(Item::class)->disableOriginalConstructor()->onlyMethods(['isChildrenCalculated'])->getMock();
         $item->setData(['sku' => $sku, 'price' => $price, 'qty_ordered' => $qty, 'qty_canceled' => $cancelled,
+            'price_incl_tax' => $price * 1.21, 'base_price_incl_tax' => 999, 'discount_amount' => 3,
             'parent_item_id' => $parent, 'has_children' => $hasChildren]);
         $item->method('isChildrenCalculated')->willReturn($childrenCalculated);
         return $item;

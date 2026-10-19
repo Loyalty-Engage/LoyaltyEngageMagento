@@ -8,7 +8,7 @@ use Magento\Framework\Setup\Patch\DataPatchInterface;
 
 class UpgradeEventDelivery implements DataPatchInterface
 {
-    public function __construct(private ResourceConnection $resource, private ConfigureCronConsumers $consumers)
+    public function __construct(private ResourceConnection $resource)
     {
     }
 
@@ -24,13 +24,12 @@ class UpgradeEventDelivery implements DataPatchInterface
             'description = ?' => 'Auto-generated from LoyaltyEngage',
             'simple_action IN (?)' => ['cart_fixed', 'by_percent'], 'use_auto_generation = ?' => 1,
         ]);
-        $this->consumers->apply();
         return $this;
     }
 
     public static function getDependencies(): array
     {
-        return [ConfigureCronConsumers::class];
+        return [];
     }
 
     public function getAliases(): array

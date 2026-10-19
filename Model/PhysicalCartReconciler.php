@@ -48,15 +48,18 @@ class PhysicalCartReconciler
     private function hasConflict(Quote $quote, string $sku, string $key): bool
     {
         $db = $this->resource->getConnection();
-        $conflict = $db->fetchOne($db->select()
+        $conflicts = $db->select()
             ->from(['m' => $this->resource->getTableName('loyaltyshop_mutation')], ['operation_key'])
             ->joinLeft(['q' => $this->resource->getTableName('quote')], 'q.entity_id = m.quote_id', [])
             ->where('m.customer_id = ?', (int) $quote->getCustomerId())
             ->where('m.operation = ?', 'product')->where('m.sku = ?', $sku)->where('m.operation_key <> ?', $key)
             ->where("m.status IN ('started', 'uncertain', 'received', 'manual') OR (m.status = 'applied' AND q.is_active = 1)")
-            ->limit(1));
-        if ($conflict) {
-            return true;
+            ->limit(1);
+        if ($db->fetchOne($conflicts)) {
+            $this->retireCompletedCycles($quote, $sku);
+            if ($db->fetchOne($conflicts)) {
+                return true;
+            }
         }
         $otherCart = $db->fetchOne($db->select()
             ->from(['q' => $this->resource->getTableName('quote')], ['entity_id'])
@@ -74,5 +77,42 @@ class PhysicalCartReconciler
             ->where('status IN (?)', ['pending', 'failed'])
             ->where("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.email')) = ?", $quote->getCustomerEmail())
             ->limit(1));
+    }
+
+    private function retireCompletedCycles(Quote $quote, string $sku): void
+    {
+        $db = $this->resource->getConnection();
+        $storeId = (int) $quote->getStoreId();
+        $quoteId = (int) $quote->getId();
+        $rows = $db->fetchAll($db->select()
+            ->from($this->resource->getTableName(EventOutbox::TABLE), ['entity_id', 'status', 'payload'])
+            ->where('aggregate_key = ?', hash('sha256', $storeId . ':' . $quoteId . ':' . $sku))
+            ->where('topic = ?', 'loyaltyshop.free_product_remove_event')
+            ->order('entity_id DESC')->limit(1001));
+        $keys = [];
+        foreach ($rows as $index => $row) {
+            // The oldest row in a full batch has an unknown predecessor: never guess its cycle.
+            if ($row['status'] !== 'sent' || ($index === 1000)) {
+                continue;
+            }
+            $payload = json_decode($row['payload'], true);
+            if (!is_array($payload) || (int) ($payload['store_id'] ?? 0) !== $storeId
+                || (int) ($payload['quote_id'] ?? 0) !== $quoteId || ($payload['sku'] ?? null) !== $sku
+                || ($payload['email'] ?? null) !== $quote->getCustomerEmail()
+                || (float) ($payload['quantity'] ?? 0) !== 1.0) {
+                continue;
+            }
+            $previousRemoval = (int) ($rows[$index + 1]['entity_id'] ?? 0);
+            $keys[] = hash('sha256', $storeId . ':' . $quoteId . ':product:' . $sku . ':' . $previousRemoval);
+        }
+        if ($keys) {
+            // Only confirmed, locally applied reservations with an exact sent removal are terminal.
+            // Unknown/received/manual attempts and other carts or tenants must remain protected.
+            $db->update($this->resource->getTableName('loyaltyshop_mutation'), ['status' => 'released'], [
+                'operation_key IN (?)' => $keys, 'status = ?' => 'applied', 'store_id = ?' => $storeId,
+                'quote_id = ?' => $quoteId, 'customer_id = ?' => (int) $quote->getCustomerId(),
+                'operation = ?' => 'product', 'sku = ?' => $sku,
+            ]);
+        }
     }
 }

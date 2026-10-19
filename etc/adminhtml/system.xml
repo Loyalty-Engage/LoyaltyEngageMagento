@@ -176,11 +176,32 @@
                     </depends>
                 </field>
 
+                <field id="event_price_includes_tax" translate="label comment" type="select" sortOrder="22"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Purchase and Return Price Tax Basis</label>
+                    <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\EventPriceTax</source_model>
+                    <comment><![CDATA[Default: Excluding Tax. Applies to product unit prices in new Purchase and Return events, using the order store configuration and stored tax-inclusive prices. Does not change discount handling or already queued events. Coordinate changes with Loyalty Engage: older purchases may have used a different tax basis.]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                    </depends>
+                </field>
+
                  <field id="purchase_order_status" translate="label comment" type="multiselect" sortOrder="25"
                     showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Purchase Sync Order Status</label>
                     <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\OrderStatuses</source_model>
                     <comment><![CDATA[The order statuses that trigger the purchase sync to LoyaltyEngage. All statuses available in this Magento environment are shown. An order is exported only once, even when it passes through multiple selected statuses. Default: Complete.]]></comment>
+                    <depends>
+                        <field id="loyalty/general/module_enable">1</field>
+                        <field id="loyalty/export/purchase_event">1</field>
+                    </depends>
+                </field>
+
+                <field id="exclude_tier_priced_items" translate="label comment" type="select" sortOrder="24"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Exclude Applied Tier Prices from Purchase Export</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Default: No. For new orders created from a Magento quote, exclude only order lines whose price is reduced by a quantity tier above 1. Having tier prices configured is not enough. The decision is saved when the order is placed and also used for returns. Other order lines are exported normally. This does not block coupons or loyalty redemptions at checkout and does not change existing orders.]]></comment>
                     <depends>
                         <field id="loyalty/general/module_enable">1</field>
                         <field id="loyalty/export/purchase_event">1</field>

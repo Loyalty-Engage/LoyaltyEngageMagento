@@ -77,6 +77,11 @@ class LoyaltyCart implements LoyaltyCartInterface
             $item->addOption(['code' => 'loyalty_locked_qty', 'value' => '1']);
             $item->getProduct()->setIsSuperMode(true);
             $quote->setTotalsCollectedFlag(false)->collectTotals();
+            if ($item->isDeleted()) {
+                throw new \LoyaltyEngage\LoyaltyShop\Service\MinimumOrderValueException(
+                    __('The minimum order value is no longer met. Please review your cart.')
+                );
+            }
             $storeId = (int) $quote->getStoreId();
             $hash = $this->helper->hashEmail($quote->getCustomerEmail());
             try {
@@ -238,7 +243,7 @@ class LoyaltyCart implements LoyaltyCartInterface
         if ($max > 0 && $count >= $max) {
             throw new LocalizedException(__('You can add a maximum of %1 loyalty products.', $max));
         }
-        $minimum = $this->helper->getMinimumOrderValueForLoyalty();
+        $minimum = $this->helper->getMinimumOrderValueForLoyalty((int) $quote->getStoreId());
         if ($subtotal < $minimum) {
             throw new \LoyaltyEngage\LoyaltyShop\Service\MinimumOrderValueException(
                 __($this->helper->getFormattedMinimumOrderValueMessage($minimum, $subtotal))

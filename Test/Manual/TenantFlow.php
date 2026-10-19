@@ -56,7 +56,12 @@ function note(string $step, array $data): void
     $row = ['at' => gmdate(DATE_ATOM), 'step' => $step, 'data' => $data];
     $state['steps'][] = $row;
     checkpoint();
-    echo json_encode($row, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+    $console = $row;
+    if (isset($console['data']['events'])) {
+        $console['data']['events'] = array_map(static fn(array $event): array => array_intersect_key($event,
+            array_flip(['entity_id', 'topic', 'store_id', 'status', 'attempts', 'last_error'])), $console['data']['events']);
+    }
+    echo json_encode($console, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
 }
 function remoteStatus(): array
 {
@@ -98,6 +103,215 @@ $command = $argv[1] ?? 'status';
 $case = $argv[2] ?? 'purchase';
 try {
     switch ($command) {
+        case 'cart-status':
+            note($command, ['response' => $api->get(rtrim($helper->getApiUrl($storeId), '/')
+                . '/api/v1/loyalty/shop/' . rawurlencode($helper->hashEmail($email)) . '/cart', [], $storeId)]);
+            break;
+
+        case 'cancel-response-loss':
+            $quote = quoteForCase($case);
+            $sku = $argv[3] ?? '24-MB01';
+            $attempt = array_filter($state['steps'], static fn($step) => $step['step'] === 'add-response-loss'
+                && (int) ($step['data']['quote_id'] ?? $state['cases']['recovery']['quote_id'] ?? 0) === (int) $quote->getId()
+                && ($step['data']['posts'] ?? 0) === 1 && !$step['data']['success']);
+            if (!$attempt || array_filter($quote->getAllVisibleItems(), static fn($i) => $helper->isLoyaltyProduct($i, true))) {
+                throw new \RuntimeException('Only this run\'s lost-response fixture may be cancelled.');
+            }
+            $table = $resource->getTableName('loyaltyshop_mutation');
+            $rows = $db->fetchAll($db->select()->from($table)->where('quote_id = ?', (int) $quote->getId())
+                ->where('customer_id = ?', $customerId)->where('sku = ?', $sku)->where('status = ?', 'uncertain'));
+            if (count($rows) !== 1) { throw new \RuntimeException('Expected exactly one uncertain fixture.'); }
+            $url = rtrim($helper->getApiUrl($storeId), '/') . '/api/v1/loyalty/shop/'
+                . rawurlencode($helper->hashEmail($email)) . '/cart';
+            $remote = $api->get($url, [], $storeId);
+            if (count($remote['products'] ?? []) !== 1 || $remote['products'][0]['sku'] !== $sku
+                || (float) $remote['products'][0]['quantity'] !== 1.0) {
+                throw new \RuntimeException('Unexpected cart; preserve it for inspection.');
+            }
+            $api->delete($url . '/remove', ['sku' => $sku, 'quantity' => 1], $storeId);
+            $after = $api->get($url, [], $storeId);
+            if ($after['products'] !== [] || (float) $after['reservedCoins'] !== 0.0) {
+                throw new \RuntimeException('Test cancellation not yet confirmed.');
+            }
+            $db->update($table, ['status' => 'released', 'last_error' => 'Controlled acceptance fixture cancelled after confirmed remote removal.'],
+                ['operation_key = ?' => $rows[0]['operation_key'], 'status = ?' => 'uncertain']);
+            note($command, ['quote_id' => (int) $quote->getId(), 'sku' => $sku, 'remote' => $after]);
+            break;
+
+        case 'add-response-loss':
+        case 'recover-readonly':
+            $quote = quoteForCase($case);
+            $sku = $argv[3] ?? '24-MB01';
+            $transport = new class($om->get(\Magento\Framework\HTTP\Client\Curl::class),
+                $om->get(\Magento\Framework\Serialize\Serializer\Json::class), $helper) extends \LoyaltyEngage\LoyaltyShop\Service\ApiClient {
+                public bool $loseResponse = false;
+                public int $posts = 0;
+                public function post(string $url, array $body = [], ?int $storeId = null): array
+                {
+                    ++$this->posts;
+                    if (!$this->loseResponse) { throw new \RuntimeException('Read-only recovery must not POST.'); }
+                    parent::post($url, $body, $storeId);
+                    throw new \RuntimeException('TEST ONLY: successful response deliberately lost after remote reservation.');
+                }
+            };
+            $transport->loseResponse = $command === 'add-response-loss';
+            $cart = $om->get(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart::class);
+            $property = new \ReflectionProperty(\LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart::class, 'api');
+            $property->setAccessible(true);
+            $property->setValue($cart, $transport);
+            $result = $cart->addProduct($customerId, $sku);
+            $rows = $db->fetchAll($db->select()->from($resource->getTableName('loyaltyshop_mutation'),
+                ['status', 'response'])->where('quote_id = ?', (int) $quote->getId()));
+            note($command, ['quote_id' => (int) $quote->getId(), 'sku' => $sku, 'success' => $result->getSuccess(), 'message' => $result->getMessage(), 'posts' => $transport->posts,
+                'journals' => $rows, 'remote' => remoteStatus()]);
+            if (($command === 'add-response-loss' && ($result->getSuccess() || $transport->posts !== 1))
+                || ($command === 'recover-readonly' && (!$result->getSuccess() || $transport->posts !== 0))) {
+                throw new \RuntimeException('Live response-loss/recovery acceptance failed.');
+            }
+            break;
+
+        case 'fixture-tier':
+        case 'restore-tier':
+            $products = $om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class);
+            $product = $products->get('24-MB01', true, 0, true);
+            if ($command === 'fixture-tier') {
+                if (isset($state['tier_backup'])) { throw new \RuntimeException('Tier fixture already exists.'); }
+                $state['tier_backup'] = ['original' => $product->getData('tier_price') ?: [], 'restored' => false];
+                checkpoint();
+                $om->get(\Magento\Catalog\Api\ProductTierPriceManagementInterface::class)->add('24-MB01', 'all', 30, 2);
+                $state['tier_backup']['fixture'] = $products->get('24-MB01', true, 0, true)->getData('tier_price');
+            } else {
+                $backup = $state['tier_backup'] ?? null;
+                if (!$backup || $backup['restored']) { throw new \RuntimeException('No active tier fixture.'); }
+                if ($product->getData('tier_price') != ($backup['fixture'] ?? null)) {
+                    throw new \RuntimeException('Tier prices changed externally; inspect before restoring.');
+                }
+                $product->setData('tier_price', $backup['original']);
+                $products->save($product);
+                $state['tier_backup']['restored'] = true;
+            }
+            note($command, ['sku' => '24-MB01', 'restored' => $state['tier_backup']['restored']]);
+            break;
+
+        case 'mixed-tier-cart':
+            $quote = quoteForCase($case);
+            $products = $om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class);
+            foreach ($quote->getAllVisibleItems() as $item) {
+                if ($helper->isLoyaltyProduct($item, true)) { throw new \RuntimeException('Preserve reward items.'); }
+                $quote->removeItem((int) $item->getId());
+            }
+            foreach (['24-MB01' => 2, '24-MB02' => 1] as $sku => $quantity) {
+                $added = $quote->addProduct($products->get($sku, false, $storeId, true),
+                    new \Magento\Framework\DataObject(['qty' => $quantity]));
+                if (is_string($added)) { throw new \RuntimeException($added); }
+            }
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $om->get(\Magento\Quote\Api\CartRepositoryInterface::class)->save($quote);
+            note($command, ['items' => array_map(static fn($i) => ['sku' => $i->getSku(), 'qty' => $i->getQty(),
+                'price' => $i->getPrice(), 'discount' => $i->getDiscountAmount()], $quote->getAllVisibleItems()),
+                'total' => $quote->getGrandTotal()]);
+            break;
+
+        case 'coupon-status':
+            $quote = quoteForCase($case);
+            if (!$quote->getCouponCode()) { throw new \RuntimeException('No coupon in this test case.'); }
+            $result = $api->get(rtrim($helper->getApiUrl($storeId), '/') . '/api/v1/discount/'
+                . rawurlencode($quote->getCouponCode()), [], $storeId);
+            note($command, ['response' => $result]);
+            break;
+
+        case 'prepare-browser':
+            $quote = quoteForCase($case);
+            $quote->setReservedOrderId($run . '-' . strtoupper($case));
+            $om->get(\Magento\Quote\Api\CartRepositoryInterface::class)->save($quote);
+            note($command, ['quote_id' => $quote->getId(), 'reserved_order_id' => $quote->getReservedOrderId()]);
+            break;
+
+        case 'adopt-browser-order':
+            $quote = quoteForCase($case);
+            $row = $db->fetchRow($db->select()->from($resource->getTableName('sales_order'))
+                ->where('quote_id = ?', (int) $quote->getId())->where('customer_id = ?', $customerId)
+                ->where('increment_id = ?', $run . '-' . strtoupper($case)));
+            if (!$row || (int) $row['store_id'] !== $storeId || $row['customer_email'] !== $email) {
+                throw new \RuntimeException('No matching browser order owned by this run.');
+            }
+            $state['cases'][$case]['order_id'] = (int) $row['entity_id'];
+            $state['cases'][$case]['increment_id'] = $row['increment_id'];
+            note($command, ['order_id' => (int) $row['entity_id'], 'increment_id' => $row['increment_id'],
+                'status' => $row['status'], 'total' => $row['grand_total'], 'events' => outbox()]);
+            break;
+
+        case 'test-config':
+        case 'restore-config':
+            $allowed = ['loyalty/general/minimum_order_value', 'loyalty/export/event_price_includes_tax',
+                'loyalty/export/exclude_tier_priced_items', 'sales_email/order/enabled'];
+            $writer = $om->get(\Magento\Framework\App\Config\Storage\WriterInterface::class);
+            if ($command === 'test-config') {
+                $path = $argv[2] ?? '';
+                $value = $argv[3] ?? '';
+                if (!in_array($path, $allowed, true) || !is_numeric($value) || (float) $value < 0) {
+                    throw new \RuntimeException('Unsupported test configuration.');
+                }
+                $key = $storeId . ':' . $path;
+                if (!isset($state['config_backup'][$key])) {
+                    $original = $db->fetchRow($db->select()->from($resource->getTableName('core_config_data'))
+                        ->where('scope = ?', 'stores')->where('scope_id = ?', $storeId)->where('path = ?', $path));
+                    $state['config_backup'][$key] = ['store_id' => $storeId, 'path' => $path,
+                        'original' => $original ?: null, 'test_value' => $value, 'restored' => false];
+                } else {
+                    $state['config_backup'][$key]['test_value'] = $value;
+                    $state['config_backup'][$key]['restored'] = false;
+                }
+                checkpoint();
+                $writer->save($path, $value, 'stores', $storeId);
+            } else {
+                foreach ($state['config_backup'] ?? [] as $key => $backup) {
+                    if ($backup['restored']) { continue; }
+                    $current = $db->fetchOne($db->select()->from($resource->getTableName('core_config_data'), ['value'])
+                        ->where('scope = ?', 'stores')->where('scope_id = ?', $backup['store_id'])
+                        ->where('path = ?', $backup['path']));
+                    if ((string) $current !== (string) $backup['test_value']) {
+                        throw new \RuntimeException('Test configuration changed externally; inspect before restoring.');
+                    }
+                    if ($backup['original'] === null) {
+                        $writer->delete($backup['path'], 'stores', $backup['store_id']);
+                    } else {
+                        $writer->save($backup['path'], $backup['original']['value'], 'stores', $backup['store_id']);
+                    }
+                    $state['config_backup'][$key]['restored'] = true;
+                    checkpoint();
+                }
+            }
+            $cache = $om->get(\Magento\Framework\App\Cache\TypeListInterface::class);
+            foreach (['config', 'layout', 'block_html', 'full_page'] as $type) { $cache->cleanType($type); }
+            note($command, ['store_id' => $storeId, 'path' => $argv[2] ?? null]);
+            break;
+
+        case 'recalculate':
+            $quote = quoteForCase($case);
+            $quote->getBillingAddress();
+            $quote->getShippingAddress()->setCollectShippingRates(true);
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $om->get(\Magento\Quote\Api\CartRepositoryInterface::class)->save($quote);
+            note($command, ['total' => $quote->getGrandTotal(), 'items' => array_map(static fn($i) => [
+                'sku' => $i->getSku(), 'price' => $i->getPrice(), 'qty' => $i->getQty(),
+                'discount' => $i->getDiscountAmount()], $quote->getAllVisibleItems())]);
+            break;
+
+        case 'quantity':
+            $quote = quoteForCase($case);
+            $quantity = (float) ($argv[3] ?? 1);
+            if ($quantity < 1 || $quantity > 3) { throw new \RuntimeException('Only small test quantities allowed.'); }
+            foreach ($quote->getAllVisibleItems() as $item) {
+                if (!$helper->isLoyaltyProduct($item, true)) { $item->setQty($quantity); }
+            }
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $om->get(\Magento\Quote\Api\CartRepositoryInterface::class)->save($quote);
+            note($command, ['quote_id' => $quote->getId(), 'quantity' => $quantity,
+                'items' => array_map(static fn($i) => ['sku' => $i->getSku(), 'qty' => $i->getQty(),
+                    'loyalty' => $helper->isLoyaltyProduct($i, true)], $quote->getAllVisibleItems()), 'events' => outbox()]);
+            break;
+
         case 'theme-hyva':
         case 'theme-restore':
             if ($storeId !== 2) {

@@ -1,5 +1,13 @@
 # Production Readiness Review
 
+## Release 2.6.4 Verification, 2026-10-19
+
+Purchase and Return now share the store-scoped `loyalty/export/event_price_includes_tax` selector, defaulting to exclusive tax. Inclusive mode uses stored historical unit prices in order currency; creditmemos fall back to their original order item. Discount handling and queued payloads remain unchanged. The combined Magento/outbox test covers both tax bases across two stores, tier exclusion, partial refunds, deduplication and immutable queued payloads.
+
+Current verification: 131 unit tests / 380 assertions, 40 runtime tests / 251 assertions, 21 native pricing tests / 42 assertions and six frontend tests passed (198 tests total). Coverage includes quantity-only minimum-spend enforcement, exactly-once removal persistence, completed reservation cycles and unchanged env.php. Upgrade SQL adds only two indexes on loyaltyshop_mutation; the local upgrade succeeded and EXPLAIN selected those indexes. This is not a production-volume benchmark. No live tenant mutations were sent.
+
+Live demo acceptance completed for this release: two browser checkouts, native tier/coupon filtering, partial refunds, physical and coupon redemption, minimum enforcement, expiry, review, scoped updates and controlled lost-response recovery. Fifteen outbox events were accepted on their first attempt; no test reservations remain. Temporary configuration, tier prices and theme were restored. See `LIVE_ACCEPTANCE_2026-10-19.md` for evidence and limits. The maintainer accepted the remaining order-origin finding as non-blocking for this release. Older dated verification sections below are historical evidence.
+
 Review date: 2026-09-24. Live acceptance follow-up: 2026-09-27/28. Release target: 2.6.1 (2026-09-29); existing release tags are unchanged.
 
 ## 2.6.3 Verification
@@ -11,6 +19,14 @@ The order-state observer performs no item loads or writes without a newly captur
 Installations that already processed orders with 2.6.2 must inspect affected source/flag rows before historical replay. This fix prevents further overwrites but cannot infer lost source values or prove remote delivery. No automatic bulk repair is run. Keep the dedicated tables on rollback; older code reading only legacy columns cannot see newer state, so delivery state must be reviewed before reverting or replaying events.
 
 ## Confirmed Findings and Fixes
+
+### Unreleased Quantity-Tier Export Filter, 2026-10-18
+
+Added the opt-in store-scoped `loyalty/export/exclude_tier_priced_items` setting (default No). Magento's native product price models are compared with and without quantity tiers above one at quote-to-order conversion. Only an actual price reduction attributable to those tiers is excluded; coupon/cart-rule discounts alone do not qualify. The per-line decision is stored in existing `product_options` and used by Purchase and Return without repricing historical orders or adding sales-table columns. The disabled path performs no tier-price calculations.
+
+Verification on local Magento 2.4.8 / PHP 8.3.16: 114 unit tests / 306 assertions, 31 existing runtime tests / 193 assertions, 21 native-pricing runtime cases / 42 assertions, six frontend tests, and full DI compilation passed. Coverage includes thresholds, customer groups, database-loaded percentage tiers, website isolation, special/catalog-rule prices, coupon-only versus coupon-plus-tier discounts, configurables, fixed/dynamic bundles, the registered conversion plugin, save/reload persistence, mixed orders, same-SKU lines and partial refunds. Runtime fixtures roll back and no live tenant mutations are sent.
+
+This is not a coupon/coin stacking restriction. It applies to new orders going through Magento quote conversion; historical orders, already queued events and direct imports without conversion retain existing behavior. Third-party pricing/checkout overrides and representative merchant load still require staging acceptance. Pricing inspection failures log a warning and leave the line eligible rather than breaking checkout or guessing an exclusion. This feature verification does not constitute a new full-module production sign-off.
 
 ### Large Sales Tables
 
@@ -51,7 +67,7 @@ Before production deployment, review the actual upgrade SQL on ACC for the insta
 ## Deployment
 
 1. Back up the database and configuration. Test the release candidate on staging using the merchant's themes, enabled modules and PHP version. Drain or stop existing queue workers during code deployment; do not leave workers running old PHP code.
-2. Enable maintenance mode, deploy the module and run `bin/magento setup:upgrade`. The release creates only the dedicated loyalty state tables; it does not rebuild or scan the large sales tables. New named patches repair old shipping rules, encrypt legacy credentials, mark generated coupon rules and establish the event-tracking cutover. Existing explicit consumer-runner settings are preserved; a nonempty consumer allowlist is extended with the six legacy consumers.
+2. Enable maintenance mode, deploy the module and run `bin/magento setup:upgrade`. Review the actual schema changes on ACC first. Named patches repair old shipping rules, encrypt legacy credentials, mark generated coupon rules and establish the event-tracking cutover. Consumer-runner settings and env.php are not modified. The historical ConfigureCronConsumers patch is a no-op and UpgradeEventDelivery no longer invokes or depends on it. Follow the README's Cron and Consumer Ownership section for deployment-managed scheduling and legacy DB backlog processing.
 3. Run `bin/magento setup:di:compile`, deploy static assets for the actual themes/locales, then `bin/magento cache:clean`. Keep health checks and concurrent requests from regenerating code during compilation. Do not delete business data or event records to clear caches.
 4. Disable maintenance mode and resume the normal Magento cron/workers. `bin/magento setup:db:status` must report that modules are up to date.
 5. Check `bin/magento loyalty:events` and confirm the new cron jobs run successfully in `cron_schedule`. Review pending age, failure counts and processing throughput for the merchant's actual order volume.

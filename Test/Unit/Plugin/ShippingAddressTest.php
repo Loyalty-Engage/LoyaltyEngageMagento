@@ -45,4 +45,39 @@ class ShippingAddressTest extends TestCase
         $plugin->afterCollectShippingRates($address, $address);
         self::assertSame(0, $address->getData('loyalty_free_shipping_applied'));
     }
+
+    /** @dataProvider collectionProvider */
+    public function testRateCollectionOnlyRunsForTransitionOrMagentoInvalidation(bool $applied, bool $eligible,
+        bool $invalidated, bool $expected): void
+    {
+        $checker = $this->createMock(LoyaltyTierChecker::class);
+        $checker->expects(self::once())->method('qualifiesQuote')->willReturn($eligible);
+        $address = $this->getMockBuilder(Address::class)->disableOriginalConstructor()
+            ->onlyMethods(['getQuote', 'getShippingRatesCollection'])->getMock();
+        $address->method('getQuote')->willReturn($this->createMock(Quote::class));
+        $rate = new DataObject(['price' => $applied ? 0 : 10]);
+        $address->method('getShippingRatesCollection')->willReturn([$rate]);
+        $address->setData('loyalty_free_shipping_applied', (int) $applied)->setCollectShippingRates($invalidated);
+        $plugin = new AddressPlugin($checker, $this->createMock(Data::class), new NullLogger());
+        $plugin->beforeCollectShippingRates($address);
+        self::assertSame($expected, (bool) $address->getCollectShippingRates());
+        if ($expected) {
+            $rate->setPrice(10); // Simulated carrier response.
+        }
+        $address->setCollectShippingRates(false);
+        $plugin->afterCollectShippingRates($address, $address);
+        self::assertEquals($eligible ? 0 : 10, $rate->getPrice());
+        self::assertSame($eligible, (bool) $address->getData('loyalty_free_shipping_applied'));
+    }
+
+    public static function collectionProvider(): array
+    {
+        return [
+            'unchanged qualifying customer' => [true, true, false, false],
+            'unchanged nonmember' => [false, false, false, false],
+            'qualification gained' => [false, true, false, true],
+            'qualification lost' => [true, false, false, true],
+            'address or cart invalidated by Magento' => [true, true, true, true],
+        ];
+    }
 }

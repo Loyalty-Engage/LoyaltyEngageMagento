@@ -45,9 +45,13 @@
     </type>
     
     <type name="Magento\Quote\Model\Quote">
+        <plugin name="loyaltyshop_minimum_totals" type="LoyaltyEngage\LoyaltyShop\Plugin\MinimumOrderTotalsPlugin" sortOrder="100"/>
         <plugin name="loyaltyshop_quote_remove_item_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteRemoveItemPlugin"
             sortOrder="10" />
+    </type>
+    <type name="Magento\Quote\Model\QuoteManagement">
+        <plugin name="loyaltyshop_minimum_submit" type="LoyaltyEngage\LoyaltyShop\Plugin\MinimumOrderSubmitPlugin"/>
     </type>
     
     <type name="Magento\Quote\Model\Quote\Address">
@@ -55,6 +59,7 @@
     </type>
     <type name="Magento\Quote\Model\Quote\Item\ToOrderItem">
         <plugin name="loyaltyshop_item_marker" type="LoyaltyEngage\LoyaltyShop\Plugin\ConvertLoyaltyItemPlugin"/>
+        <plugin name="loyaltyshop_tier_price_snapshot" type="LoyaltyEngage\LoyaltyShop\Plugin\CaptureTierPriceExclusionPlugin" sortOrder="20"/>
     </type>
     <type name="Magento\Framework\MessageQueue\PublisherInterface">
         <plugin name="loyaltyshop_durable_publish" type="LoyaltyEngage\LoyaltyShop\Plugin\DurablePublisherPlugin"/>

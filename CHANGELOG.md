@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.6.4] - 2026-10-19
+
+### Added
+- Add a store-scoped Purchase/Return product-price tax-basis selector, defaulting to the existing exclusive-tax behavior. Inclusive mode uses historical unit prices in order currency, with an original-order fallback for creditmemos. Existing queued events and discount handling remain unchanged.
+
+- Add an opt-in, store-scoped Purchase export filter for actually applied quantity-tier discounts. Capture the decision during quote-to-order conversion in existing product options, reuse it for partial returns, and preserve eligible lines in mixed orders. No sales-table schema changes or retrospective repricing.
+- Detect configurable children through their in-memory parent during the first order save, preventing a filtered parent from leaking its child into Purchase events.
+
+### Fixed
+- Recheck store-scoped minimum spend after quote totals and before order submission, including quantity-only reductions; persist reward removals once without recursive totals checks.
+- Retire only exactly matched, applied reservation cycles whose removal was confirmed sent. Uncertain attempts and competing carts remain protected; remote purchases are never blindly retried.
+- Index mutation recovery/conflict queries on the module-owned table, bound recovery batches/time, and avoid forcing carrier rate collection when loyalty eligibility is unchanged.
+- Remove all deployment-configuration writes from ConfigureCronConsumers and its invocation/dependency in UpgradeEventDelivery. The historical patch remains a no-op for upgrade compatibility.
+- Document merchant-owned cron scheduling and legacy DB consumer management. Existing env.php settings are left untouched, including changes made by previous releases.
+
+### Verification
+- 198 automated tests passed. Live demo acceptance covered browser checkout in both stores, Purchase/partial Returns, native tier exclusion with a coupon, physical/coupon redemption, quantity-only minimum enforcement, removal/expiry, review, store-scoped updates and lost-response recovery without another POST. See LIVE_ACCEPTANCE_2026-10-19.md for scope and known limitations.
+
 ## [2.6.3] - 2026-10-05
 
 ### Fixed

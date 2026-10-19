@@ -36,18 +36,45 @@ class CartItemRemoveProcessor
             return;
         }
 
-        if ($quote->getData(self::AUTO_REMOVE_FLAG) || !$email || !$this->loyaltyHelper->isMinimumOrderValueEnabled()) {
+        if ($quote->getData(self::AUTO_REMOVE_FLAG) || !$email || !$this->requiresMinimumCheck($quote)) {
             return;
+        }
+
+        // The totals plugin checks the remaining paid subtotal after Magento recalculates it.
+        $quote->setTotalsCollectedFlag(false)->collectTotals();
+    }
+
+    public function requiresMinimumCheck(Quote $quote): bool
+    {
+        $storeId = (int) $quote->getStoreId();
+        if (!$this->loyaltyHelper->isLoyaltyEngageEnabled($storeId)
+            || !$this->loyaltyHelper->isMinimumOrderValueEnabled($storeId)) {
+            return false;
+        }
+        foreach ($quote->getAllVisibleItems() as $item) {
+            if (!$item->isDeleted() && $this->loyaltyHelper->isLoyaltyProduct($item, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Call only after totals collection; this method never recursively collects totals. */
+    public function enforceMinimum(Quote $quote): bool
+    {
+        if ($quote->getData(self::AUTO_REMOVE_FLAG) || !$this->requiresMinimumCheck($quote)) {
+            return false;
         }
 
         $subtotalAfterRemoval = $this->calculateSubtotal($quote);
-        $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty();
+        $minimumOrderValue = $this->loyaltyHelper->getMinimumOrderValueForLoyalty((int) $quote->getStoreId());
 
-        if ($subtotalAfterRemoval >= $minimumOrderValue) {
-            return;
+        if ($subtotalAfterRemoval + 0.0001 >= $minimumOrderValue) {
+            return false;
         }
 
         $this->removeLoyaltyProductsFromCart($quote, $minimumOrderValue, $subtotalAfterRemoval);
+        return true;
     }
 
     private function resolveCustomerEmail(Quote $quote): ?string
@@ -69,8 +96,13 @@ class CartItemRemoveProcessor
     {
         $subtotal = 0.0;
 
-        foreach ($quote->getAllVisibleItems() as $item) {
-            if ($this->loyaltyHelper->isLoyaltyProduct($item)) {
+        foreach ($quote->getAllItems() as $item) {
+            $parent = $item->getParentItem();
+            if ($item->isDeleted() || ($parent && $parent->isDeleted())
+                || ($parent && !$item->isChildrenCalculated())
+                || ($item->getHasChildren() && $item->isChildrenCalculated())
+                || $this->loyaltyHelper->isLoyaltyProduct($item, true)
+                || ($parent && $this->loyaltyHelper->isLoyaltyProduct($parent, true))) {
                 continue;
             }
 
@@ -87,11 +119,24 @@ class CartItemRemoveProcessor
 
         try {
             foreach ($quote->getAllVisibleItems() as $item) {
-                if (!$this->loyaltyHelper->isLoyaltyProduct($item)) {
+                if ($item->isDeleted() || !$this->loyaltyHelper->isLoyaltyProduct($item, true)) {
                     continue;
                 }
 
-                $quote->removeItem($item->getId());
+                if ($item->getId()) {
+                    $quote->removeItem($item->getId());
+                } else {
+                    $item->isDeleted(true);
+                    foreach ($item->getOptions() as $option) {
+                        $option->isDeleted(true);
+                    }
+                    foreach ($item->getChildren() ?: [] as $child) {
+                        $child->isDeleted(true);
+                        foreach ($child->getOptions() as $option) {
+                            $option->isDeleted(true);
+                        }
+                    }
+                }
                 $loyaltyItemsRemoved++;
 
                 $this->loyaltyHelper->log(
@@ -111,7 +156,6 @@ class CartItemRemoveProcessor
         }
 
         if ($loyaltyItemsRemoved > 0) {
-            $quote->collectTotals();
             $this->messageManager->addWarningMessage(
                 $this->loyaltyHelper->getFormattedLoyaltyProductRemovedMessage($minimum, $current)
             );

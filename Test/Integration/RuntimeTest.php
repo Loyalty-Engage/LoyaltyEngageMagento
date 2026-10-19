@@ -59,6 +59,214 @@ class RuntimeTest extends TestCase
         $this->db->rollBack();
     }
 
+    public function testSetupPatchesLeaveDeploymentConfigurationUnchanged(): void
+    {
+        $path = BP . '/app/etc/env.php';
+        $before = file_get_contents($path);
+        $patch = new \LoyaltyEngage\LoyaltyShop\Setup\Patch\Data\ConfigureCronConsumers();
+        self::assertSame($patch, $patch->apply());
+        self::assertSame($patch, $patch->apply());
+        $upgrade = new \LoyaltyEngage\LoyaltyShop\Setup\Patch\Data\UpgradeEventDelivery($this->resource);
+        $upgrade->apply();
+        self::assertSame($before, file_get_contents($path));
+        self::assertSame([], $upgrade::getDependencies());
+        self::assertNotFalse($this->db->fetchOne($this->db->select()
+            ->from($this->resource->getTableName('core_config_data'), ['value'])
+            ->where('path = ?', 'loyalty/export/tracking_started_at')));
+    }
+
+    public function testQuantityReductionRemovesOnlyRewardAndPersistsOneRemoval(): void
+    {
+        $helper = self::$om->get(Data::class);
+        // In-memory scoped fixture: no tenant configuration is persisted or cached.
+        $property = new \ReflectionProperty(\Magento\Framework\App\Helper\AbstractHelper::class, 'scopeConfig');
+        $property->setAccessible(true);
+        $original = $property->getValue($helper);
+        $config = self::$om->create(\Magento\Framework\App\MutableScopeConfig::class);
+        $config->setValue('loyalty/general/module_enable', 1, 'store', $this->storeId);
+        $config->setValue('loyalty/general/minimum_order_value', 50, 'store', $this->storeId);
+        $property->setValue($helper, $config);
+        try {
+            $quote = self::$om->create(\Magento\Quote\Model\Quote::class)->setStoreId($this->storeId)
+                ->setCustomerEmail('minimum-fixture@example.invalid')->setCustomerIsGuest(true)->setIsActive(true);
+            $quote->getBillingAddress();
+            $quote->getShippingAddress();
+            $product = self::$om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class)
+                ->get('24-MB01', false, $this->storeId);
+            $paid = $quote->addProduct(clone $product, new \Magento\Framework\DataObject(['qty' => 3]));
+            self::assertIsNotString($paid);
+            $paid->setCustomPrice(20)->setOriginalCustomPrice(20);
+            $rewardProduct = clone $product;
+            $rewardProduct->addCustomOption('loyalty_locked_qty', '1');
+            $reward = $quote->addProduct($rewardProduct, new \Magento\Framework\DataObject(['qty' => 1]));
+            self::assertIsNotString($reward);
+            $reward->setCustomPrice(0)->setOriginalCustomPrice(0)->setData('loyalty_locked_qty', 1);
+            $reward->addOption(['code' => 'loyalty_locked_qty', 'value' => '1']);
+            $quotes = self::$om->get(\Magento\Quote\Api\CartRepositoryInterface::class);
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            self::assertCount(2, $quote->getAllVisibleItems(), json_encode([
+                'subtotal' => $quote->getSubtotal(), 'paid_qty' => $paid->getQty(), 'paid_row' => $paid->getRowTotalInclTax(),
+                'paid_marked' => $helper->isLoyaltyProduct($paid, true), 'reward_deleted' => $reward->isDeleted(),
+            ]));
+            $quotes->save($quote);
+            self::assertCount(2, $quote->getAllVisibleItems());
+            $rewardId = (int) $reward->getId();
+            $paidId = (int) $paid->getId();
+            $quote = $quotes->get((int) $quote->getId());
+            $paid = $quote->getItemById($paidId);
+            $reward = $quote->getItemById($rewardId);
+            $paid->setQty(1);
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $quotes->save($quote);
+            self::assertCount(1, $quote->getAllVisibleItems());
+            self::assertFalse($paid->isDeleted());
+            self::assertTrue($reward->isDeleted());
+            $event = $this->outbox->find('loyaltyshop.free_product_remove_event',
+                ['store_id' => $this->storeId, 'removal_id' => $rewardId]);
+            self::assertNotNull($event);
+            self::assertSame('pending', $event['status']);
+            $quote->setTotalsCollectedFlag(false)->collectTotals();
+            $quotes->save($quote);
+            self::assertSame(1, (int) $this->db->fetchOne($this->db->select()->from($this->outbox->table(), ['COUNT(*)'])
+                ->where('event_key = ?', $event['event_key'])));
+            self::assertLessThan(50, (float) $quote->getSubtotal());
+        } finally {
+            $property->setValue($helper, $original);
+        }
+    }
+
+    /** @dataProvider completedCycleProvider */
+    public function testOnlyExactCompletedReservationCyclesStopBlockingRecovery(string $removalStatus, string $journalStatus,
+        bool $validKey, bool $expected): void
+    {
+        $customerId = (int) $this->db->fetchOne('SELECT entity_id FROM customer_entity LIMIT 1');
+        $quote = self::$om->create(\Magento\Quote\Model\Quote::class)->setStoreId($this->storeId)
+            ->setCustomerId($customerId)->setCustomerEmail('cycle-' . bin2hex(random_bytes(4)) . '@example.invalid')
+            ->setIsActive(true);
+        self::$om->get(\Magento\Quote\Model\ResourceModel\Quote::class)->save($quote);
+        $sku = 'CYCLE-' . bin2hex(random_bytes(4));
+        $oldKey = hash('sha256', $this->storeId . ':' . $quote->getId() . ':product:' . $sku . ':0');
+        if (!$validKey) {
+            $oldKey = hash('sha256', 'unproven-' . $oldKey);
+        }
+        $table = $this->resource->getTableName('loyaltyshop_mutation');
+        $this->db->insert($table, ['operation_key' => $oldKey, 'store_id' => $this->storeId,
+            'customer_id' => $customerId, 'quote_id' => $quote->getId(), 'operation' => 'product', 'sku' => $sku,
+            'status' => $journalStatus]);
+        $payload = ['store_id' => $this->storeId, 'quote_id' => $quote->getId(), 'sku' => $sku,
+            'email' => $quote->getCustomerEmail(), 'quantity' => 1, 'removal_id' => random_int(1000000000, 2000000000)];
+        $this->outbox->publish('loyaltyshop.free_product_remove_event', json_encode($payload));
+        $removal = $this->outbox->find('loyaltyshop.free_product_remove_event', $payload);
+        $this->db->update($this->outbox->table(), ['status' => $removalStatus], ['entity_id = ?' => $removal['entity_id']]);
+        $currentKey = hash('sha256', $this->storeId . ':' . $quote->getId() . ':product:' . $sku . ':' . $removal['entity_id']);
+        $api = $this->createMock(ApiClient::class);
+        $api->expects(self::never())->method('post');
+        $api->expects(self::never())->method('delete');
+        $api->expects($expected ? self::once() : self::never())->method('get')
+            ->willReturn(['products' => [['sku' => $sku, 'quantity' => 1, 'coinPrice' => 800]]]);
+        $helper = $this->createMock(Data::class);
+        $helper->method('getApiUrl')->willReturn('https://example.invalid');
+        $helper->method('hashEmail')->willReturn('fixture');
+        $result = (new \LoyaltyEngage\LoyaltyShop\Model\PhysicalCartReconciler($this->resource, $api, $helper))
+            ->confirm($quote, $sku, $currentKey);
+        self::assertSame($expected, $result !== null);
+        self::assertSame($expected ? 'released' : $journalStatus,
+            self::$om->get(MutationJournal::class)->get($oldKey)['status']);
+    }
+
+    public static function completedCycleProvider(): array
+    {
+        return [
+            'confirmed removal retires applied cycle' => ['sent', 'applied', true, true],
+            'pending removal stays protected' => ['pending', 'applied', true, false],
+            'failed removal stays protected' => ['failed', 'applied', true, false],
+            'unknown key stays protected' => ['sent', 'applied', false, false],
+            'uncertain mutation stays protected' => ['sent', 'uncertain', true, false],
+            'received mutation stays protected' => ['sent', 'received', true, false],
+        ];
+    }
+
+    public function testNativeCreditmemoConversionPreservesHistoricalTaxInclusiveUnitPrice(): void
+    {
+        $orderItem = self::$om->get(\Magento\Sales\Model\Order\ItemFactory::class)->create()
+            ->setSku('TAX-FIXTURE')->setPrice(25)->setBasePrice(20)
+            ->setPriceInclTax(30.25)->setBasePriceInclTax(24.20)->setQtyOrdered(4);
+        $memoItem = self::$om->get(\Magento\Sales\Model\Convert\Order::class)->itemToCreditmemoItem($orderItem);
+        $memoItem->setQty(1);
+        self::assertEquals(25, $memoItem->getPrice());
+        self::assertEquals(30.25, $memoItem->getPriceInclTax() ?? $memoItem->getOrderItem()->getPriceInclTax());
+        self::assertEquals(1, $memoItem->getQty());
+    }
+
+    public function testStoreScopedTaxAndTierExclusionReachPurchaseAndPartialReturnOutbox(): void
+    {
+        $stores = $this->db->fetchCol($this->db->select()->from($this->resource->getTableName('store'), ['store_id'])
+            ->where('store_id > ?', 0)->order('store_id')->limit(2));
+        self::assertCount(2, $stores, 'This staging test needs two store views.');
+        $config = self::$om->create(\Magento\Framework\App\MutableScopeConfig::class);
+        $context = self::$om->create(\Magento\Framework\App\Helper\Context::class, ['scopeConfig' => $config]);
+        $helper = self::$om->create(Data::class, ['context' => $context]);
+        $publisher = self::$om->get(PublisherInterface::class);
+        $eligibility = $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\OrderExportEligibility::class);
+        $eligibility->method('evaluate')->willReturn(['eligible' => true]);
+        $orderData = $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\OrderData::class);
+        $purchaseObserver = new \LoyaltyEngage\LoyaltyShop\Observer\PurchaseObserver($helper, $publisher, $eligibility,
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\CouponOwnership::class), $orderData);
+        $history = new \LoyaltyEngage\LoyaltyShop\Model\PurchaseHistory(
+            $this->resource, $this->outbox, $eligibility, $helper, $orderData);
+        $returnObserver = new \LoyaltyEngage\LoyaltyShop\Observer\ReturnObserver($helper, $publisher, $history,
+            $this->createMock(\LoyaltyEngage\LoyaltyShop\Model\CreditmemoData::class));
+
+        foreach ($stores as $index => $storeId) {
+            $storeId = (int) $storeId;
+            foreach (['general/module_enable' => 1, 'export/purchase_event' => 1, 'export/return_event' => 1,
+                'export/purchase_order_status' => 'processing', 'export/event_price_includes_tax' => $index] as $path => $value) {
+                $config->setValue('loyalty/' . $path, $value, 'store', $storeId);
+            }
+            self::assertSame((bool) $index, $helper->isEventPriceIncludingTax($storeId));
+            $order = self::$om->get(\Magento\Sales\Model\OrderFactory::class)->create()
+                ->setId(random_int(1000000000, 2000000000))->setStoreId($storeId)
+                ->setIncrementId('EXPORT-' . bin2hex(random_bytes(6)))->setStatus('processing')
+                ->setCreatedAt('2026-10-19 10:00:00')->setCustomerEmail('export-fixture@example.invalid');
+            foreach (['PAID' => 0, 'TIER' => 1] as $sku => $excluded) {
+                $item = self::$om->get(\Magento\Sales\Model\Order\ItemFactory::class)->create()
+                    ->setSku($sku)->setPrice(10)->setPriceInclTax(12.10)->setBasePriceInclTax(99)
+                    ->setQtyOrdered(3)->setDiscountAmount(2)
+                    ->setProductOptions([\LoyaltyEngage\LoyaltyShop\Model\AppliedTierPrice::EXCLUDED_OPTION => $excluded]);
+                $order->addItem($item);
+            }
+            $event = new \Magento\Framework\Event\Observer(['event' => new \Magento\Framework\Event(['order' => $order])]);
+            $purchaseObserver->execute($event);
+            $identity = ['orderId' => $order->getIncrementId(), 'store_id' => $storeId];
+            $purchase = $this->outbox->find(PurchaseConsumer::TOPIC, $identity);
+            self::assertNotNull($purchase);
+            $products = json_decode($purchase['payload'], true)['products'];
+            self::assertSame([['sku' => 'PAID', 'price' => $index ? '12.10' : '10.00', 'quantity' => 3]], $products);
+            foreach ([1, 2] as $qty) {
+                $memo = self::$om->create(\Magento\Sales\Model\Order\Creditmemo::class)
+                    ->setId(random_int(1000000000, 2000000000))->setOrder($order)
+                    ->setState(\Magento\Sales\Model\Order\Creditmemo::STATE_REFUNDED)->setCreatedAt('2026-10-19 11:00:00');
+                foreach ($order->getAllItems() as $item) {
+                    $memoItem = self::$om->get(\Magento\Sales\Model\Convert\Order::class)->itemToCreditmemoItem($item);
+                    $memoItem->setQty($qty)->setPriceInclTax(null);
+                    $memo->addItem($memoItem);
+                }
+                $returnEvent = new \Magento\Framework\Event\Observer([
+                    'event' => new \Magento\Framework\Event(['creditmemo' => $memo])]);
+                $returnObserver->execute($returnEvent);
+                $returnObserver->execute($returnEvent);
+                $row = $this->outbox->find('loyaltyshop.return_event', $identity + ['creditmemo_id' => $memo->getId()]);
+                self::assertNotNull($row);
+                $products[0]['quantity'] = $qty;
+                self::assertSame($products, json_decode($row['payload'], true)['products']);
+            }
+            $config->setValue('loyalty/export/event_price_includes_tax', !$index, 'store', $storeId);
+            $purchaseObserver->execute($event);
+            self::assertSame($purchase['payload'], $this->outbox->find(PurchaseConsumer::TOPIC, $identity)['payload'],
+                'Changing config must not rewrite an event already queued.');
+        }
+    }
+
     public function testMagentoPublisherPersistsAndDeduplicatesWithoutBroker(): void
     {
         $payload = $this->purchase();
