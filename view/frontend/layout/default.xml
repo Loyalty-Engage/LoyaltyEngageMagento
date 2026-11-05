@@ -4,7 +4,15 @@
         <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-cart.css"/>
     </head>
     <body>
+        <referenceContainer name="content">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Personalization\Automatic"
+                   name="loyaltyshop.personalizations.automatic" before="-"
+                   template="LoyaltyEngage_LoyaltyShop::personalization/automatic.phtml"/>
+        </referenceContainer>
         <referenceContainer name="before.body.end">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Personalization\Bootstrap"
+                   name="loyaltyshop.personalizations.bootstrap"
+                   template="LoyaltyEngage_LoyaltyShop::personalization/bootstrap.phtml"/>
             <block class="LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta"
                 name="loyaltyshop.customer.meta.bootstrap"
                 template="LoyaltyEngage_LoyaltyShop::account/loyalty-meta-bootstrap.phtml"/>

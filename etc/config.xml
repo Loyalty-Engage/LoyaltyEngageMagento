@@ -3,6 +3,10 @@
     xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
     <default>
         <loyalty>
+            <personalizations>
+                <enabled>0</enabled>
+                <debug>0</debug>
+            </personalizations>
             <export>
                 <purchase_order_status>complete</purchase_order_status>
                 <event_price_includes_tax>0</event_price_includes_tax>

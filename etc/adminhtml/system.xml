@@ -276,6 +276,42 @@
                     </depends>
                 </field>
             </group>
+            <group id="personalizations" translate="label" type="text" sortOrder="30"
+                showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Frontend Personalizations</label>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Enable Frontend Personalizations</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Disabled by default. Uses the official Loyalty Engage frontend loader, independently of API credentials.</comment>
+                </field>
+                <field id="tenant_id" translate="label comment" type="textarea" sortOrder="20"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Frontend Tenant UUID or Loader Snippet</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PersonalizationTenant</backend_model>
+                    <comment><![CDATA[Paste the UUID or the official empty &lt;script type="module" async src="https://le-cloud.app/f/t/UUID.js"&gt;&lt;/script&gt;. Only the UUID is stored. This is not the API Client ID. Add this exact storefront domain in Loyalty Engage > Developer > Frontend settings > Allowed domains; configure staging separately.]]></comment>
+                </field>
+                <field id="currency" translate="label comment" type="text" sortOrder="30"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Loyalty Engage Organization Currency</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PersonalizationCurrency</backend_model>
+                    <validate>validate-alpha</validate>
+                    <comment>Three uppercase letters, for example EUR. Amounts are omitted if this is missing or a Magento exchange rate is unavailable. Product unit price and cart product subtotal follow Purchase/Return tax basis, before coupon discounts and excluding shipping.</comment>
+                </field>
+                <field id="rules" translate="label comment" type="text" sortOrder="40"
+                    showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Personalization Rules</label>
+                    <frontend_model>LoyaltyEngage\LoyaltyShop\Block\Adminhtml\Form\Field\Personalizations</frontend_model>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PersonalizationRules</backend_model>
+                    <comment><![CDATA[Manual placement: insert the Loyalty Engage Personalization widget in a CMS/Page Builder Text element, or use {{widget type="LoyaltyEngage\LoyaltyShop\Block\Widget\Personalization" key="your-key"}}. Keys are unique lowercase names. Automatic rules appear before page content. Selected paths are comma-separated, for example /membership,/about-us (include any store URL prefix). Configure replace content in Loyalty Engage for value updates. No scripts are stored in these rows.]]></comment>
+                </field>
+                <field id="debug" translate="label comment" type="select" sortOrder="50"
+                    showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Frontend Personalization Debug Logging</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Browser console diagnostics for rule keys, target availability, loader state and context changes. Identifiers, balances, tokens and API responses are never logged.</comment>
+                </field>
+            </group>
             <group id="frontend" translate="label" type="text" sortOrder="25"
                 showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Frontend Loyalty Data</label>

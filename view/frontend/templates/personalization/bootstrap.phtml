@@ -1,0 +1,10 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Personalization\Bootstrap $block */
+/** @var \Magento\Framework\View\Helper\SecureHtmlRenderer $secureRenderer */
+if (!$block->rules()) { return; }
+?>
+<div hidden data-le-personalizations-config="<?= $block->escapeHtmlAttr($block->settings()) ?>"></div>
+<?= /* @noEscape */ $secureRenderer->renderTag('script', [
+    'src' => $block->getViewFileUrl('LoyaltyEngage_LoyaltyShop::js/personalizations.js'),
+    'defer' => 'defer',
+], '', false) ?>

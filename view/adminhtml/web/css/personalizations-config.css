@@ -1,0 +1,119 @@
+/* Keep the wide rule editor out of the configuration form's intrinsic sizing. */
+#loyalty_personalizations > table,
+#loyalty_personalizations > table > tbody {
+    display: block;
+    width: 100%;
+}
+
+#loyalty_personalizations > table > tbody > tr {
+    display: grid;
+    grid-template-columns: minmax(180px, 28%) minmax(0, 1fr) 125px;
+    gap: 20px;
+    align-items: start;
+    margin-bottom: 24px;
+}
+
+#loyalty_personalizations > table > tbody > tr > td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+}
+
+#loyalty_personalizations .label label {
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+#loyalty_personalizations .value > textarea,
+#loyalty_personalizations .value > input,
+#loyalty_personalizations .value > select {
+    width: 100%;
+    max-width: 740px;
+}
+
+#loyalty_personalizations #row_loyalty_personalizations_rules {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
+#loyalty_personalizations .admin__control-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid #ccc;
+}
+
+#loyalty_personalizations .admin__control-table {
+    table-layout: fixed;
+    min-width: 1820px;
+    width: 100%;
+}
+
+#loyalty_personalizations .admin__control-table th,
+#loyalty_personalizations .admin__control-table td {
+    padding: 12px;
+    vertical-align: top;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(9),
+#loyalty_personalizations .admin__control-table td:nth-child(9) {
+    width: 260px;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(1) {
+    width: 170px;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(2) {
+    width: 140px;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(3),
+#loyalty_personalizations .admin__control-table th:nth-child(7),
+#loyalty_personalizations .admin__control-table th:nth-child(8) {
+    width: 110px;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(4) {
+    width: 180px;
+}
+
+#loyalty_personalizations .admin__control-table th:nth-child(5),
+#loyalty_personalizations .admin__control-table th:nth-child(6) {
+    width: 220px;
+}
+
+#loyalty_personalizations .admin__control-table .col-actions {
+    width: 64px;
+}
+
+#loyalty_personalizations .admin__control-table input,
+#loyalty_personalizations .admin__control-table select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+#loyalty_personalizations .admin__control-table code {
+    display: block;
+    padding: 8px;
+    background: #f5f5f5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    line-height: 1.5;
+    user-select: all;
+}
+
+#loyalty_personalizations .note {
+    max-width: 900px;
+    line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+    #loyalty_personalizations > table > tbody > tr {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+}

@@ -1,6 +1,16 @@
 <?xml version="1.0"?>
 <widgets xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Widget:etc/widget.xsd">
+    <widget id="loyaltyshop_personalization" class="LoyaltyEngage\LoyaltyShop\Block\Widget\Personalization"
+            is_email_compatible="false" placeholder_image="Magento_Widget::images/widget_block.png">
+        <label translate="true">Loyalty Engage Personalization</label>
+        <description translate="true">Place an enabled manual personalization by its configured key.</description>
+        <parameters>
+            <parameter name="key" xsi:type="text" visible="true" required="true" sort_order="10">
+                <label translate="true">Personalization Key</label>
+            </parameter>
+        </parameters>
+    </widget>
     <widget id="loyaltyshop_loyalty_meta"
             class="LoyaltyEngage\LoyaltyShop\Block\Widget\LoyaltyMeta"
             is_email_compatible="false"

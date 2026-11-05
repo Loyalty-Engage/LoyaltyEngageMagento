@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.6.5] - 2026-11-05
+
+### Added
+- Opt-in, store-scoped frontend personalizations using the official le-cloud.app loader. Supports validated tenant snippets, automatic page scopes, and manual CMS/Page Builder widget placement.
+- Session-only private customer context, currency-aware product/cart values, storefront update bridges, and optional non-PII diagnostics.
+- Responsive admin rule editor with contained horizontal scrolling and readable configuration fields.
+
+### Verification
+- 163 PHP unit tests and 25 frontend JavaScript tests pass locally.
+- Real Luma homepage rendering of Public ID test-1 verified after allowing the demo domain in Loyalty Engage.
+- Real Magento 2.4.8 / PHP 8.3.36 checks on Luma and Hyva Theme 1.5.3 with Hyva Checkout 1.3.15: compilation, schema status, session-only identity, login/logout, public CMS HTML isolation, manual widget rendering, cart quantity increases/decreases and checkout target rendering. Hyva checkout shipping/payment updates and navigation to the payment step were exercised in Chrome without placing an order.
+
+### Fixed
+- Recognize Hyva Checkout's native action as checkout scope and refresh private context after Magewire message processing.
 
 ## [2.6.4] - 2026-10-19
 

@@ -1,0 +1,7 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Widget\Personalization $block */
+$target = $block->target();
+if (!$target) { return; }
+?>
+<div id="<?= $block->escapeHtmlAttr($target['id']) ?>"
+     data-le-personalization-key="<?= $block->escapeHtmlAttr($target['key']) ?>"></div>
