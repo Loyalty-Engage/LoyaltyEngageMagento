@@ -42,6 +42,9 @@ class RecoverMutations
                 ->order(['available_at ASC', 'operation_key ASC'])->limit(25);
             if ($status !== 'received') {
                 $query->where('operation = ?', 'product');
+            } else {
+                // Wallet vouchers are accounted for by Funding, never added as cart products.
+                $query->where('operation IN (?)', ['product', 'discount']);
             }
             $rows = array_merge($rows, $db->fetchAll($query));
         }

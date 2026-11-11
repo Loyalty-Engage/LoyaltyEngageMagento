@@ -8,6 +8,55 @@
             </argument>
         </arguments>
     </type>
+    <type name="Magento\Sales\Model\ResourceModel\Order\Relation">
+        <plugin name="loyaltyshop_wallet_order_snapshot" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\OrderRelation" sortOrder="100"/>
+    </type>
+    <type name="Magento\Quote\Model\QuoteManagement">
+        <plugin name="loyaltyshop_minimum_submit" type="LoyaltyEngage\LoyaltyShop\Plugin\MinimumOrderSubmitPlugin"/>
+        <plugin name="loyaltyshop_wallet_submit" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\Submit" sortOrder="200"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Invoice">
+        <plugin name="loyaltyshop_wallet_invoice_actions" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\InvoiceActions"/>
+    </type>
+    <type name="Magento\Sales\Model\Service\CreditmemoService">
+        <plugin name="loyaltyshop_wallet_refund_actions" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\RefundActions"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Creditmemo">
+        <plugin name="loyaltyshop_wallet_zero_refund" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\RefundActions"/>
+    </type>
+    <type name="Magento\Sales\Model\Order">
+        <plugin name="loyaltyshop_wallet_order_actions" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\OrderActions"/>
+    </type>
+    <type name="Magento\Sales\Block\Order\Totals">
+        <plugin name="loyaltyshop_wallet_sales_totals" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\SalesTotals"/>
+    </type>
+    <type name="Magento\Sales\Model\InvoiceOrder">
+        <plugin name="loyaltyshop_wallet_invoice_api" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\DocumentApi"/>
+    </type>
+    <type name="Magento\Sales\Model\RefundOrder">
+        <plugin name="loyaltyshop_wallet_refund_order_api" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\DocumentApi"/>
+    </type>
+    <type name="Magento\Sales\Model\RefundInvoice">
+        <plugin name="loyaltyshop_wallet_refund_invoice_api" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\DocumentApi"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Validation\CanRefund">
+        <plugin name="loyaltyshop_wallet_refund_order_validation" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\RefundValidation"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Invoice\Validation\CanRefund">
+        <plugin name="loyaltyshop_wallet_refund_invoice_validation" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\RefundValidation"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Model\Wallet\Guard">
+        <arguments><argument name="locks" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Wallet\DatabaseLocks</argument></arguments>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\Submit">
+        <arguments><argument name="locks" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Wallet\DatabaseLocks</argument></arguments>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Controller\Wallet\Apply">
+        <arguments><argument name="locks" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Wallet\DatabaseLocks</argument></arguments>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Cron\WalletHolds">
+        <arguments><argument name="locks" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Wallet\DatabaseLocks</argument></arguments>
+    </type>
     <preference for="LoyaltyEngage\LoyaltyShop\Api\LoyaltyCartInterface"
         type="LoyaltyEngage\LoyaltyShop\Model\LoyaltyCart" />
     <preference for="LoyaltyEngage\LoyaltyShop\Api\Data\LoyaltyCartResponseInterface"
@@ -49,9 +98,6 @@
         <plugin name="loyaltyshop_quote_remove_item_plugin"
             type="LoyaltyEngage\LoyaltyShop\Plugin\QuoteRemoveItemPlugin"
             sortOrder="10" />
-    </type>
-    <type name="Magento\Quote\Model\QuoteManagement">
-        <plugin name="loyaltyshop_minimum_submit" type="LoyaltyEngage\LoyaltyShop\Plugin\MinimumOrderSubmitPlugin"/>
     </type>
     
     <type name="Magento\Quote\Model\Quote\Address">
@@ -113,6 +159,9 @@
         </arguments>
     </type>
 
+    <type name="Magento\SalesRule\Model\Utility">
+        <plugin name="loyaltyshop_wallet_internal_coupon" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\InternalCoupon"/>
+    </type>
     <!-- Coupon Post Plugin Frontend -->
     <type name="Magento\Checkout\Controller\Cart\CouponPost">
         <plugin name="loyaltyengage_coupon_plugin"
@@ -125,5 +174,8 @@
         <plugin name="loyaltyengage_coupon_api_plugin"
                 type="LoyaltyEngage\LoyaltyShop\Plugin\CouponManagementPlugin"
                 sortOrder="10"/>
+    </type>
+    <type name="Magento\Checkout\Model\ShippingInformationManagement">
+        <plugin name="loyaltyshop_wallet_shipping_totals" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\ShippingInformation"/>
     </type>
 </config>

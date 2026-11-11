@@ -1,0 +1,49 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Account\Wallet $block */
+$details = $block->details();
+if (!$details) {
+    return;
+}
+?>
+<section class="block block-dashboard-info loyaltyshop-wallet">
+    <div class="block-title"><strong><?= $block->escapeHtml($details['name']) ?></strong></div>
+    <div class="block-content">
+        <p><?= $block->escapeHtml(__('Available credit: EUR %1', $details['available'])) ?></p>
+        <?php if ($details['reserved'] !== '0.00'): ?>
+            <p><?= $block->escapeHtml(__('Reserved for orders: EUR %1', $details['reserved'])) ?></p>
+        <?php endif; ?>
+        <?php if ($details['negative']): ?>
+            <p><?= $block->escapeHtml(__('Accounting balance: EUR %1. Future earnings offset prior return corrections.', $details['balance'])) ?></p>
+        <?php endif; ?>
+        <?php if (!$details['spending']): ?>
+            <p class="message notice"><?= $block->escapeHtml(__('Wallet payment is currently disabled by the shop.')) ?></p>
+        <?php endif; ?>
+        <?php if ($details['history']): ?>
+            <div class="table-wrapper">
+                <table class="data table">
+                    <caption class="table-caption"><?= $block->escapeHtml(__('Recent wallet transactions')) ?></caption>
+                    <thead><tr>
+                        <th scope="col"><?= $block->escapeHtml(__('Date (UTC)')) ?></th>
+                        <th scope="col"><?= $block->escapeHtml(__('Transaction')) ?></th>
+                        <th scope="col"><?= $block->escapeHtml(__('Amount (EUR)')) ?></th>
+                    </tr></thead>
+                    <tbody>
+                    <?php foreach ($details['history'] as $row): ?>
+                        <tr>
+                            <td><?= $block->escapeHtml($row['created_at']) ?></td>
+                            <td><?= $block->escapeHtml(match ($row['kind']) {
+                                'order_accrual' => __('Order credit'),
+                                'order_payment' => __('Order payment'),
+                                'payment_refund' => __('Payment returned to wallet'),
+                                'payment_release' => __('Unused order credit returned'),
+                                default => __('Return / cancellation correction'),
+                            }) ?></td>
+                            <td><?= $block->escapeHtml($row['amount']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+</section>

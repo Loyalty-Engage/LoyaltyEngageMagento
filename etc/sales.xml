@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Sales:etc/sales.xsd">
+    <section name="quote"><group name="totals">
+        <item name="loyalty_wallet" instance="LoyaltyEngage\LoyaltyShop\Model\Wallet\QuoteTotal" sort_order="1000"/>
+    </group></section>
+    <section name="order_invoice"><group name="totals">
+        <item name="loyalty_wallet" instance="LoyaltyEngage\LoyaltyShop\Model\Wallet\InvoiceTotal" sort_order="1000"/>
+    </group></section>
+    <section name="order_creditmemo"><group name="totals">
+        <item name="loyalty_wallet" instance="LoyaltyEngage\LoyaltyShop\Model\Wallet\CreditmemoTotal" sort_order="1000"/>
+    </group></section>
+</config>

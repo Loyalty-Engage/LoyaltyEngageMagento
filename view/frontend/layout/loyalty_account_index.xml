@@ -10,6 +10,7 @@
             </arguments>
         </referenceBlock>
         <referenceContainer name="content">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Account\Wallet" name="loyaltyshop.wallet.overview" template="LoyaltyEngage_LoyaltyShop::account/wallet.phtml" cacheable="false" after="loyaltyshop.customer.account.page"/>
             <block class="LoyaltyEngage\LoyaltyShop\Block\Account\LoyaltyMeta"
                    name="loyaltyshop.customer.account.page"
                    cacheable="false"

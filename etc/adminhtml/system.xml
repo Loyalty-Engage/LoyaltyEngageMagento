@@ -276,6 +276,60 @@
                     </depends>
                 </field>
             </group>
+            <group id="wallet" translate="label comment" type="text" sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Wallet</label>
+                <comment>Personal EUR wallet. Enable only after payment and refund acceptance on your staging environment.</comment>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Wallet</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Disabled by default. New logged-in customer orders only, EUR base and order currency, per store. Credit becomes available at status complete. Existing financial corrections continue after disabling.</comment>
+                </field>
+                <field id="name" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Wallet Name</label>
+                </field>
+                <field id="spending_enabled" translate="label comment" type="select" sortOrder="21" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Wallet Payment</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Logged-in own-cart checkout only, EUR, single shipping address. Full wallet payment requires Zero Subtotal Checkout. Disabled by default.</comment>
+                </field>
+                <field id="payment_methods" translate="label comment" type="multiselect" sortOrder="22" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Wallet-Compatible Payment Methods</label>
+                    <source_model>Magento\Payment\Model\Config\Source\Allmethods</source_model>
+                    <comment>Only allow methods after verifying mixed-tender capture and partial refunds in staging. Zero Subtotal Checkout must be allowed for full wallet payments.</comment>
+                </field>
+                <field id="rates" translate="label comment" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Earn Percentage per Tier</label>
+                    <frontend_model>LoyaltyEngage\LoyaltyShop\Block\Adminhtml\Form\Field\WalletRates</frontend_model>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRates</backend_model>
+                    <comment>Use the exact store-scoped le_current_tier value, e.g. base: 1, gold: 2. Unknown tiers earn nothing. After discounts; shipping excluded. Policy is fixed at order placement.</comment>
+                </field>
+                <field id="including_tax" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Include Merchandise Tax in Earn Basis</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="coins_required" translate="label comment" type="select" sortOrder="49" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Debit Loyalty Engage Coins for Wallet Payments</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Disabled by default. Whole euros only. Confirmed purchases survive failed payments without a second coin debit. Returns forfeit spent credit. Configure all four SKUs first.</comment>
+                </field>
+                <field id="redemption_sku_1" translate="label comment" type="text" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>EUR 1 Discount Product SKU</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRedemptionSku</backend_model>
+                    <comment>Loyalty Engage discount product SKU, not a Magento SKU or coupon code. Configure four distinct dedicated wallet products without a reusable checkout discount.</comment>
+                </field>
+                <field id="redemption_sku_5" translate="label" type="text" sortOrder="51" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>EUR 5 Discount Product SKU</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRedemptionSku</backend_model>
+                </field>
+                <field id="redemption_sku_10" translate="label" type="text" sortOrder="52" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>EUR 10 Discount Product SKU</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRedemptionSku</backend_model>
+                </field>
+                <field id="redemption_sku_50" translate="label" type="text" sortOrder="53" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>EUR 50 Discount Product SKU</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRedemptionSku</backend_model>
+                </field>
+            </group>
             <group id="personalizations" translate="label" type="text" sortOrder="30"
                 showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Frontend Personalizations</label>

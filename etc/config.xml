@@ -2,7 +2,16 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
     <default>
+        <sales><totals_sort><loyalty_wallet>90</loyalty_wallet></totals_sort></sales>
         <loyalty>
+            <wallet>
+                <enabled>0</enabled>
+                <spending_enabled>0</spending_enabled>
+                <coins_required>0</coins_required>
+                <payment_methods>free,checkmo,banktransfer</payment_methods>
+                <name>Wallet</name>
+                <including_tax>0</including_tax>
+            </wallet>
             <personalizations>
                 <enabled>0</enabled>
                 <debug>0</debug>

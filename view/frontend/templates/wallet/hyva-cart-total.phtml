@@ -1,0 +1,6 @@
+<template x-if="segment.code === 'loyalty_wallet'">
+    <div class="flex justify-between gap-4 py-3">
+        <span x-text="segment.title"></span>
+        <span x-text="hyva.formatPrice(segment.value)"></span>
+    </div>
+</template>

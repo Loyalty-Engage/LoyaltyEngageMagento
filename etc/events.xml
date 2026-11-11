@@ -1,12 +1,19 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="sales_quote_collect_totals_before">
+        <observer name="loyaltyshop_wallet_reset_totals" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\ResetTotals"/>
+    </event>
     <event name="sales_model_service_quote_submit_before">
+        <observer name="loyaltyshop_wallet_prepare_payment" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\PreparePayment"/>
+        <observer name="loyaltyshop_wallet_capture" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\Capture"/>
         <observer name="loyaltyshop_capture_order_source" instance="LoyaltyEngage\LoyaltyShop\Observer\CaptureOrderSourceObserver" />
     </event>
     <event name="sales_quote_save_after">
+        <observer name="loyaltyshop_wallet_quote_preview" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\QuoteSaved"/>
         <observer name="loyaltyshop_quote_removals" instance="LoyaltyEngage\LoyaltyShop\Observer\QuoteSavedObserver"/>
     </event>
     <event name="sales_order_save_after">
+        <observer name="loyaltyshop_wallet_bind_payment" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\PaymentSaved"/>
         <observer name="loyaltyshop_persist_order_data" instance="LoyaltyEngage\LoyaltyShop\Observer\PersistOrderDataObserver" />
         <observer name="loyaltyshop_purchase_event" instance="LoyaltyEngage\LoyaltyShop\Observer\PurchaseObserver" />
         <observer name="loyaltyshop_freeproduct_purchase" instance="LoyaltyEngage\LoyaltyShop\Observer\FreeProductPurchaseObserver" />
@@ -15,7 +22,12 @@
         <observer name="loyaltyshop_persist_item_data" instance="LoyaltyEngage\LoyaltyShop\Observer\PersistOrderItemDataObserver"/>
     </event>
     <event name="sales_order_creditmemo_save_after">
+        <observer name="loyaltyshop_wallet_payment_refund" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\PaymentSaved"/>
+        <observer name="loyaltyshop_wallet_refund" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\Refunded"/>
         <observer name="loyaltyshop_return_event" instance="LoyaltyEngage\LoyaltyShop\Observer\ReturnObserver" />
+    </event>
+    <event name="sales_order_invoice_save_after">
+        <observer name="loyaltyshop_wallet_invoice_allocation" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\PaymentSaved"/>
     </event>
     <event name="checkout_cart_product_add_after">
         <observer name="loyaltyshop_cart_product_add" instance="LoyaltyEngage\LoyaltyShop\Observer\CartProductAddObserver" />

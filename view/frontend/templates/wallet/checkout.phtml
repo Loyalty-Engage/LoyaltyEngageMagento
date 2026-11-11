@@ -1,0 +1,26 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Wallet\Checkout $block */
+$wallet = $block->wallet();
+if (!$wallet) { return; }
+?>
+<section class="block loyaltyshop-wallet-payment border border-gray-300 rounded p-4 mb-4">
+    <div class="block-title"><strong><?= $block->escapeHtml($wallet['name']) ?></strong></div>
+    <p><?= $block->escapeHtml(__('Available credit: EUR %1', $wallet['available'])) ?></p>
+    <?php if ($wallet['coins_required']): ?>
+        <p><?= $block->escapeHtml(__('Whole euros only. Loyalty coins are spent when placing the order. Purchased credit is retained if payment fails; spent credit and coins are not returned on a refund.')) ?></p>
+    <?php endif; ?>
+    <form action="<?= $block->escapeUrl($block->getUrl('loyalty/wallet/apply', ['_nosid' => true])) ?>" method="post">
+        <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($wallet['form_key']) ?>">
+        <input type="hidden" name="return_to" value="<?= $block->escapeHtmlAttr($wallet['return_to']) ?>">
+        <div class="field">
+            <label class="label" for="loyalty-wallet-amount"><?= $block->escapeHtml(__('Amount to use (EUR)')) ?></label>
+            <div class="control">
+                <input class="input-text form-input" id="loyalty-wallet-amount" name="amount" type="number"
+                       min="0" step="<?= $wallet['coins_required'] ? '1' : '0.01' ?>" max="<?= $block->escapeHtmlAttr($wallet['available']) ?>"
+                       value="<?= $block->escapeHtmlAttr($wallet['requested']) ?>" required>
+            </div>
+        </div>
+        <p><?= $block->escapeHtml(__('Enter 0 to remove wallet payment. The remaining amount is paid with your selected payment method.')) ?></p>
+        <button class="action primary btn btn-primary" type="submit"><?= $block->escapeHtml(__('Apply wallet credit')) ?></button>
+    </form>
+</section>

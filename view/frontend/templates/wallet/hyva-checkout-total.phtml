@@ -1,0 +1,8 @@
+<?php
+/** @var \Magento\Framework\View\Element\Template $block */
+$segment = (array) $block->getData('segment');
+?>
+<div class="flex justify-between gap-4">
+    <span><?= $block->escapeHtml($segment['title'] ?? __('Wallet')) ?></span>
+    <span><?= $block->escapeHtml('EUR ' . number_format((float) ($segment['value'] ?? 0), 2, '.', '')) ?></span>
+</div>

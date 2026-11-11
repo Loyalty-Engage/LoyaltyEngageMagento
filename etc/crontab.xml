@@ -2,6 +2,9 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
     <group id="default">
+        <job name="loyaltyshop_wallet_holds" instance="LoyaltyEngage\LoyaltyShop\Cron\WalletHolds" method="execute">
+            <schedule>*/5 * * * *</schedule>
+        </job>
         <job name="loyalty_cart_expiry" instance="LoyaltyEngage\LoyaltyShop\Cron\CartExpiry"
             method="execute">
             <schedule>*/15 * * * *</schedule>

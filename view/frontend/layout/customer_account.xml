@@ -3,6 +3,12 @@
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
         <referenceBlock name="customer_account_navigation">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Account\WalletNavigationLink" name="customer-account-navigation-wallet-link">
+                <arguments>
+                    <argument name="path" xsi:type="string">loyalty/wallet/index</argument>
+                    <argument name="sortOrder" xsi:type="number">160</argument>
+                </arguments>
+            </block>
             <block class="LoyaltyEngage\LoyaltyShop\Block\Account\NavigationLink"
                    name="customer-account-navigation-loyalty-link">
                 <arguments>

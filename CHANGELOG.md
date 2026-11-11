@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.6] - 2026-11-11
+
+### Added
+- Opt-in store-scoped coin-backed wallet payments using EUR 1, 5, 10 and 50 Loyalty Engage discount product SKUs. Whole-euro selection, durable purchase intents, reuse after failed payment, distinct redemption outbox events and prevention of duplicate coupon use.
+- Confirmed purchases back existing wallet euros without minting a second balance. Unknown external outcomes are not blindly retried. Ordinary cash checkout remains available. New-order returns forfeit spent wallet credit and coins.
+- Opt-in EUR wallet accrual, disabled by default: configurable name and tier percentages, store/customer isolation, historical order policy, net-merchandise basis and optional merchandise tax.
+- Integer-cent policy, module-owned order snapshots, indexed balances and append-only idempotent ledger; no new sales-table columns or deployment configuration writes.
+- Credit at status complete, partial-return and cancellation corrections, including partially canceled quantities and refunds before vesting. No retrospective rewards for existing orders.
+- Private account overview and configurable cart/checkout wallet payment with atomic holds, native mixed/zero-cash placement, partial invoice allocation, cash/wallet refund splitting and unused-tender cancellation release.
+- Native document API, sales totals/email/PDF integration, stale-document validation, wallet-only distributed locks and bounded hold recovery. No global payment/refund/lock/consumer settings are written.
+- Earning, spending and coin coupling are separately disabled by default. Real PSP/custom checkout staging acceptance is required before production activation. Optional voucher top-ups are not implemented. See WALLET_2.6.6.md.
+
+### Fixed
+- Preserve collected wallet tender when an empty billing address follows shipping totals; refresh wallet presentation after shipping changes, including zero-total quotes.
+- Do not queue a wallet-update success message that Luma could defer until after order placement. Error messages remain unchanged.
+- Exclude wallet voucher purchases from physical-cart mutation recovery and avoid order-item loading for ordinary orders without wallet tender.
+
+### Verification
+- 202 PHP unit tests (78,270 assertions), 25 JavaScript tests and Magento dependency injection compilation passed.
+- Native payment/invoice/refund/cancellation: 54 checks per store; coin funding: 39 checks per store using fake transport. Accrual, recovery and concurrent reservations passed.
+- Complete Luma and Hyva Checkout browser rerun after totals fixes: full and partial wallet orders, shipping updates, payment-method changes, account balances and login/logout passed. Final message-only change verified with controller regression tests.
+- Live test-tenant acceptance covered one EUR 10 and three EUR 10 voucher purchases. Real PSP callbacks, all voucher denominations and production-volume load were not certified.
+
 ## [2.6.5] - 2026-11-05
 
 ### Added
