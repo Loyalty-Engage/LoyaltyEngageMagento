@@ -13,6 +13,7 @@
         <observer name="loyaltyshop_quote_removals" instance="LoyaltyEngage\LoyaltyShop\Observer\QuoteSavedObserver"/>
     </event>
     <event name="sales_order_save_after">
+        <observer name="loyaltyshop_enrollment" instance="LoyaltyEngage\LoyaltyShop\Observer\Enrollment\OrderPlaced"/>
         <observer name="loyaltyshop_wallet_bind_payment" instance="LoyaltyEngage\LoyaltyShop\Observer\Wallet\PaymentSaved"/>
         <observer name="loyaltyshop_persist_order_data" instance="LoyaltyEngage\LoyaltyShop\Observer\PersistOrderDataObserver" />
         <observer name="loyaltyshop_purchase_event" instance="LoyaltyEngage\LoyaltyShop\Observer\PurchaseObserver" />

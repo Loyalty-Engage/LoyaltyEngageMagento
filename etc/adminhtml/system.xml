@@ -11,6 +11,18 @@
             <tab>loyalty_settings</tab>
             <resource>LoyaltyEngage_LoyaltyShop::config</resource>
 
+            <group id="enrollment" translate="label" sortOrder="95" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Checkout Loyalty Enrollment</label>
+                <field id="mode" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Enrollment Mode</label>
+                    <source_model>LoyaltyEngage\LoyaltyShop\Model\Config\Source\EnrollmentMode</source_model>
+                    <comment>Disabled by default. Opt-in mode hides wallet access until synced loyalty fields exist or an opt-in event is delivered. Wallet earning continues. Loyalty Engage controls acceptance of other events.</comment>
+                </field>
+                <field id="label" translate="label comment" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Checkbox Text</label>
+                    <comment>Plain text. The checkbox is never preselected for a new cart. Customers save their preference; opt-in is sent when the order is placed.</comment>
+                </field>
+            </group>
             <group id="general" translate="label" type="text" sortOrder="10"
                 showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Loyalty Cart Configuration</label>

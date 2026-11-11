@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.7] - 2026-11-11
+
+### Added
+- Store-scoped checkout enrollment for Luma and Hyva Checkout, disabled by default. Merchants can configure the checkbox label and choose informational or real opt-in mode.
+- Persist explicit checkout choices in a module-owned quote table. Real opt-in queues LoyaltyEngageOptIn when the order is placed, deduplicated by store and customer identifier; Purchase delivery waits for a queued opt-in to succeed.
+- Recognize existing members from populated, store-scoped Loyalty Engage fields, including zero balances. In real opt-in mode, hide wallet balances/navigation and prevent wallet use until membership is known or opt-in delivery is confirmed. Wallet accrual continues unchanged.
+- See CHECKOUT_ENROLLMENT.md for setup, event timing and deployment requirements.
+
+### Fixed
+- Support both account wallet and navigation block rendering in the enrollment access plugin; prevent a storefront TypeError discovered during browser acceptance.
+
+### Verification
+- 209 PHP unit tests (78,304 assertions), 10 rollback-only native Magento enrollment checks with fake API transport, and Magento dependency injection compilation passed.
+- Chrome acceptance on Luma and Hyva Checkout: checkbox selection/deselection persisted, configurable label displayed, empty-field wallet hiding, zero-point membership recognition, store isolation, account balances, EUR 5 wallet application/removal, informational mode and disabled mode passed.
+- Test settings and customer metadata restored. No real coins spent or live opt-in API event sent during this browser acceptance; no new order was placed in that browser run.
+
 ## [2.6.6] - 2026-11-11
 
 ### Added

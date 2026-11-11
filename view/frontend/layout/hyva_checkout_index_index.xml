@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head><script src="LoyaltyEngage_LoyaltyShop::js/enrollment.js"/></head>
     <body>
         <referenceContainer name="content">
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Enrollment\Checkout" name="loyaltyshop.enrollment" before="loyaltyshop.wallet.payment" template="LoyaltyEngage_LoyaltyShop::enrollment/checkout.phtml"/>
             <block class="LoyaltyEngage\LoyaltyShop\Block\Wallet\Checkout" name="loyaltyshop.wallet.payment" before="-" template="LoyaltyEngage_LoyaltyShop::wallet/checkout.phtml"/>
         </referenceContainer>
         <referenceBlock name="price-summary.total-segments">

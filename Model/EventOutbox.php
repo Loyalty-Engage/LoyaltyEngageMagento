@@ -9,6 +9,7 @@ class EventOutbox
 {
     public const TABLE = 'loyaltyshop_outbox';
     public const TOPICS = [
+        'loyaltyshop.opt_in_event',
         'loyaltyshop.purchase_event', 'loyaltyshop.return_event',
         'loyaltyshop.free_product_purchase_event', 'loyaltyshop.free_product_remove_event',
         'loyaltyshop.review_event', 'loyaltyshop.redeem_discount_event', 'loyaltyshop.claim_discount_event',
@@ -53,6 +54,7 @@ class EventOutbox
     public static function eventKey(string $topic, array $payload): string
     {
         $identity = match ($topic) {
+            'loyaltyshop.opt_in_event' => hash('sha256', strtolower(trim((string) ($payload['identifier'] ?? '')))),
             'loyaltyshop.purchase_event', 'loyaltyshop.free_product_purchase_event' =>
                 $payload['orderId'] ?? null,
             'loyaltyshop.return_event' => $payload['creditmemo_id'] ?? null,

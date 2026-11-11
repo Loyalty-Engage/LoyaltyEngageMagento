@@ -1,0 +1,16 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Enrollment\Checkout $block */
+$settings = $block->settings();
+if (!$settings) { return; }
+?>
+<form class="block loyalty-enrollment" method="post" action="<?= $block->escapeUrl($block->getUrl('loyalty/enrollment/save', ['_secure' => true])) ?>">
+    <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($settings['form_key']) ?>">
+    <div class="field choice">
+        <input class="checkbox" id="loyalty-enrollment" type="checkbox" name="subscribe" value="1" <?= $settings['selected'] ? 'checked' : '' ?>>
+        <label class="label" for="loyalty-enrollment"><?= $block->escapeHtml($settings['label']) ?></label>
+    </div>
+    <p><?= $block->escapeHtml($settings['mode'] === 'required'
+        ? __('Save your choice before placing the order. Enrollment is processed after your order is placed.')
+        : __('You participate in the loyalty program regardless of this choice.')) ?></p>
+    <button class="action secondary btn btn-secondary" type="submit"><?= $block->escapeHtml(__('Save loyalty preference')) ?></button>
+</form>

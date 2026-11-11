@@ -4,6 +4,10 @@
     <default>
         <sales><totals_sort><loyalty_wallet>90</loyalty_wallet></totals_sort></sales>
         <loyalty>
+            <enrollment>
+                <mode>disabled</mode>
+                <label>I would like to join the loyalty program.</label>
+            </enrollment>
             <wallet>
                 <enabled>0</enabled>
                 <spending_enabled>0</spending_enabled>

@@ -216,4 +216,15 @@
         <constraint xsi:type="primary" referenceId="PRIMARY"><column name="intent"/></constraint>
         <index referenceId="LE_WALLET_FUNDING_PENDING" indexType="btree"><column name="customer_id"/><column name="store_id"/><column name="status"/></index>
     </table>
+    <table name="loyaltyshop_enrollment_quote" resource="default" engine="innodb" comment="Checkout Loyalty Enrollment Choice">
+        <column xsi:type="int" name="quote_id" unsigned="true" nullable="false"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false"/>
+        <column xsi:type="boolean" name="selected" nullable="false" default="0"/>
+        <column xsi:type="varchar" name="mode" length="16" nullable="false"/>
+        <column xsi:type="text" name="label" nullable="false"/>
+        <column xsi:type="timestamp" name="updated_at" nullable="false" default="CURRENT_TIMESTAMP" on_update="true"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="quote_id"/></constraint>
+        <constraint xsi:type="foreign" referenceId="LE_ENROLLMENT_QUOTE" table="loyaltyshop_enrollment_quote" column="quote_id" referenceTable="quote" referenceColumn="entity_id" onDelete="CASCADE"/>
+        <constraint xsi:type="foreign" referenceId="LE_ENROLLMENT_STORE" table="loyaltyshop_enrollment_quote" column="store_id" referenceTable="store" referenceColumn="store_id" onDelete="CASCADE"/>
+    </table>
 </schema>

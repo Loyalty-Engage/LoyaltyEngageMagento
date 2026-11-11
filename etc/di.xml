@@ -116,6 +116,7 @@
     <type name="LoyaltyEngage\LoyaltyShop\Cron\DeliverEvents">
         <arguments>
             <argument name="consumers" xsi:type="array">
+                <item name="loyaltyshop.opt_in_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\OptInConsumer</item>
                 <item name="loyaltyshop.purchase_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\PurchaseConsumer</item>
                 <item name="loyaltyshop.return_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\ReturnConsumer</item>
                 <item name="loyaltyshop.review_event" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Queue\ReviewConsumer</item>
@@ -177,5 +178,14 @@
     </type>
     <type name="Magento\Checkout\Model\ShippingInformationManagement">
         <plugin name="loyaltyshop_wallet_shipping_totals" type="LoyaltyEngage\LoyaltyShop\Plugin\Wallet\ShippingInformation"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Model\Wallet\Selection">
+        <plugin name="loyaltyshop_enrollment_wallet_access" type="LoyaltyEngage\LoyaltyShop\Plugin\Enrollment\WalletAccess"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Block\Account\Wallet">
+        <plugin name="loyaltyshop_enrollment_wallet_view" type="LoyaltyEngage\LoyaltyShop\Plugin\Enrollment\WalletAccess"/>
+    </type>
+    <type name="LoyaltyEngage\LoyaltyShop\Block\Account\WalletNavigationLink">
+        <plugin name="loyaltyshop_enrollment_wallet_link" type="LoyaltyEngage\LoyaltyShop\Plugin\Enrollment\WalletAccess"/>
     </type>
 </config>

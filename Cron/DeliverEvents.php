@@ -68,6 +68,12 @@ class DeliverEvents
                     throw new DeferredDeliveryException('Waiting for the associated Purchase to be delivered.');
                 }
             }
+            if ($row['topic'] === 'loyaltyshop.purchase_event') {
+                $optIn = $this->outbox->find('loyaltyshop.opt_in_event', $payload);
+                if ($optIn && $optIn['status'] !== 'sent') {
+                    throw new DeferredDeliveryException('Waiting for loyalty enrollment to be delivered.');
+                }
+            }
             $this->apiClient->setIdempotencyKey($row['event_key']);
             $consumer->deliver($payload);
             $db->beginTransaction();

@@ -82,6 +82,7 @@ abstract class AbstractConsumer
     public function deliver(array $payload): void
     {
         $required = match (static::TOPIC) {
+            'loyaltyshop.opt_in_event' => ['event', 'identifier'],
             'loyaltyshop.purchase_event', 'loyaltyshop.return_event' => ['event', 'identifier', 'orderId', 'products'],
             'loyaltyshop.free_product_purchase_event' => ['email', 'orderId', 'products'],
             'loyaltyshop.free_product_remove_event' => ['email', 'sku', 'quantity'],
