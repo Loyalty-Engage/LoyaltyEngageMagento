@@ -474,7 +474,6 @@ try {
             }
             $response = curl_exec($curl);
             $http = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-            curl_close($curl);
             $response = json_decode((string) $response, true);
             if (is_array($response)) {
                 unset($response['trace']);

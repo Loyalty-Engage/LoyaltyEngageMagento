@@ -22,7 +22,7 @@ Shipping rate collection is forced only when loyalty eligibility changes; Magent
 
 ## Requirements
 
-- PHP 8.1, 8.2, 8.3 or 8.4, matching the PHP version supported by your Magento release
+- PHP 8.1, 8.2, 8.3, 8.4 or 8.5, matching the PHP version supported by your Magento release
 - Magento 2.4.x (the local verification environment uses Magento 2.4.8 / PHP 8.3)
 - Composer
 
