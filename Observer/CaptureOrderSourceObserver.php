@@ -26,7 +26,7 @@ class CaptureOrderSourceObserver implements ObserverInterface
         }
 
         try {
-            $areaCode = $this->appState->getAreaCode();
+            $areaCode = (string) $this->appState->getAreaCode();
         } catch (\Throwable $exception) {
             $areaCode = '';
         }

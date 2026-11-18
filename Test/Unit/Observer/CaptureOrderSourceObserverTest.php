@@ -15,6 +15,22 @@ use PHPUnit\Framework\TestCase;
 
 class CaptureOrderSourceObserverTest extends TestCase
 {
+    public function testFallsBackToUnknownWhenAreaReturnsNull(): void
+    {
+        $appState = $this->createMock(State::class);
+        $appState->method('getAreaCode')->willReturn(null);
+
+        $order = $this->createMock(Order::class);
+        $order->expects(self::once())
+            ->method('setData')
+            ->with(\LoyaltyEngage\LoyaltyShop\Model\OrderData::CAPTURED_SOURCE, OrderSource::UNKNOWN);
+
+        $observer = new Observer();
+        $observer->setEvent(new Event(['order' => $order]));
+
+        (new CaptureOrderSourceObserver($appState, new OrderSource()))->execute($observer);
+    }
+
     public function testPersistsApiSourceOnOrderBeforeSubmit(): void
     {
         $appState = $this->createMock(State::class);

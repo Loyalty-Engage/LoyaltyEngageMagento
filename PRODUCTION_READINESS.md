@@ -1,5 +1,148 @@
 # Production Readiness Review
 
+## Checkout Attribute Containment, 2026-11-18 (2.6.8)
+
+The seven internal customer fields are not customer-editable inputs. Fresh-install patches now set
+`visible = false`; an upgrade patch changes only matching customer EAV metadata and removes non-admin
+form assignments in one transaction. It retains the attribute IDs, types, system/user-defined flags,
+all legacy customer values and store-scoped balances. It neither changes schema nor accesses sales tables.
+Database failures propagate and roll back. Both EAV and customer metadata caches are invalidated.
+
+The frontend-only plugin filters `CustomerMetadataInterface::getAttributes()` (form metadata), including
+cached form results. It does not filter address metadata, `getAllAttributesMetadata()` or
+`getCustomAttributesMetadata()`. No plugin is registered in adminhtml, REST or GraphQL. This protects
+Magento's standard form extraction as well as rendering; it is not a universal firewall for custom
+checkout code that bypasses Magento metadata or writes arbitrary customer attributes directly.
+It adds no database queries or remote calls to form rendering or order placement.
+
+Known UI impact: generic customer-admin EAV inputs also become hidden. The module's account/Page Builder
+presentation uses its data provider, not generic EAV visibility, and retains its own per-store visibility
+settings. This change does not turn off synchronization, earning, enrollment or wallet features.
+
+### No-update containment
+
+`Test/Manual/hide-loyalty-checkout-fields.sql` is an explicit manual equivalent of the metadata repair,
+not an automatic deployment step. Back up the selected metadata/form-assignment rows first, inspect the
+seven matched customer attribute codes, adjust any Magento table prefix, and test on staging. Execute
+the statements transactionally against the affected Magento database. If any statement fails, roll back
+instead of continuing to COMMIT. This script does not add the runtime frontend filter.
+
+Then run `bin/magento cache:clean config eav layout block_html full_page`, close existing checkout tabs,
+and open a fresh checkout. Check both shipping and billing forms with a guest and a logged-in member.
+Do not rely on CSS hiding. Do not modify `system` or `user_defined` to hide fields: that may remove legacy
+attributes from repository custom-attribute data. Do not use the Hyva restore-attributes command as a fix;
+it restores old configuration, not just these loyalty fields.
+
+### Release gate
+
+Automated coverage includes fresh creation, scoped metadata selection with table prefixes, empty selections,
+failure rollback, repeat/no-op updates, both cache invalidations, stale form metadata, extraction of forged
+loyalty input through the native Magento form, normal field preservation, frontend-only DI and native Magento
+custom-attribute metadata retention. Full PHP unit suite and PHP/XML validation are run locally.
+
+Local result on PHP 8.4.6: 219 unit tests / 78,396 assertions passed, including nine focused tests for this
+change. PHP syntax checks, frontend DI XML validation against Magento's schema (with its URN resolver)
+and `git diff --check` passed. These are not live database/checkout results.
+
+Merchant staging checklist (the local evidence and remaining gaps are recorded below). Run against the
+merchant's installed checkout/customizations; unit tests are not a substitute:
+
+- Back up the seven attribute definitions, all their form assignments and fixture-customer balances.
+- Verify a clean installation and an upgrade from 2.6.7, including `setup:upgrade` and DI compilation.
+- Apply the repair twice and verify no additional changes on the second run; compare balances and attribute IDs.
+- Inspect shipping and separate billing forms, guests and logged-in customers, initial render and AJAX re-render.
+- Submit forged values for the seven fields and verify none are saved by the installed checkout's save services.
+- Verify normal address fields, address saves and full checkout/order placement still work.
+- Verify REST updates, account/Page Builder display, legacy EAV fallback and per-store balance isolation.
+- Confirm the generic customer-admin fields are hidden, as documented; verify other customer fields remain editable.
+
+Environment recovery, 2026-11-18: Docker Desktop starts outside the sandbox; the earlier conclusion that
+the app was absent was incorrect. Hyva packages were recovered from the existing Docker volume, not the
+host vendor folder: Theme 1.5.3 and Checkout 1.3.15 on Magento 2.4.8 / PHP 8.3.36. Missing temporary
+PHP-FPM/Nginx configs and the local TLS certificate were recreated. The Docker disk was full; removing
+only unused build cache older than seven days reclaimed 3.826 GB without removing images or data volumes.
+All four demo services are running again. About 1 GB remains available inside the VM; increase storage
+headroom before extensive further tests.
+
+A private local database/config backup was taken before running setup:upgrade. Upgrade and DI compilation
+passed, and setup:db:status reports all modules up to date. All seven customer attributes changed from
+visible to invisible; selected form assignments and selected configuration were unchanged. Balance tables
+were empty in this demo snapshot, so matching before/after hashes are NOT evidence of populated-balance
+preservation. The full suite also passed inside the container: 219 tests / 78,396 assertions on PHP 8.3.36.
+Both /default/ and /hyva/ returned HTTP 200 over HTTPS with explicit trust in the local test certificate.
+
+### Completed local acceptance
+
+The regenerated local certificate was accepted by the user. Browser acceptance ran on the actual Luma
+and Hyva stores, with fictional customer 48 and distinct balances in store 1 and store 2. Temporary
+per-store account-display configuration was restored and verified against the original rows afterwards.
+Fictional profiles, addresses and test orders remain in the demo for audit; the test browser is logged out.
+
+| Store / customer | Order | Shipping / billing | Result |
+| --- | --- | --- | --- |
+| Luma guest | 000000220 | New shipping and separate billing | Success |
+| Luma member | 000000221 | New saved address, same billing | Success |
+| Hyva member | 2000000093 | New saved shipping and separate saved billing | Success |
+| Hyva guest | 2000000094 | New shipping and separate billing | Success |
+
+All four orders were placed through the browser with the demo product, EUR 25 plus EUR 5 flat-rate
+shipping, and offline `checkmo` payment. Database inspection confirmed `pending` status, the correct
+store/guest/customer assignment, totals and persisted shipping/billing addresses. Hyva entry through the
+minicart flyout, country-dependent address re-rendering and separate billing forms were exercised.
+None of the seven loyalty inputs appeared. All seven read-only account values remained correct in each
+store (including points 1201/1202 and available coins 2301/2302); the full stored balance rows were unchanged.
+
+A transaction-isolated native fixture seeded populated legacy EAV values and deliberately restored old
+visibility/form mappings, then applied the repair twice. Nineteen checks passed: cached frontend filtering,
+normal customer fields, metadata flags and form assignments, exact preservation of populated legacy and
+store-scoped balances, custom-attribute metadata retention, per-store provider reads, and actual Hyva
+shipping/billing field mappings. Fixture mutations were rolled back. The same 19 checks passed again
+after the additional account redirect fix below.
+
+Acceptance found a pre-existing guest account failure: Magento's account authentication plugin returns
+null after setting a login redirect, but `Controller/Account/Index::execute()` required ResultInterface.
+Its generated interceptor threw a TypeError. The return type is now nullable, with two regression tests.
+DI compilation and the complete suite passed again: 221 tests / 78,402 assertions on PHP 8.3.36.
+Both themes now redirect guests to login; logging in still renders the proper account/store balances.
+The Hyva guest order was completed after this fix. The other three orders preceded this isolated return-type
+fix and were not placed a second time. `setup:db:status` and `git diff --check` also passed.
+
+No new outbox events or redemption mutations were recorded during the browser run. No real coins or wallet
+funds were spent. Logs after the redirect repair showed no new module errors, but the demo has unrelated
+Braintree missing-merchant-ID errors and order-email transport errors because the `mailcatcher` host is
+absent. Orders were persisted despite those email errors; email delivery and online PSP flows are NOT
+verified. The test account's populated values are fixtures, not a live tenant sync.
+
+This first acceptance run validates the checkout-field repair and ordinary checkout on the installed versions, not every
+module feature or every Hyva/custom checkout version. A full clean-install Magento deployment, live REST
+sync/Page Builder, checkout-specific forged-save requests, wallet/provider callbacks and a production-volume
+load test were not repeated here. Native Magento form extraction/metadata protections have automated
+coverage, but custom save services that bypass that metadata require separate review. Merchant ACC
+acceptance remains required. These results were recorded before publishing 2.6.8.
+
+### Extended module regression, 2026-11-18
+
+The subsequent full-module test pass is documented in
+`Test/Reports/2.6.8-acceptance-2026-11-18.md`. It includes 222 unit tests / 78,410 assertions,
+25 frontend tests, native order/cart/pricing tests, native wallet financial/concurrency tests and
+285 real Magento configuration-save checks across default, website and store scopes.
+Two native cases needing removed pre-2.6.2 sales-order columns were skipped, not passed.
+
+Real admin saves and browser checks exercised enrollment on both installed themes, store-specific labels
+and modes, membership gating, wallet application/removal and existing Page Builder personalization rendering.
+This uncovered a wallet preview persistence bug when Magento skipped an unchanged quote's save event.
+The Apply controller now explicitly saves its collected preview after repository save. Unit regressions
+cover application and removal even without a save event; both checkout totals were verified after the fix.
+This adds a bounded update on the module-owned wallet quote row only when applying/removing wallet credit,
+not on ordinary order/grid loads. No financial policy or schema was changed.
+
+DI compilation, final unit/native/frontend reruns and schema status passed. All six REST routes rejected
+unauthenticated local HTTP requests with 401. All temporary loyalty configuration and fictional customer
+balances were restored exactly, the wallet selection is zero, and no new outbox/redemption mutations remain.
+Online PSP callbacks, email delivery, fresh real tenant purchases, every historical upgrade variant,
+third-party checkout overrides and production-volume performance are not certified by this local test pass.
+This verification provides evidence for release 2.6.8; it does not replace merchant-specific acceptance.
+
 ## Release 2.6.4 Verification, 2026-10-19
 
 Purchase and Return now share the store-scoped `loyalty/export/event_price_includes_tax` selector, defaulting to exclusive tax. Inclusive mode uses stored historical unit prices in order currency; creditmemos fall back to their original order item. Discount handling and queued payloads remain unchanged. The combined Magento/outbox test covers both tax bases across two stores, tier exclusion, partial refunds, deduplication and immutable queued payloads.

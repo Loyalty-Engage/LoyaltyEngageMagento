@@ -19,6 +19,11 @@ class ApplyTest extends TestCase
         $this->runApply('-10', true);
     }
 
+    public function testRemovingCreditAlsoPersistsTheZeroPreviewWithoutAQuoteSaveEvent(): void
+    {
+        $this->runApply('0', false);
+    }
+
     private function runApply(string $amount, bool $invalid): void
     {
         $request = $this->createMock(\Magento\Framework\App\RequestInterface::class);
@@ -55,9 +60,14 @@ class ApplyTest extends TestCase
         $quote->method('getPayment')->willReturn($this->createMock(\Magento\Quote\Model\Quote\Payment::class));
         $quotes = $this->createMock(\Magento\Quote\Api\CartRepositoryInterface::class);
         $quotes->method('getActive')->willReturn($quote);
-        $quotes->expects($invalid ? self::never() : self::once())->method('save')->with($quote);
+        $saved = false;
+        // No save event is dispatched when Magento considers the quote unchanged.
+        $quotes->expects($invalid ? self::never() : self::once())->method('save')->with($quote)
+            ->willReturnCallback(static function () use (&$saved): void { $saved = true; });
         $selection = $this->createMock(Selection::class);
-        $selection->expects($invalid ? self::never() : self::once())->method('choose')->with($quote, 1000);
+        $selection->expects($invalid ? self::never() : self::once())->method('choose')->with($quote, (int) $amount * 100);
+        $selection->expects($invalid ? self::never() : self::once())->method('savePreview')->with($quote)
+            ->willReturnCallback(static function () use (&$saved): void { self::assertTrue($saved); });
         $locks = $this->createMock(\Magento\Framework\Lock\LockManagerInterface::class);
         $locks->method('lock')->willReturn(true);
         $locks->expects($invalid ? self::never() : self::once())->method('unlock')->with('le-wallet-quote-123');

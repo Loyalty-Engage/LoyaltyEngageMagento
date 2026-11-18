@@ -66,6 +66,7 @@ class Apply extends AbstractAccount implements HttpPostActionInterface
                     $this->selection->choose($quote, 0);
                     $quote->setTotalsCollectedFlag(false)->collectTotals();
                     $this->quotes->save($quote);
+                    $this->selection->savePreview($quote);
                     throw new LocalizedException(__('Full wallet payment requires Zero Subtotal Checkout to be enabled by the shop.'));
                 }
                 $quote->getPayment()->setMethod('free');
@@ -73,6 +74,8 @@ class Apply extends AbstractAccount implements HttpPostActionInterface
                 $quote->getPayment()->setMethod(null);
             }
             $this->quotes->save($quote);
+            // An unchanged quote total can skip sales_quote_save_after entirely.
+            $this->selection->savePreview($quote);
             // The refreshed wallet field and totals confirm the change. A session
             // success message can remain unseen in Luma until the order success page.
         } catch (LocalizedException | \InvalidArgumentException $exception) {

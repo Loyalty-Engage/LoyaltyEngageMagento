@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.6.8] - 2026-11-18
+
+### Fixed
+- Normalize an unset application area code when capturing an order source, including Magento integration-test states.
+- Persist the wallet totals preview explicitly after applying/removing credit. Magento may skip the quote save event when the grand total is unchanged, which previously hid the wallet deduction row in Luma despite a correct payable total.
+- Allow Magento's account authentication plugin to return null after redirecting a guest. The generated loyalty account interceptor previously threw a TypeError after logout instead of opening the login page.
+- Mark the seven internal loyalty customer attributes as invisible on fresh installations and repair existing metadata with a bounded, transactional data patch. Remove non-admin form assignments without deleting attribute definitions or customer values.
+- Exclude these attributes from frontend customer form metadata, including cached form metadata. Do not filter address metadata or repository custom-attribute metadata; REST, adminhtml and GraphQL do not register this frontend plugin.
+- Generic EAV inputs in customer administration are also hidden. The module's read-only account/Page Builder display and store-scoped synchronization do not depend on EAV visibility.
+- No schema changes, sales-table scans, deployment configuration writes or per-order database work are introduced.
+
+### Deployment
+- See the checkout attribute containment section in PRODUCTION_READINESS.md for the no-update workaround, known UI impact and merchant-specific staging acceptance.
+
+### Verification
+- Upgrade, DI compilation, 222 PHP unit tests (78,410 assertions) and 19 rollback-only native checks passed on Magento 2.4.8 / PHP 8.3.36. Native checks cover populated legacy/store balances, repeat repair and Hyva shipping/billing field mappings.
+- Extended local regression: 25 JavaScript tests; 59 native runtime/pricing tests passed with two legacy-column cases skipped; 285 admin configuration checks; wallet payment/invoice/refund checks passed in both stores. See Test/Reports/2.6.8-acceptance-2026-11-18.md for exact coverage and limits.
+- Admin/browser acceptance covered configurable enrollment labels, selection persistence on Luma/Hyva, member/non-member wallet visibility, zero-balance membership, store overrides, informational/disabled modes, wallet application/removal and Page Builder personalization rendering. The wallet deduction row was verified in both checkouts after the fix.
+- Four full browser orders passed on Luma and Hyva Theme 1.5.3 / Hyva Checkout 1.3.15, covering guests, members, new addresses and separate billing. No internal loyalty inputs appeared; read-only account balances and store isolation remained intact.
+- Fixed the guest account redirect discovered during acceptance, recompiled, retested guest redirects and authenticated account pages on both themes, and completed the Hyva guest order after that fix.
+- Tests used offline check/money-order payment and fictional profiles. No new outbox events or redemption mutations were created. Online PSP callbacks, email delivery, other Hyva versions and production-volume performance are not certified by this run.
+
 ## [2.6.7] - 2026-11-11
 
 ### Added

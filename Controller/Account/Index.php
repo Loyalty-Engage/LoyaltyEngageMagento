@@ -20,7 +20,8 @@ class Index extends AbstractAccount implements HttpGetActionInterface
         parent::__construct($context);
     }
 
-    public function execute(): ResultInterface
+    // Magento's account authentication plugin returns null after redirecting a guest.
+    public function execute(): ?ResultInterface
     {
         $resultPage = $this->resultPageFactory->create();
         $resultPage->getConfig()->getTitle()->set($this->loyaltyHelper->getFrontendLoyaltyNavigationLabel());

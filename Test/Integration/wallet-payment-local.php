@@ -65,6 +65,12 @@ $check = static function ($expected, $actual, string $message) use (&$count): vo
 };
 $db->beginTransaction();
 try {
+    // Repeated invoice scenarios must not exhaust the demo's remaining stock.
+    // These fixture-only quantities are restored by the enclosing rollback.
+    $fixtureSku = (string) $db->fetchOne($db->select()->from($resource->getTableName('catalog_product_entity'), ['sku'])
+        ->where('entity_id = ?', 1));
+    $db->update($resource->getTableName('cataloginventory_stock_item'), ['qty' => 1000], ['product_id = ?' => 1]);
+    $db->update($resource->getTableName('inventory_source_item'), ['quantity' => 1000], ['sku = ?' => $fixtureSku]);
     $db->insertOnDuplicate($ledger->table('balance'), ['customer_id' => $customerId, 'store_id' => $storeId,
         'balance_cents' => 10000, 'reserved_cents' => 0], ['balance_cents', 'reserved_cents']);
     $db->insertOnDuplicate($resource->getTableName('loyaltyshop_customer_store_data'), [
@@ -251,6 +257,9 @@ try {
         ->setEmail('wallet-orphan-' . bin2hex(random_bytes(6)) . '@example.com')->setFirstname('Wallet')->setLastname('Deleted Fixture');
     $orphanCustomer = $om->get(\Magento\Customer\Api\CustomerRepositoryInterface::class)->save($orphanCustomer);
     $orphanId = (int) $orphanCustomer->getId();
+    $db->insert($resource->getTableName('loyaltyshop_customer_store_data'), [
+        'customer_id' => $orphanId, 'store_id' => $storeId, 'le_points' => 0,
+    ]);
     $db->insert($ledger->table('balance'), ['customer_id' => $orphanId, 'store_id' => $storeId, 'balance_cents' => 10000, 'reserved_cents' => 0]);
     $orphanOrder = $place($makeQuote($orphanCustomer), 2000);
     $orphanInvoice = $invoice($orphanOrder);

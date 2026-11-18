@@ -92,7 +92,7 @@ class RuntimeTest extends TestCase
             $quote->getBillingAddress();
             $quote->getShippingAddress();
             $product = self::$om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class)
-                ->get('24-MB01', false, $this->storeId);
+                ->get(getenv('LE_RUNTIME_TEST_SKU') ?: '24-MB01', false, $this->storeId);
             $paid = $quote->addProduct(clone $product, new \Magento\Framework\DataObject(['qty' => 3]));
             self::assertIsNotString($paid);
             $paid->setCustomPrice(20)->setOriginalCustomPrice(20);
@@ -671,7 +671,7 @@ class RuntimeTest extends TestCase
             'email' => bin2hex(random_bytes(8)) . '@example.invalid', 'firstname' => 'Review', 'lastname' => 'Fixture',
             'group_id' => 1, 'is_active' => 1]);
         $customerId = (int) $this->db->lastInsertId($customerTable);
-        $sku = '24-MB01';
+        $sku = getenv('LE_RUNTIME_TEST_SKU') ?: '24-MB01';
         $api = $this->createMock(ApiClient::class);
         $calls = 0;
         $api->expects(self::exactly($timeout ? 1 : 2))->method('post')->willReturnCallback(static function () use (&$calls, $timeout): array {

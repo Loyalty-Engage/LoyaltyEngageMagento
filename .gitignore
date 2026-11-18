@@ -44,6 +44,7 @@ composer.phar
 # Backups
 *.bak
 *.sql
+!/Test/Manual/hide-loyalty-checkout-fields.sql
 *.sql.gz
 *.tar
 *.tar.gz
