@@ -1,0 +1,9 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Enrollment\Customer $block */
+$label = $block->getEnrollmentLabel();
+if ($label === '') { return; }
+?>
+<div class="field choice">
+    <input class="checkbox" type="checkbox" id="loyalty-registration-opt-in" name="loyalty_opt_in" value="1">
+    <label class="label" for="loyalty-registration-opt-in"><?= $block->escapeHtml($label) ?></label>
+</div>

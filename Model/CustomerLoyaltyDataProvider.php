@@ -23,7 +23,7 @@ class CustomerLoyaltyDataProvider
         'le_expiring_points_30d',
     ];
 
-    private const TABLE_NAME = 'loyaltyshop_customer_store_data';
+    public const TABLE_NAME = 'loyaltyshop_customer_store_data';
 
     public function __construct(
         private ResourceConnection $resourceConnection,

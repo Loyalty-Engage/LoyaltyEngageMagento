@@ -1,0 +1,25 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Adminhtml\Enrollment\Export $block */
+?>
+<p><?= $block->escapeHtml(__('Download opt-in status, enrollment source and wallet balances for one store view. The CSV contains customer email addresses.')) ?></p>
+<form method="post" action="<?= $block->escapeUrl($block->getUrl('*/*/download')) ?>">
+    <?= $block->getBlockHtml('formkey') ?>
+    <fieldset class="admin__fieldset">
+        <div class="admin__field required">
+            <label class="admin__field-label" for="loyalty-export-store">
+                <span><?= $block->escapeHtml(__('Store view')) ?></span>
+            </label>
+            <div class="admin__field-control">
+                <select id="loyalty-export-store" name="store_id" class="admin__control-select" required>
+                    <option value=""><?= $block->escapeHtml(__('Choose a store view')) ?></option>
+                    <?php foreach ($block->getExportStores() as $store): ?>
+                        <option value="<?= (int) $store->getId() ?>">
+                            <?= $block->escapeHtml($store->getName() . ' (' . $store->getCode() . ')') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+    </fieldset>
+    <button class="action-primary" type="submit"><?= $block->escapeHtml(__('Download CSV')) ?></button>
+</form>

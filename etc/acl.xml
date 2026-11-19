@@ -7,6 +7,8 @@
                     <resource id="LoyaltyEngage_LoyaltyShop::api" title="Loyalty Engage API" sortOrder="5"/>
                     <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty" title="Customer Loyalty Management" sortOrder="10">
                         <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty_update" title="Update Customer Loyalty Data" sortOrder="10"/>
+                        <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty_enroll" title="Enroll Customers in Loyalty" sortOrder="20"/>
+                        <resource id="LoyaltyEngage_LoyaltyShop::customer_loyalty_export" title="Export Loyalty Customers and Wallet Balances" sortOrder="30"/>
                     </resource>
                 </resource>
             </resource>

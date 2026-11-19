@@ -113,7 +113,8 @@ class EnrollmentTest extends TestCase
             $outbox->expects($selected && !$existing ? self::once() : self::never())->method('publish');
             $order = $this->getMockBuilder(\Magento\Sales\Model\Order::class)->disableOriginalConstructor()->onlyMethods([])->getMock();
             $order->setId(1)->setQuoteId(10)->setStoreId(2)->setCustomerId(7)->setCustomerEmail('member@example.com')->setIncrementId('100');
-            (new \LoyaltyEngage\LoyaltyShop\Observer\Enrollment\OrderPlaced($config, $choice, $membership, $outbox))
+            $enroll = new \LoyaltyEngage\LoyaltyShop\Model\Enrollment\Enroll($config, $membership, $outbox);
+            (new \LoyaltyEngage\LoyaltyShop\Observer\Enrollment\OrderPlaced($config, $choice, $enroll))
                 ->execute(new \Magento\Framework\Event\Observer(['event' => new \Magento\Framework\Event(['order' => $order])]));
         }
     }

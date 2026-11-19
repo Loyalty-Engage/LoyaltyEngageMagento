@@ -1,5 +1,15 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Checkout\Model\CompositeConfigProvider">
+        <arguments>
+            <argument name="configProviders" xsi:type="array">
+                <item name="loyaltyshop_enrollment" xsi:type="object">LoyaltyEngage\LoyaltyShop\Model\Enrollment\CheckoutPreference</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Checkout\Block\Checkout\LayoutProcessor">
+        <plugin name="loyaltyshop_enrollment" type="LoyaltyEngage\LoyaltyShop\Plugin\Enrollment\CheckoutLayout"/>
+    </type>
     <type name="Magento\Customer\Api\CustomerMetadataInterface">
         <plugin name="loyaltyshop_exclude_loyalty_form_attributes"
                 type="LoyaltyEngage\LoyaltyShop\Plugin\Customer\ExcludeLoyaltyFormAttributes"/>

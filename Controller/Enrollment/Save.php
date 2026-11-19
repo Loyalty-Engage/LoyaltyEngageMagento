@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Controller\Enrollment;
 
-use LoyaltyEngage\LoyaltyShop\Model\Enrollment\{Config, Choice};
+use LoyaltyEngage\LoyaltyShop\Model\Enrollment\{Config, Choice, CheckoutPreference};
 use Magento\Framework\Exception\LocalizedException;
 
 class Save extends \Magento\Framework\App\Action\Action implements \Magento\Framework\App\Action\HttpPostActionInterface
@@ -20,6 +20,7 @@ class Save extends \Magento\Framework\App\Action\Action implements \Magento\Fram
 
     public function execute()
     {
+        $result = $this->resultFactory->create(\Magento\Framework\Controller\ResultFactory::TYPE_JSON);
         try {
             if (!$this->formKey->validate($this->getRequest())) { throw new LocalizedException(__('Invalid form key. Please refresh the page.')); }
             $storeId = (int) $this->stores->getStore()->getId();
@@ -30,15 +31,21 @@ class Save extends \Magento\Framework\App\Action\Action implements \Magento\Fram
                 || (int) $quote->getCustomerId() !== (int) $this->customer->getCustomerId()) {
                 throw new LocalizedException(__('This loyalty preference cannot be changed for this cart.'));
             }
-            $selected = $this->getRequest()->getParam('subscribe', '0');
+            $token = $this->getRequest()->getParam('quote_token');
+            if (!is_string($token) || !hash_equals(CheckoutPreference::token(
+                (int) $quote->getId(), $storeId, (string) $this->getRequest()->getParam('form_key')
+            ), $token)) {
+                throw new LocalizedException(__('Your cart has changed. Refresh checkout and try again.'));
+            }
+            $selected = $this->getRequest()->getParam('subscribe');
             if (!in_array($selected, ['0', '1'], true)) { throw new LocalizedException(__('Invalid loyalty preference.')); }
             $this->choice->save((int) $quote->getId(), $storeId, $selected === '1', $mode, $this->config->label($storeId));
+            return $result->setData(['success' => true]);
         } catch (LocalizedException $e) {
-            $this->messageManager->addErrorMessage($e->getMessage());
+            return $result->setHttpResponseCode(400)->setData(['success' => false, 'message' => $e->getMessage()]);
         } catch (\Throwable $e) {
             $this->logger->error('Unable to save loyalty enrollment preference.', ['exception' => $e]);
-            $this->messageManager->addErrorMessage(__('Your loyalty preference could not be saved. Please try again.'));
+            return $result->setHttpResponseCode(500)->setData(['success' => false]);
         }
-        return $this->resultRedirectFactory->create()->setPath('checkout');
     }
 }

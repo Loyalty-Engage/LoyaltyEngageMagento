@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="LoyaltyEngage_LoyaltyShop::customer_loyalty_export" title="Loyalty CSV Export"
+             module="LoyaltyEngage_LoyaltyShop" sortOrder="20" parent="Magento_Customer::customer"
+             action="loyaltyshop_enrollment/export/index" resource="LoyaltyEngage_LoyaltyShop::customer_loyalty_export"/>
+    </menu>
+</config>

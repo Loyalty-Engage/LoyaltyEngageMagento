@@ -1,0 +1,34 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Adminhtml\Enrollment\Customer $block */
+$customer = $block->getData('customer');
+$stores = $block->getStoreStatuses();
+$labels = ['member' => __('Enrolled'), 'pending' => __('Pending'), 'failed' => __('Failed'), 'not_enrolled' => __('Not enrolled')];
+?>
+<a href="<?= $block->escapeUrl($block->getUrl('customer/index/edit', ['id' => $customer->getId()])) ?>">
+    <?= $block->escapeHtml(__('Back to customer')) ?>
+</a>
+<h2><?= $block->escapeHtml($customer->getEmail()) ?></h2>
+<?php if (!$stores): ?>
+    <p><?= $block->escapeHtml(__('Real loyalty opt-in is not enabled for an eligible store view.')) ?></p>
+<?php else: ?>
+    <form method="post" action="<?= $block->escapeUrl($block->getUrl('*/*/save')) ?>">
+        <?= $block->getBlockHtml('formkey') ?>
+        <input type="hidden" name="id" value="<?= (int) $customer->getId() ?>">
+        <div class="admin__field">
+            <label for="loyalty-enrollment-store"><?= $block->escapeHtml(__('Store view')) ?></label>
+            <select id="loyalty-enrollment-store" name="store_id" class="admin__control-select" required>
+                <option value=""><?= $block->escapeHtml(__('Choose a store view')) ?></option>
+                <?php foreach ($stores as $storeId => $store): ?>
+                    <option value="<?= (int) $storeId ?>" <?= $store['status'] !== 'not_enrolled' ? 'disabled' : '' ?>>
+                        <?= $block->escapeHtml($store['label'] . ' - ' . $labels[$store['status']]) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="admin__field">
+            <input type="checkbox" id="loyalty-admin-consent" name="loyalty_opt_in" value="1" required>
+            <label for="loyalty-admin-consent"><?= $block->escapeHtml(__('The customer agreed to join the loyalty program for this store.')) ?></label>
+        </div>
+        <button class="action-primary" type="submit"><?= $block->escapeHtml(__('Enroll customer')) ?></button>
+    </form>
+<?php endif; ?>

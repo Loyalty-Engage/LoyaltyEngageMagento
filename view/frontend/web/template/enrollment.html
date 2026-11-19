@@ -1,0 +1,10 @@
+<!-- ko if: settings.url -->
+<div class="field choice loyalty-enrollment" data-loyalty-enrollment
+     data-bind="attr: {'data-url': settings.url, 'data-form-key': settings.form_key, 'data-quote-token': settings.quote_token}">
+    <input class="checkbox" id="loyalty-enrollment" type="checkbox" data-loyalty-choice
+           data-bind="attr: {checked: settings.selected ? 'checked' : null}">
+    <label class="label" for="loyalty-enrollment" data-bind="text: settings.label"></label>
+    <!-- ko if: settings.advisory --><p data-bind="text: advisoryText"></p><!-- /ko -->
+    <p role="alert" data-loyalty-error hidden data-bind="text: errorText"></p>
+</div>
+<!-- /ko -->

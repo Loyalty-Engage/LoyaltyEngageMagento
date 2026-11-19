@@ -3,14 +3,16 @@
 $settings = $block->settings();
 if (!$settings) { return; }
 ?>
-<form class="block loyalty-enrollment" method="post" action="<?= $block->escapeUrl($block->getUrl('loyalty/enrollment/save', ['_secure' => true])) ?>">
-    <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($settings['form_key']) ?>">
+<div class="block loyalty-enrollment" data-loyalty-enrollment
+     data-url="<?= $block->escapeUrl($settings['url']) ?>"
+     data-form-key="<?= $block->escapeHtmlAttr($settings['form_key']) ?>"
+     data-quote-token="<?= $block->escapeHtmlAttr($settings['quote_token']) ?>">
     <div class="field choice">
-        <input class="checkbox" id="loyalty-enrollment" type="checkbox" name="subscribe" value="1" <?= $settings['selected'] ? 'checked' : '' ?>>
+        <input class="checkbox" id="loyalty-enrollment" type="checkbox" data-loyalty-choice <?= $settings['selected'] ? 'checked' : '' ?>>
         <label class="label" for="loyalty-enrollment"><?= $block->escapeHtml($settings['label']) ?></label>
     </div>
-    <p><?= $block->escapeHtml($settings['mode'] === 'required'
-        ? __('Save your choice before placing the order. Enrollment is processed after your order is placed.')
-        : __('You participate in the loyalty program regardless of this choice.')) ?></p>
-    <button class="action secondary btn btn-secondary" type="submit"><?= $block->escapeHtml(__('Save loyalty preference')) ?></button>
-</form>
+    <?php if ($settings['advisory']): ?>
+        <p><?= $block->escapeHtml(__('You participate in the loyalty program regardless of this choice.')) ?></p>
+    <?php endif; ?>
+    <p role="alert" data-loyalty-error hidden><?= $block->escapeHtml(__('Your loyalty preference could not be saved. Refresh checkout and try again.')) ?></p>
+</div>

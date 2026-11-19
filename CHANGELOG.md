@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.9] - 2026-11-19
+
+### Added
+- Add a permissioned, store-view CSV download from Customers with opt-in status, enrollment source and available/reserved EUR wallet amounts.
+- Allow real loyalty opt-in at storefront registration, in My Account, and through a permissioned store-specific action on the Magento customer record.
+
+### Changed
+- Place checkout enrollment with the final checkout options and save the current checkbox value during submission without a separate preference button or page reload.
+
+### Verification
+- 229 PHP unit tests and 28 JavaScript tests passed. Native Magento runtime/pricing: 59 passed, two legacy-column cases skipped.
+- Repeated browser orders verified checked opt-in on Luma and unchecked opt-in on Hyva in the database. Both store CSV downloads were checked against the stored enrollment and wallet data.
+
 ## [2.6.8] - 2026-11-18
 
 ### Fixed
