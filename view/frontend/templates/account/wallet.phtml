@@ -5,23 +5,31 @@ if (!$details) {
     return;
 }
 ?>
-<section class="block block-dashboard-info loyaltyshop-wallet">
-    <div class="block-title"><strong><?= $block->escapeHtml($details['name']) ?></strong></div>
-    <div class="block-content">
-        <p><?= $block->escapeHtml(__('Available credit: EUR %1', $details['available'])) ?></p>
-        <?php if ($details['reserved'] !== '0.00'): ?>
-            <p><?= $block->escapeHtml(__('Reserved for orders: EUR %1', $details['reserved'])) ?></p>
-        <?php endif; ?>
+<section class="loyaltyshop-wallet le-panel" aria-labelledby="loyalty-wallet-balance-title">
+    <h2 class="le-panel__title" id="loyalty-wallet-balance-title"><?= $block->escapeHtml(__('Wallet balance')) ?></h2>
+    <dl class="le-wallet__summary">
+        <div>
+            <dt><?= $block->escapeHtml(__('Available credit')) ?></dt>
+            <dd><?= $block->escapeHtml(__('EUR %1', $details['available'])) ?></dd>
+        </div>
+        <div>
+            <dt><?= $block->escapeHtml(__('Reserved for orders')) ?></dt>
+            <dd class="le-wallet__reserved"><?= $block->escapeHtml(__('EUR %1', $details['reserved'])) ?></dd>
+        </div>
+    </dl>
+    <div>
         <?php if ($details['negative']): ?>
-            <p><?= $block->escapeHtml(__('Accounting balance: EUR %1. Future earnings offset prior return corrections.', $details['balance'])) ?></p>
+            <p class="le-wallet__note"><?= $block->escapeHtml(__('Accounting balance: EUR %1. Future earnings offset prior return corrections.', $details['balance'])) ?></p>
         <?php endif; ?>
         <?php if (!$details['spending']): ?>
-            <p class="message notice"><?= $block->escapeHtml(__('Wallet payment is currently disabled by the shop.')) ?></p>
+            <p class="le-wallet__note"><?= $block->escapeHtml(__('Wallet payment is currently disabled by the shop.')) ?></p>
         <?php endif; ?>
+    </div>
+    <div class="le-wallet__history">
+        <h2 class="le-panel__title" id="loyalty-wallet-history-title"><?= $block->escapeHtml(__('Recent wallet transactions')) ?></h2>
         <?php if ($details['history']): ?>
-            <div class="table-wrapper">
-                <table class="data table">
-                    <caption class="table-caption"><?= $block->escapeHtml(__('Recent wallet transactions')) ?></caption>
+            <div class="le-wallet__transactions" role="region" aria-labelledby="loyalty-wallet-history-title" tabindex="0">
+                <table class="data table" aria-labelledby="loyalty-wallet-history-title">
                     <thead><tr>
                         <th scope="col"><?= $block->escapeHtml(__('Date (UTC)')) ?></th>
                         <th scope="col"><?= $block->escapeHtml(__('Transaction')) ?></th>
@@ -44,6 +52,8 @@ if (!$details) {
                     </tbody>
                 </table>
             </div>
+        <?php else: ?>
+            <p><?= $block->escapeHtml(__('No wallet transactions yet.')) ?></p>
         <?php endif; ?>
     </div>
 </section>

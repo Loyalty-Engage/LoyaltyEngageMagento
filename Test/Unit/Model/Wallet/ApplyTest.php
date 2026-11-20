@@ -24,14 +24,20 @@ class ApplyTest extends TestCase
         $this->runApply('0', false);
     }
 
-    private function runApply(string $amount, bool $invalid): void
+    public function testApplyRejectsACartThatDidNotResolveToTheCurrentStore(): void
     {
+        $this->runApply('10', false, 2);
+    }
+
+    private function runApply(string $amount, bool $invalid, int $quoteStoreId = 1): void
+    {
+        $rejected = $invalid || $quoteStoreId !== 1;
         $request = $this->createMock(\Magento\Framework\App\RequestInterface::class);
         $request->method('getParam')->willReturnCallback(static fn($name, $default = null) => $name === 'amount' ? $amount : $default);
         $messages = $this->createMock(\Magento\Framework\Message\ManagerInterface::class);
         $messages->expects(self::never())->method('addSuccessMessage');
         $messages->expects(self::never())->method('getMessages');
-        $messages->expects($invalid ? self::once() : self::never())->method('addErrorMessage');
+        $messages->expects($rejected ? self::once() : self::never())->method('addErrorMessage');
         $redirect = $this->createMock(\Magento\Framework\Controller\Result\Redirect::class);
         $redirect->method('setPath')->with('checkout')->willReturnSelf();
         $factory = $this->createMock(\Magento\Framework\Controller\Result\RedirectFactory::class);
@@ -47,7 +53,7 @@ class ApplyTest extends TestCase
         $customer->method('isLoggedIn')->willReturn(true);
         $customer->method('getCustomerId')->willReturn(7);
         $checkout = $this->getMockBuilder(\Magento\Checkout\Model\Session::class)->disableOriginalConstructor()
-            ->onlyMethods(['getQuoteId'])->getMock();
+            ->onlyMethods(['getQuoteId', 'getQuote'])->getMock();
         $checkout->method('getQuoteId')->willReturn(123);
         $store = $this->createMock(\Magento\Store\Api\Data\StoreInterface::class);
         $store->method('getId')->willReturn(1);
@@ -55,18 +61,20 @@ class ApplyTest extends TestCase
         $stores->method('getStore')->willReturn($store);
         $quote = $this->getMockBuilder(\Magento\Quote\Model\Quote::class)->disableOriginalConstructor()
             ->onlyMethods(['collectTotals', 'getPayment'])->getMock();
-        $quote->setId(123)->setCustomerId(7)->setBaseGrandTotal(20);
+        $quote->setId(123)->setCustomerId(7)->setBaseGrandTotal(20)->setIsActive(true);
+        $quote->setData('store_id', $quoteStoreId);
         $quote->method('collectTotals')->willReturnSelf();
         $quote->method('getPayment')->willReturn($this->createMock(\Magento\Quote\Model\Quote\Payment::class));
         $quotes = $this->createMock(\Magento\Quote\Api\CartRepositoryInterface::class);
-        $quotes->method('getActive')->willReturn($quote);
+        $checkout->expects($invalid ? self::never() : self::once())->method('getQuote')->willReturn($quote);
+        $quotes->expects(self::never())->method('getActive');
         $saved = false;
         // No save event is dispatched when Magento considers the quote unchanged.
-        $quotes->expects($invalid ? self::never() : self::once())->method('save')->with($quote)
+        $quotes->expects($rejected ? self::never() : self::once())->method('save')->with($quote)
             ->willReturnCallback(static function () use (&$saved): void { $saved = true; });
         $selection = $this->createMock(Selection::class);
-        $selection->expects($invalid ? self::never() : self::once())->method('choose')->with($quote, (int) $amount * 100);
-        $selection->expects($invalid ? self::never() : self::once())->method('savePreview')->with($quote)
+        $selection->expects($rejected ? self::never() : self::once())->method('choose')->with($quote, (int) $amount * 100);
+        $selection->expects($rejected ? self::never() : self::once())->method('savePreview')->with($quote)
             ->willReturnCallback(static function () use (&$saved): void { self::assertTrue($saved); });
         $locks = $this->createMock(\Magento\Framework\Lock\LockManagerInterface::class);
         $locks->method('lock')->willReturn(true);

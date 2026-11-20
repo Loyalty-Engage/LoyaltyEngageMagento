@@ -86,18 +86,33 @@ $balance = static function () use ($db, $ledger, &$customerId, $storeId): array 
     return $db->fetchRow($db->select()->from($ledger->table('balance'))
         ->where('customer_id = ?', $customerId)->where('store_id = ?', $storeId));
 };
+// Funding requires autocommit; snapshot this local fixture product instead of wrapping the test in a transaction.
+$fixtureSku = (string) $db->fetchOne($db->select()
+    ->from($resource->getTableName('catalog_product_entity'), ['sku'])->where('entity_id = ?', 1));
+$stockTable = $resource->getTableName('cataloginventory_stock_item');
+$sourceTable = $resource->getTableName('inventory_source_item');
+$stockRows = $db->fetchAll($db->select()->from($stockTable, ['item_id', 'qty'])->where('product_id = ?', 1));
+$sourceRows = $db->fetchAll($db->select()->from($sourceTable, ['source_item_id', 'quantity'])->where('sku = ?', $fixtureSku));
 try {
+    $db->update($stockTable, ['qty' => 1000], ['product_id = ?' => 1]);
+    $db->update($sourceTable, ['quantity' => 1000], ['sku = ?' => $fixtureSku]);
     $db->insert($resource->getTableName('customer_entity'), ['website_id' => (int) $store->getWebsiteId(),
         'store_id' => $storeId, 'email' => 'wallet-coins-' . bin2hex(random_bytes(8)) . '@example.com',
         'firstname' => 'Wallet', 'lastname' => 'Coin Fixture']);
     $customerId = (int) $db->lastInsertId();
     $customer = $om->get(\Magento\Customer\Api\CustomerRepositoryInterface::class)->getById($customerId);
+    $db->insert($resource->getTableName('loyaltyshop_customer_store_data'), [
+        'customer_id' => $customerId, 'store_id' => $storeId, 'le_current_tier' => 'base',
+    ]);
     $db->insert($ledger->table('balance'), ['customer_id' => $customerId, 'store_id' => $storeId, 'balance_cents' => 10000]);
     $make = static function (int $amount) use ($om, $store, $customer, $selection, &$quoteIds) {
         $quote = $om->create(\Magento\Quote\Model\Quote::class)->setStore($store)->assignCustomer($customer)
             ->setIsActive(true)->setIsMultiShipping(false)->setCustomerIsGuest(false)->setCheckoutMethod('customer');
         $product = $om->get(\Magento\Catalog\Api\ProductRepositoryInterface::class)->getById(1, false, (int) $store->getId());
-        $quote->addProduct($product, 2);
+        $added = $quote->addProduct($product, 2);
+        if (is_string($added)) {
+            throw new RuntimeException('Could not add local fixture product: ' . $added);
+        }
         $address = ['firstname' => 'Wallet', 'lastname' => 'Fixture', 'street' => ['Teststraat 1'],
             'city' => 'Teststad', 'postcode' => '1000AA', 'country_id' => 'NL', 'telephone' => '0612345678',
             'email' => $customer->getEmail(), 'save_in_address_book' => 0];
@@ -200,6 +215,12 @@ try {
     echo json_encode(['store' => $code, 'wallet_coin_checks' => $checks, 'all_passed' => true, 'transport' => 'fake']) . "\n";
 } finally {
     $om->get(Guard::class)->release();
+    foreach ($stockRows as $row) {
+        $db->update($stockTable, ['qty' => $row['qty']], ['item_id = ?' => $row['item_id']]);
+    }
+    foreach ($sourceRows as $row) {
+        $db->update($sourceTable, ['quantity' => $row['quantity']], ['source_item_id = ?' => $row['source_item_id']]);
+    }
     if ($customerId) {
         $orders = $db->fetchCol($db->select()->from($resource->getTableName('sales_order'), ['entity_id'])->where('customer_id = ?', $customerId));
         if ($orders) {

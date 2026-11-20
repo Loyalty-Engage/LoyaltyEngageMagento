@@ -74,7 +74,8 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         ?int $lePointsToNextTier = null,
         ?int $leReservedCoins = null,
         ?int $leExpiringPoints30d = null,
-        ?string $storeCode = null
+        ?string $storeCode = null,
+        ?string $leContactId = null
     ): CustomerLoyaltyUpdateResponseInterface {
         $response = $this->responseFactory->create();
 
@@ -88,6 +89,10 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
         }
 
         try {
+            $leContactId = $leContactId !== null ? trim($leContactId) : '';
+            if (strlen($leContactId) > 255 || preg_match('/[\x00-\x1f\x7f]/', $leContactId)) {
+                throw new LocalizedException(__('Invalid Loyalty Engage contact identifier.'));
+            }
             // Find customer by email
             $customer = $this->getCustomerByEmail($email, $storeCode);
             
@@ -137,6 +142,11 @@ class CustomerLoyalty implements CustomerLoyaltyInterface
             if ($leExpiringPoints30d !== null) {
                 $storeScopedData['le_expiring_points_30d'] = $leExpiringPoints30d;
                 $updatedFields[] = 'le_expiring_points_30d';
+            }
+
+            if ($leContactId !== '') {
+                $storeScopedData['le_contact_id'] = $leContactId;
+                $updatedFields[] = 'le_contact_id';
             }
 
             // Save customer if any fields were updated

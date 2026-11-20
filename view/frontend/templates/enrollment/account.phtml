@@ -3,8 +3,8 @@
 $label = $block->getEnrollmentLabel();
 if ($label === '' || !($status = $block->getEnrollmentStatus())) { return; }
 ?>
-<section class="block block-dashboard-info">
-    <div class="block-title"><strong><?= $block->escapeHtml(__('Loyalty enrollment')) ?></strong></div>
+<section class="le-panel" aria-labelledby="loyalty-account-enrollment-title">
+    <h2 class="le-panel__title" id="loyalty-account-enrollment-title"><?= $block->escapeHtml(__('Loyalty enrollment')) ?></h2>
     <div class="block-content">
         <?php if ($status === 'not_enrolled'): ?>
             <form method="post" action="<?= $block->escapeUrl($block->getUrl('loyalty/enrollment/join', ['_secure' => true])) ?>">
@@ -13,7 +13,7 @@ if ($label === '' || !($status = $block->getEnrollmentStatus())) { return; }
                     <input class="checkbox" type="checkbox" id="loyalty-account-opt-in" name="loyalty_opt_in" value="1" required>
                     <label class="label" for="loyalty-account-opt-in"><?= $block->escapeHtml($label) ?></label>
                 </div>
-                <button class="action primary btn btn-primary" type="submit"><?= $block->escapeHtml(__('Join loyalty program')) ?></button>
+                <button class="action primary btn btn-primary le-panel__button" type="submit"><?= $block->escapeHtml(__('Join loyalty program')) ?></button>
             </form>
         <?php else: ?>
             <p><?= $block->escapeHtml(match ($status) {

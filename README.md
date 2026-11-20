@@ -128,6 +128,41 @@ The REST endpoints require the store's configured Basic Auth credentials. Use th
 - `POST /V1/loyalty/discount/:customerId/claim-after-cart`
 - `POST /V1/loyalty/customer/update`
 
+### Customer sync fields
+
+For a store-specific sync, call `POST /rest/<store-code>/V1/loyalty/customer/update` with that
+store's credentials. For example:
+
+```json
+{
+  "email": "customer@example.com",
+  "le_contact_id": "00042",
+  "le_reserved_coins": 12
+}
+```
+
+`le_reserved_coins` already works in 2.6.9. The optional `le_contact_id` is an opaque string;
+send it as a JSON string to preserve leading zeros and large numeric IDs. The contact ID is stored
+per customer and store view, separately from the loyalty balances. Missing, null or blank IDs do
+not erase a previously saved ID. Non-blank IDs must be at most 255 bytes without control characters.
+Successful writes list `le_contact_id` under `updated_fields` without returning its value. The ID is
+not treated as opt-in or included in CSV exports. It is only shown to the
+signed-in customer as part of their invitation link when that feature is configured.
+
+Deploy the module and run `bin/magento setup:upgrade` before expecting Magento to persist the ID.
+Magento 2.6.9 module installations ignore this unknown top-level field rather than saving it.
+`le_bought_discount_code` is not supported by this update endpoint.
+
+### Invitation links
+
+In **Stores > Configuration > Loyalty Engage > Loyalty > Customer Invitations**, choose the store view
+and set **Invitation URL Template** to the actual referral URL for the program. Put `{contact_id}`
+in the path or query, for example `https://shop.example.com/invite/{contact_id}` or
+`https://shop.example.com/join?ref={contact_id}`. These are examples, not Loyalty Engage endpoints.
+An empty value disables the feature. Only a signed-in customer with an ID synced to that store sees
+the copy button in My Account. The configured destination must support this identifier for attribution;
+Magento only constructs and copies the link. It does not track conversions, issue rewards or send emails.
+
 Storefront scripts use session-authenticated POST routes `/loyalty/cart/add` and `/loyalty/discount/claim`. The `/loyaltyshop/` aliases remain supported. Prefer a valid Magento `form_key`; same-origin Magento AJAX requests remain compatible.
 
 ## Cron Jobs

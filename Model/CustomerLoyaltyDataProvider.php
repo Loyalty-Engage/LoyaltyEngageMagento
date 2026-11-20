@@ -24,6 +24,7 @@ class CustomerLoyaltyDataProvider
     ];
 
     public const TABLE_NAME = 'loyaltyshop_customer_store_data';
+    private const CONTACT_TABLE = 'loyaltyshop_customer_contact';
 
     public function __construct(
         private ResourceConnection $resourceConnection,
@@ -84,9 +85,41 @@ class CustomerLoyaltyDataProvider
             }
         }
 
-        if ($fields) {
-            $connection->insertOnDuplicate($tableName, $row, $fields);
+        if (!isset($data['le_contact_id'])) {
+            if ($fields) {
+                $connection->insertOnDuplicate($tableName, $row, $fields);
+            }
+            return;
         }
+
+        // A contact-only sync must not create an empty scoped loyalty row that masks legacy balances.
+        $connection->beginTransaction();
+        try {
+            if ($fields) {
+                $connection->insertOnDuplicate($tableName, $row, $fields);
+            }
+            $connection->insertOnDuplicate($this->resourceConnection->getTableName(self::CONTACT_TABLE), [
+                'customer_id' => $customerId,
+                'store_id' => $storeId,
+                'le_contact_id' => $data['le_contact_id'],
+            ], ['le_contact_id']);
+            $connection->commit();
+        } catch (\Throwable $exception) {
+            $connection->rollBack();
+            throw $exception;
+        }
+    }
+
+    public function getContactId(int $customerId, int $storeId): ?string
+    {
+        if ($customerId < 1 || $storeId < 1) {
+            return null;
+        }
+        $connection = $this->resourceConnection->getConnection();
+        $value = $connection->fetchOne($connection->select()
+            ->from($this->resourceConnection->getTableName(self::CONTACT_TABLE), ['le_contact_id'])
+            ->where('customer_id = ?', $customerId)->where('store_id = ?', $storeId));
+        return $value === false || $value === null ? null : (string) $value;
     }
 
     public function getCustomerLoyaltyData($customer, ?int $storeId = null): array

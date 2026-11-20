@@ -11,7 +11,6 @@ use Magento\Customer\Model\Session;
 use Magento\Framework\Data\Form\FormKey;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\View\Element\Template;
-use Magento\Quote\Api\CartRepositoryInterface;
 
 class Checkout extends Template
 {
@@ -23,7 +22,6 @@ class Checkout extends Template
         private Selection $selection,
         private Session $customer,
         private CheckoutSession $checkout,
-        private CartRepositoryInterface $quotes,
         private FormKey $formKey,
         array $data = []
     ) {
@@ -32,15 +30,17 @@ class Checkout extends Template
 
     public function wallet(): array
     {
-        if ($this->getLayout()->isCacheable() || !$this->customer->isLoggedIn() || !$this->checkout->getQuoteId()) {
+        if ($this->getLayout()->isCacheable() || !$this->customer->isLoggedIn()
+            || !($quoteId = (int) $this->checkout->getQuoteId())) {
             return [];
         }
         try {
-            $quote = $this->quotes->getActive((int) $this->checkout->getQuoteId(), [(int) $this->_storeManager->getStore()->getId()]);
+            $quote = $this->checkout->getQuote();
         } catch (NoSuchEntityException) {
             return [];
         }
-        if (!$quote instanceof \Magento\Quote\Model\Quote || !$this->selection->eligible($quote)
+        if ((int) $quote->getId() !== $quoteId || (int) $quote->getStoreId() !== (int) $this->_storeManager->getStore()->getId()
+            || !$this->selection->eligible($quote)
             || (int) $quote->getCustomerId() !== (int) $this->customer->getCustomerId()) {
             return [];
         }

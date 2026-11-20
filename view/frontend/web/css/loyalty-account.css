@@ -1,0 +1,109 @@
+.le-panel {
+    --le-border: var(--color-border, rgba(110, 118, 129, .32));
+    --le-tint: var(--color-surface-alt, rgba(110, 118, 129, .07));
+    box-sizing: border-box;
+    border: 1px solid var(--le-border);
+    border-radius: var(--radius-lg, 8px);
+    margin-block: clamp(1.25rem, 3vw, 2.5rem);
+    padding: clamp(1.25rem, 3vw, 2.5rem);
+    min-width: 0;
+}
+
+.le-panel__title {
+    font-family: inherit;
+    font-size: 1.35em;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 .45em;
+}
+
+.le-panel__intro { margin: 0 0 1.2em; }
+.le-panel__status { margin: .75em 0 0; }
+.le-panel__status:empty { margin: 0; }
+
+.le-panel__row {
+    display: grid;
+    gap: .75em;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.le-panel .le-panel__label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: .45em;
+}
+
+.le-panel .le-panel__input {
+    box-sizing: border-box;
+    font: inherit;
+    height: auto;
+    min-width: 0;
+    padding: .65em .8em;
+    width: 100%;
+}
+
+.le-panel .le-panel__button {
+    align-items: center;
+    display: inline-flex;
+    gap: .5em;
+    justify-content: center;
+    margin: 0;
+    white-space: normal;
+}
+
+.le-panel__button svg {
+    flex: none;
+    width: 1.15em;
+    height: 1.15em;
+}
+
+.le-wallet__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2.5em;
+    background: var(--le-tint);
+    border-radius: var(--radius-md, 6px);
+    margin: 0 0 1em;
+    padding: 1em 1.2em;
+}
+
+.le-wallet__summary dt { margin: 0 0 .15em; font-weight: 600; }
+.le-wallet__summary dd {
+    font-size: clamp(1.55em, 4vw, 2.5em);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.le-wallet__summary .le-wallet__reserved { font-size: 1.35em; }
+.le-wallet__note {
+    border-inline-start: 2px solid var(--le-border);
+    margin: .8em 0 0;
+    padding-inline-start: .8em;
+}
+
+.le-wallet__history { margin-top: 1.6em; }
+.le-wallet__transactions { overflow-x: auto; }
+.le-wallet__transactions .data.table { display: table; margin: 0; width: 100%; }
+.le-wallet__transactions .data.table th,
+.le-wallet__transactions .data.table td {
+    border-bottom: 1px solid var(--le-border);
+    padding: .7em .55em;
+}
+
+.le-wallet__transactions .data.table td:last-child,
+.le-wallet__transactions .data.table th:last-child {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+}
+
+.le-wallet__transactions .data.table td:last-child { white-space: nowrap; }
+.le-wallet__form { max-width: 32em; }
+.le-wallet__form .le-panel__row { grid-template-columns: minmax(0, 10em) auto; justify-content: start; }
+
+@media (max-width: 600px) {
+    .le-panel__row,
+    .le-wallet__form .le-panel__row { grid-template-columns: minmax(0, 1fr); justify-content: stretch; }
+}

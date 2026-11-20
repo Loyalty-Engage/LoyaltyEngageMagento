@@ -49,16 +49,22 @@ class Apply extends AbstractAccount implements HttpPostActionInterface
                 throw new LocalizedException(__('Enter a valid EUR amount with at most two decimal places.'));
             }
             $storeId = (int) $this->stores->getStore()->getId();
-            $quote = $this->quotes->getActive((int) $this->checkout->getQuoteId(), [$storeId]);
-            if (!$quote instanceof \Magento\Quote\Model\Quote || !$this->customer->isLoggedIn()
-                || (int) $quote->getCustomerId() !== (int) $this->customer->getCustomerId()) {
+            $quoteId = (int) $this->checkout->getQuoteId();
+            if (!$quoteId || !$this->customer->isLoggedIn()) {
                 throw new LocalizedException(__('This cart does not belong to your account.'));
             }
-            $name = 'le-wallet-quote-' . $quote->getId();
+            $name = 'le-wallet-quote-' . $quoteId;
             if (!$this->locks->lock($name, 5)) {
                 throw new LocalizedException(__('Your cart is being ordered. Please wait before changing wallet payment.'));
             }
             $lock = $name;
+            // The checkout session resolves a shared cart in the current store view.
+            $quote = $this->checkout->getQuote();
+            if ((int) $quote->getId() !== $quoteId || !$quote->getIsActive()
+                || (int) $quote->getStoreId() !== $storeId
+                || (int) $quote->getCustomerId() !== (int) $this->customer->getCustomerId()) {
+                throw new LocalizedException(__('This cart does not belong to your account.'));
+            }
             $this->selection->choose($quote, $this->money->cents($amount));
             $quote->setTotalsCollectedFlag(false)->collectTotals();
             if ((float) $quote->getBaseGrandTotal() < 0.0001) {

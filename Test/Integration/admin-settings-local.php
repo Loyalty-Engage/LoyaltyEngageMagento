@@ -24,6 +24,7 @@ $values = [
     'export/allowed_order_sources' => ['storefront', 'api'], 'export/excluded_order_comment_markers' => 'admin fixture',
     'shipping/free_shipping_tiers' => 'base,gold', 'shipping/tier_cache_duration' => '300',
     'enrollment/mode' => 'required', 'enrollment/label' => 'Join local fixture',
+    'referral/url_template' => 'https://invite.example.invalid/join?ref={contact_id}',
     'wallet/name' => 'Fixture wallet', 'wallet/payment_methods' => ['checkmo', 'free'],
     'wallet/rates' => [['tier' => 'base', 'percentage' => '1'], ['tier' => 'gold', 'percentage' => '2']],
     'wallet/coins_required' => '0', 'wallet/redemption_sku_1' => 'WALLET_1', 'wallet/redemption_sku_5' => 'WALLET_5',
@@ -67,6 +68,7 @@ try {
         foreach ($expected as $path) { $check(array_key_exists($path, $rows), 'Missing saved field: ' . $scope . '/' . $path); }
         $check($rows['loyalty/enrollment/mode'] === 'required', 'Enrollment mode round trip');
         $check($rows['loyalty/enrollment/label'] === 'Join local fixture', 'Checkbox label round trip');
+        $check($rows['loyalty/referral/url_template'] === $values['referral/url_template'], 'Invitation URL template round trip');
         $check($rows['loyalty/export/purchase_order_status'] === 'processing,complete', 'Multiselect round trip');
         $check(count(json_decode($rows['loyalty/wallet/rates'], true)) === 2, 'Wallet rate rows round trip');
         $check(count(json_decode($rows['loyalty/personalizations/rules'], true)) === 1, 'Personalization rows round trip');
@@ -79,6 +81,7 @@ try {
         [\LoyaltyEngage\LoyaltyShop\Model\Config\Backend\WalletRedemptionSku::class, 'INVALID SKU!'],
         [\LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PersonalizationCurrency::class, 'EURO'],
         [\LoyaltyEngage\LoyaltyShop\Model\Config\Backend\PersonalizationTenant::class, '<script src="https://evil.invalid"></script>'],
+        [\LoyaltyEngage\LoyaltyShop\Model\Config\Backend\InvitationUrl::class, 'https://{contact_id}.example.invalid/'],
     ] as [$class, $value]) {
         $rejected = false;
         try { $om->create($class)->setValue($value)->beforeSave(); }

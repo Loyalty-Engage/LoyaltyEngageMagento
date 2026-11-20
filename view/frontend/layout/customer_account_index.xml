@@ -1,9 +1,15 @@
 <?xml version="1.0"?>
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-account.css"/>
+        <script src="LoyaltyEngage_LoyaltyShop::js/referral-copy.js"/>
+    </head>
     <body>
         <referenceContainer name="content">
             <block class="LoyaltyEngage\LoyaltyShop\Block\Enrollment\Customer" name="loyaltyshop.account.opt_in"
                    template="LoyaltyEngage_LoyaltyShop::enrollment/account.phtml" after="-"/>
+            <block class="LoyaltyEngage\LoyaltyShop\Block\Referral\Account" name="loyaltyshop.account.invitation"
+                   template="LoyaltyEngage_LoyaltyShop::referral/account.phtml" after="loyaltyshop.account.opt_in" cacheable="false"/>
         </referenceContainer>
     </body>
 </page>

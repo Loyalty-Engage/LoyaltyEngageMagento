@@ -83,6 +83,18 @@
         </index>
     </table>
 
+    <table name="loyaltyshop_customer_contact" resource="default" engine="innodb" comment="Loyalty Engage Contact IDs per Customer and Store">
+        <column xsi:type="int" name="customer_id" unsigned="true" nullable="false"/>
+        <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false"/>
+        <column xsi:type="varchar" name="le_contact_id" nullable="false" length="255" comment="Loyalty Engage Contact ID"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="customer_id"/><column name="store_id"/></constraint>
+        <constraint xsi:type="foreign" referenceId="LE_CUSTOMER_CONTACT_CUSTOMER" table="loyaltyshop_customer_contact"
+                    column="customer_id" referenceTable="customer_entity" referenceColumn="entity_id" onDelete="CASCADE"/>
+        <constraint xsi:type="foreign" referenceId="LE_CUSTOMER_CONTACT_STORE" table="loyaltyshop_customer_contact"
+                    column="store_id" referenceTable="store" referenceColumn="store_id" onDelete="CASCADE"/>
+        <index referenceId="LE_CUSTOMER_CONTACT_STORE_ID" indexType="btree"><column name="store_id"/></index>
+    </table>
+
     <table name="loyaltyshop_order_data" resource="default" engine="innodb" comment="Loyalty order state">
         <column xsi:type="int" name="order_id" unsigned="true" nullable="false" comment="Sales Order ID"/>
         <column xsi:type="smallint" name="store_id" unsigned="true" nullable="false" comment="Store ID"/>

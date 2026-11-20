@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
-    <head><script src="LoyaltyEngage_LoyaltyShop::js/enrollment.js"/></head>
+    <head>
+        <css src="LoyaltyEngage_LoyaltyShop::css/loyalty-account.css"/>
+        <script src="LoyaltyEngage_LoyaltyShop::js/enrollment.js"/>
+    </head>
     <body><referenceContainer name="content">
         <block class="LoyaltyEngage\LoyaltyShop\Block\Wallet\Checkout" name="loyaltyshop.wallet.payment" before="-" template="LoyaltyEngage_LoyaltyShop::wallet/checkout.phtml"/>
     </referenceContainer>

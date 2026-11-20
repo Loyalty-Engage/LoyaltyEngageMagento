@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.10] - 2026-11-20
+
+### Added
+- Accept optional `le_contact_id` on the customer update API and store it per customer and store view. It is not a customer EAV attribute and is not used for membership checks or CSV exports.
+- Add an optional, store-specific invitation link in My Account. It appears only for the signed-in customer with a contact ID in that store and a configured HTTPS destination.
+
+### Changed
+- Give account enrollment, invitations and wallet panels a responsive layout while retaining the active storefront theme's typography and native button/input styles.
+
+### Fixed
+- Resolve wallet checkout and application against Magento's current-store session cart. An unreserved selection does not carry over when switching store views.
+
+### Verification
+- Magento DI compilation, 233 PHP tests, 30 JavaScript tests, 15 customer REST checks, 292 admin configuration checks, and 54 wallet payment checks per store passed.
+- Luma and Hyva browser tests covered invitation visibility and clipboard output, independent store balances, and applying/removing wallet credit after switching stores with the same cart.
+- Additional regressions covered enrollment, CSV export, wallet recovery and concurrency, and 39 wallet coin checks per store with a fake Loyalty Engage transport.
+
 ## [2.6.9] - 2026-11-19
 
 ### Added

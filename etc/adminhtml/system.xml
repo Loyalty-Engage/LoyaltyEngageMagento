@@ -11,6 +11,14 @@
             <tab>loyalty_settings</tab>
             <resource>LoyaltyEngage_LoyaltyShop::config</resource>
 
+            <group id="referral" translate="label" sortOrder="96" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Customer Invitations</label>
+                <field id="url_template" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Invitation URL Template</label>
+                    <backend_model>LoyaltyEngage\LoyaltyShop\Model\Config\Backend\InvitationUrl</backend_model>
+                    <comment><![CDATA[Leave empty to disable. Enter an HTTPS URL with {contact_id} exactly once in the path or query, e.g. https://shop.example.com/invite/{contact_id}. Use the actual referral destination issued for your program.]]></comment>
+                </field>
+            </group>
             <group id="enrollment" translate="label" sortOrder="95" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Loyalty Enrollment</label>
                 <field id="mode" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">

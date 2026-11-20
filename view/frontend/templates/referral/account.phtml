@@ -1,0 +1,24 @@
+<?php
+/** @var \LoyaltyEngage\LoyaltyShop\Block\Referral\Account $block */
+$url = $block->getInvitationUrl();
+if ($url === null) { return; }
+?>
+<section class="le-panel" data-loyalty-referral aria-labelledby="loyalty-referral-title">
+    <h2 class="le-panel__title" id="loyalty-referral-title"><?= $block->escapeHtml(__('Invite someone')) ?></h2>
+    <p class="le-panel__intro"><?= $block->escapeHtml(__('Share your personal link with someone you would like to invite.')) ?></p>
+    <label class="label le-panel__label" for="loyalty-referral-url"><?= $block->escapeHtml(__('Your invitation link')) ?></label>
+    <div class="le-panel__row">
+        <input class="input-text form-input le-panel__input" id="loyalty-referral-url" type="url"
+               value="<?= $block->escapeHtmlAttr($url) ?>" data-loyalty-referral-url readonly>
+        <button class="action primary btn btn-primary le-panel__button" type="button" data-loyalty-referral-copy>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">
+                <rect x="8" y="8" width="12" height="12" rx="2"/>
+                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+            </svg>
+            <?= $block->escapeHtml(__('Copy invitation link')) ?>
+        </button>
+    </div>
+    <p class="le-panel__status" role="status" data-loyalty-referral-status
+       data-copied="<?= $block->escapeHtmlAttr(__('Invitation link copied.')) ?>"
+       data-manual="<?= $block->escapeHtmlAttr(__('Copy the selected link to share it.')) ?>"></p>
+</section>
